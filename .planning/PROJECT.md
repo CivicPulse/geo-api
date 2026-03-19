@@ -12,15 +12,14 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] PostgreSQL + PostGIS data storage — Validated in Phase 1: Foundation
+- [x] Plugin-style architecture for geocoding/validation service providers — Validated in Phase 1: Foundation
 
 ### Active
 
 - [ ] Geocoding with multi-service caching and admin-overridable official records
 - [ ] Address validation/verification with USPS-standard normalization
 - [ ] Batch support for both geocoding and validation endpoints
-- [ ] PostgreSQL + PostGIS data storage
-- [ ] Plugin-style architecture for geocoding/validation service providers
 
 ### Out of Scope
 
@@ -60,4 +59,4 @@ Provide a single, reliable source of geocoded and validated address data across 
 | PostGIS for geo storage | Native spatial indexing and queries for geo points | — Pending |
 
 ---
-*Last updated: 2026-03-19 after initialization*
+*Last updated: 2026-03-19 after Phase 1: Foundation complete*
