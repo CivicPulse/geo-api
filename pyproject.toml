@@ -19,6 +19,7 @@ dependencies = [
     "typer>=0.24.1",
     "usaddress-scourgify>=0.6.0",
     "psycopg2-binary>=2.9.11",
+    "fiona>=1.10.0",
 ]
 
 [build-system]
