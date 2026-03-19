@@ -1,0 +1,8 @@
+import enum
+
+
+class LocationType(str, enum.Enum):
+    ROOFTOP = "ROOFTOP"
+    RANGE_INTERPOLATED = "RANGE_INTERPOLATED"
+    GEOMETRIC_CENTER = "GEOMETRIC_CENTER"
+    APPROXIMATE = "APPROXIMATE"
