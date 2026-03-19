@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-03-19T05:43:25.340Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-03-19T15:20:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 03 — validation and data import
+**Current focus:** Phase 03 — validation-and-data-import
 
 ## Current Position
 
-Phase: 03 (validation and data import) — CONTEXT GATHERED
-Plan: 0 of TBD
+Phase: 03 (validation-and-data-import) — EXECUTING
+Plan: 3 of 3
 
 ## Performance Metrics
 
@@ -76,6 +76,13 @@ Recent decisions affecting current work:
 - [Phase 02 Plan 02]: GEO-07 custom coordinate stored as GeocodingResult(provider_name="admin_override") not AdminOverride table — uniform OfficialGeocoding pointer
 - [Phase 02 Plan 02]: refresh() delegates to geocode(force_refresh=True) — no duplication of provider loop; returns refreshed_providers list
 - [Phase 02 Plan 02]: confidence=1.0 for admin_override; reason stored in raw_response JSON field
+- [Phase 03 Plan 01]: ValidationResultORM alias in models/__init__.py avoids name collision with ValidationResult dataclass in providers/schemas.py
+- [Phase 03 Plan 01]: postal_code is String(10) not String(5) — scourgify preserves ZIP+4 (e.g. "31201-5678") in output
+- [Phase 03 Plan 01]: ValidationProvider ABC implementations return typed ValidationResult dataclass (not dict) — base.py signature says dict but provider returns dataclass; consistent with GeocodingProvider pattern
+- [Phase 03 Plan 02]: Typer single-command app — runner.invoke(app, [file, ...]) without subcommand prefix; "import" prefix causes "unexpected extra argument" parse error
+- [Phase 03 Plan 02]: fiona.transform.transform_geom used for SHP CRS reprojection (EPSG:2240 to EPSG:4326); geopandas not needed
+- [Phase 03 Plan 02]: geocoding_results upsert uses ON CONFLICT DO UPDATE (not DO NOTHING) to refresh coordinates on re-import of updated GIS data
+- [Phase 03 Plan 02]: OfficialGeocoding auto-set: check admin_overrides first, then INSERT ON CONFLICT (address_id) DO NOTHING — preserves any existing official record
 
 ### Pending Todos
 
@@ -90,5 +97,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-19
-Stopped at: Gathered 03-CONTEXT.md for Phase 3
-Resume file: .planning/phases/03-validation-and-data-import/03-CONTEXT.md
+Stopped at: Completed 03-02-PLAN.md
+Resume file: .planning/phases/03-validation-and-data-import/03-03-PLAN.md

@@ -21,12 +21,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Address Validation
 
-- [ ] **VAL-01**: API can validate a single US address and return USPS-standardized corrected address(es)
-- [ ] **VAL-02**: API accepts freeform string input for validation (e.g., "123 Main Street Anytown GA 30001")
-- [ ] **VAL-03**: API accepts structured field input for validation (street, city, state, zip as separate fields)
-- [ ] **VAL-04**: API returns all possible corrected addresses ranked with confidence scores when input is ambiguous
-- [ ] **VAL-05**: API normalizes address components to USPS standards (abbreviations, casing, formatting)
-- [ ] **VAL-06**: API performs ZIP+4 delivery point validation to verify an address actually receives mail
+- [x] **VAL-01**: API can validate a single US address and return USPS-standardized corrected address(es)
+- [x] **VAL-02**: API accepts freeform string input for validation (e.g., "123 Main Street Anytown GA 30001")
+- [x] **VAL-03**: API accepts structured field input for validation (street, city, state, zip as separate fields)
+- [x] **VAL-04**: API returns all possible corrected addresses ranked with confidence scores when input is ambiguous
+- [x] **VAL-05**: API normalizes address components to USPS standards (abbreviations, casing, formatting)
+- [x] **VAL-06**: API performs ZIP+4 delivery point validation to verify an address actually receives mail
 
 ### Data Import
 
@@ -96,12 +96,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GEO-07 | Phase 2 — Geocoding | Complete |
 | GEO-08 | Phase 2 — Geocoding | Complete |
 | GEO-09 | Phase 2 — Geocoding | Complete |
-| VAL-01 | Phase 3 — Validation and Data Import | Pending |
-| VAL-02 | Phase 3 — Validation and Data Import | Pending |
-| VAL-03 | Phase 3 — Validation and Data Import | Pending |
-| VAL-04 | Phase 3 — Validation and Data Import | Pending |
-| VAL-05 | Phase 3 — Validation and Data Import | Pending |
-| VAL-06 | Phase 3 — Validation and Data Import | Pending |
+| VAL-01 | Phase 3 — Validation and Data Import | Complete |
+| VAL-02 | Phase 3 — Validation and Data Import | Complete |
+| VAL-03 | Phase 3 — Validation and Data Import | Complete |
+| VAL-04 | Phase 3 — Validation and Data Import | Complete |
+| VAL-05 | Phase 3 — Validation and Data Import | Complete |
+| VAL-06 | Phase 3 — Validation and Data Import | Complete |
 | DATA-01 | Phase 3 — Validation and Data Import | Pending |
 | DATA-02 | Phase 3 — Validation and Data Import | Pending |
 | DATA-03 | Phase 3 — Validation and Data Import | Pending |
