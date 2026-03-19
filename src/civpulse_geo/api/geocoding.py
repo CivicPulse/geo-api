@@ -2,13 +2,18 @@
 
 Endpoints:
 - POST /geocode — geocode a freeform address (cache-first)
+- POST /geocode/batch — batch geocode multiple addresses concurrently (INFRA-03)
 - PUT /geocode/{address_hash}/official — admin: set official result (GEO-06/07)
 - POST /geocode/{address_hash}/refresh — admin: force re-query all providers (GEO-08)
 - GET /geocode/{address_hash}/providers/{provider_name} — fetch provider-specific result (GEO-09)
 """
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from civpulse_geo.config import settings
 from civpulse_geo.database import get_db
 from civpulse_geo.schemas.geocoding import (
     GeocodeRequest,
@@ -18,6 +23,13 @@ from civpulse_geo.schemas.geocoding import (
     OfficialResponse,
     RefreshResponse,
     ProviderResultResponse,
+)
+from civpulse_geo.schemas.batch import (
+    BatchGeocodeRequest,
+    BatchGeocodeResponse,
+    BatchGeocodeResultItem,
+    BatchItemError,
+    classify_exception,
 )
 from civpulse_geo.services.geocoding import GeocodingService
 
@@ -184,3 +196,115 @@ async def get_provider_result(
         confidence=r.confidence,
         raw_response=r.raw_response,
     )
+
+
+# ---------------------------------------------------------------------------
+# Batch geocoding (INFRA-03)
+# ---------------------------------------------------------------------------
+
+
+async def _geocode_one(
+    index: int,
+    freeform: str,
+    semaphore: asyncio.Semaphore,
+    service: GeocodingService,
+    db: AsyncSession,
+    providers: dict,
+    http_client,
+) -> BatchGeocodeResultItem:
+    """Process a single address within a batch. Catches all exceptions per-item."""
+    try:
+        async with semaphore:
+            result = await service.geocode(
+                freeform=freeform, db=db, providers=providers, http_client=http_client
+            )
+        # Transform ORM results to Pydantic (same pattern as single geocode endpoint)
+        provider_results = [
+            GeocodeProviderResult(
+                provider_name=r.provider_name,
+                latitude=r.latitude,
+                longitude=r.longitude,
+                location_type=r.location_type.value if r.location_type else None,
+                confidence=r.confidence,
+            )
+            for r in result["results"]
+        ]
+        official = None
+        if result.get("official"):
+            o = result["official"]
+            official = GeocodeProviderResult(
+                provider_name=o.provider_name,
+                latitude=o.latitude,
+                longitude=o.longitude,
+                location_type=o.location_type.value if o.location_type else None,
+                confidence=o.confidence,
+            )
+        data = GeocodeResponse(
+            address_hash=result["address_hash"],
+            normalized_address=result["normalized_address"],
+            cache_hit=result["cache_hit"],
+            results=provider_results,
+            official=official,
+        )
+        return BatchGeocodeResultItem(
+            index=index,
+            original_input=freeform,
+            status_code=200,
+            status="success",
+            data=data,
+            error=None,
+        )
+    except Exception as exc:
+        status_code, status, message = classify_exception(exc)
+        return BatchGeocodeResultItem(
+            index=index,
+            original_input=freeform,
+            status_code=status_code,
+            status=status,
+            data=None,
+            error=BatchItemError(message=message),
+        )
+
+
+@router.post("/batch", response_model=BatchGeocodeResponse)
+async def batch_geocode(
+    body: BatchGeocodeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch geocode multiple addresses concurrently.
+
+    Returns per-item results with individual status codes. One item failing
+    does not affect other items. Returns outer 422 only when ALL items fail.
+    """
+    if not body.addresses:
+        return BatchGeocodeResponse(total=0, succeeded=0, failed=0, results=[])
+
+    semaphore = asyncio.Semaphore(settings.batch_concurrency_limit)
+    service = GeocodingService()
+
+    items = await asyncio.gather(*[
+        _geocode_one(
+            index=i,
+            freeform=addr,
+            semaphore=semaphore,
+            service=service,
+            db=db,
+            providers=request.app.state.providers,
+            http_client=request.app.state.http_client,
+        )
+        for i, addr in enumerate(body.addresses)
+    ])
+
+    succeeded = sum(1 for item in items if item.status_code == 200)
+    failed = len(items) - succeeded
+    response_body = BatchGeocodeResponse(
+        total=len(items),
+        succeeded=succeeded,
+        failed=failed,
+        results=list(items),
+    )
+
+    if succeeded == 0 and failed > 0:
+        return JSONResponse(status_code=422, content=response_body.model_dump())
+    return response_body
