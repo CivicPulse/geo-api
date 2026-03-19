@@ -1,5 +1,8 @@
 import pytest
+from importlib.metadata import metadata
 from unittest.mock import AsyncMock
+
+_expected = metadata("civpulse-geo")
 
 
 @pytest.mark.asyncio
@@ -9,6 +12,12 @@ async def test_health_ok(test_client, override_db):
     data = response.json()
     assert data["status"] == "ok"
     assert data["database"] == "connected"
+    assert data["name"] == _expected["Name"]
+    assert data["version"] == _expected["Version"]
+    assert data["description"] == _expected["Summary"]
+    assert isinstance(data["authors"], list)
+    assert len(data["authors"]) > 0
+    assert "commit" in data
 
 
 @pytest.mark.asyncio

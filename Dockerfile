@@ -14,6 +14,8 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
 ENV PATH="/app/.venv/bin:$PATH"
 
 CMD ["bash", "scripts/docker-entrypoint.sh"]
