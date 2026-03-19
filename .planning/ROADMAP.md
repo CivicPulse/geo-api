@@ -63,9 +63,9 @@ Plans:
 **Plans:** 3/3 plans complete
 
 Plans:
-- [ ] 03-01-PLAN.md — Validation data layer: ValidationResult ORM model, Alembic migration, ScourgifyValidationProvider with tests
-- [ ] 03-02-PLAN.md — GIS Import CLI: multi-format parsers (GeoJSON/KML/SHP), upsert loop, OfficialGeocoding auto-set
-- [ ] 03-03-PLAN.md — Validation API: ValidationService, Pydantic schemas, POST /validate endpoint, app wiring
+- [x] 03-01-PLAN.md — Validation data layer: ValidationResult ORM model, Alembic migration, ScourgifyValidationProvider with tests
+- [x] 03-02-PLAN.md — GIS Import CLI: multi-format parsers (GeoJSON/KML/SHP), upsert loop, OfficialGeocoding auto-set
+- [x] 03-03-PLAN.md — Validation API: ValidationService, Pydantic schemas, POST /validate endpoint, app wiring
 
 ### Phase 4: Batch and Hardening
 **Goal**: Callers can submit multiple addresses in a single geocoding or validation request and receive per-item results with individual status codes, completing the full v1 HTTP surface
@@ -75,7 +75,11 @@ Plans:
   1. A POST to the batch geocode endpoint with N addresses returns N result objects; one address failing does not prevent the remaining addresses from being processed and returned
   2. A POST to the batch validation endpoint with N addresses returns N result objects with the same partial-failure isolation
   3. Each item in a batch response includes its own status code and error message so the caller can identify exactly which inputs succeeded and which failed
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Batch schemas, config settings, and POST /geocode/batch endpoint with per-item error isolation
+- [ ] 04-02-PLAN.md — POST /validate/batch endpoint with per-item error isolation and full regression test
 
 ## Progress
 
@@ -88,4 +92,4 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
 | 2. Geocoding | 2/2 | Complete   | 2026-03-19 |
 | 3. Validation and Data Import | 3/3 | Complete   | 2026-03-19 |
-| 4. Batch and Hardening | 0/TBD | Not started | - |
+| 4. Batch and Hardening | 0/2 | Not started | - |
