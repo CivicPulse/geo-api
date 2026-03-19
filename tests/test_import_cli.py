@@ -193,3 +193,44 @@ class TestImportGISCommand:
             ["fake.csv", "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
         )
         assert result.exit_code != 0
+
+    def test_import_skips_official_when_admin_override_exists(self):
+        """When admin_overrides row exists for an address, CLI does NOT insert into official_geocoding."""
+        from typer.testing import CliRunner
+        from civpulse_geo.cli import app
+
+        runner = CliRunner()
+        mock_engine = MagicMock()
+        mock_conn = MagicMock()
+        mock_engine.return_value.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.return_value.connect.return_value.__exit__ = MagicMock(return_value=False)
+
+        # Track call sequence to distinguish address upsert, geocoding upsert,
+        # admin_overrides check, and official_geocoding insert
+        call_count = {"n": 0}
+        def execute_side_effect(stmt, params=None):
+            call_count["n"] += 1
+            result = MagicMock()
+
+            sql_text = getattr(stmt, 'text', str(stmt))
+
+            if "admin_overrides" in sql_text:
+                # Return a row indicating admin override EXISTS
+                result.fetchone.return_value = (99,)
+                return result
+            elif "official_geocoding" in sql_text:
+                # This should NOT be reached when admin override exists
+                pytest.fail("official_geocoding INSERT should not execute when admin_overrides row exists")
+            else:
+                # Address upsert or geocoding_results upsert
+                result.fetchone.return_value = (1, True)
+                return result
+
+        mock_conn.execute.side_effect = execute_side_effect
+
+        with patch("civpulse_geo.cli.create_engine", mock_engine):
+            result = runner.invoke(
+                app,
+                [str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+            )
+            assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"

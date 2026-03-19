@@ -39,7 +39,15 @@ def import_gis(
         help="Provider name for imported geocoding records."
     ),
 ) -> None:
-    """Import GIS address data as geocoding results for a provider."""
+    """Import GIS address data as geocoding results for a provider.
+
+    DATA-03 operational constraint: GIS data MUST be imported before the API
+    geocodes addresses for the same locations. The OfficialGeocoding INSERT uses
+    ON CONFLICT (address_id) DO NOTHING, so any existing official record is
+    preserved. If census geocoding runs first, county GIS will not displace it.
+    Use PUT /geocode/{hash}/official to correct the record when ordering is
+    violated.
+    """
     db_url = database_url or settings.database_url_sync
 
     # Auto-detect format from file extension
@@ -189,7 +197,11 @@ def _import_feature(
     ).fetchone()
 
     if override_row is None:
-        # No admin override — safe to auto-set (DO NOTHING preserves existing)
+        # No admin override -- safe to auto-set official.
+        # DATA-03 operational constraint: ON CONFLICT DO NOTHING means the
+        # first writer wins. GIS import must run before API geocoding so that
+        # county data becomes the default official. If ordering is violated,
+        # use PUT /geocode/{hash}/official to correct the record.
         conn.execute(
             text("""
                 INSERT INTO official_geocoding (address_id, geocoding_result_id)
