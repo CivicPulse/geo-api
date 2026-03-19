@@ -44,7 +44,11 @@ Plans:
   3. Each provider's result is stored as a separate record; a caller can request results from a specific provider for comparison
   4. An admin can set the official geocode record for an address to any provider's result or to a custom lat/lng coordinate not from any provider
   5. An admin can force a cache refresh for a specific address, triggering a live re-query from all providers and updating stored results
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Census provider adapter, Pydantic schemas, cache-first service layer, and POST /geocode endpoint
+- [ ] 02-02-PLAN.md — Admin set-official, custom coordinate, cache refresh, and provider-specific query endpoints
 
 ### Phase 3: Validation and Data Import
 **Goal**: Callers can validate and USPS-standardize US addresses through the API, and the Bibb County GIS dataset is importable as a first-class provider whose results serve as the default official record when no admin override exists
@@ -71,12 +75,12 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3 → 4
+Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel with Phase 2 if needed.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
-| 2. Geocoding | 0/TBD | Not started | - |
+| 2. Geocoding | 0/2 | Not started | - |
 | 3. Validation and Data Import | 0/TBD | Not started | - |
 | 4. Batch and Hardening | 0/TBD | Not started | - |
