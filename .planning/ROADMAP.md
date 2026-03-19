@@ -96,7 +96,7 @@ Plans:
 **Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 05-01-PLAN.md — Admin override write fix, import-order documentation, and cross-phase integration tests
+- [x] 05-01-PLAN.md — Admin override write fix, import-order documentation, and cross-phase integration tests
 
 ### Phase 6: Documentation & Traceability Cleanup
 **Goal**: Fix SUMMARY frontmatter and ROADMAP checkbox documentation gaps
