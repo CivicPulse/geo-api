@@ -30,10 +30,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Data Import
 
-- [ ] **DATA-01**: CLI tool (Typer) can bulk import local GIS data files (GeoJSON, KML, SHP) as a provider's geocode results
-- [ ] **DATA-02**: Imported county GIS data is stored as a provider ("bibb_county_gis") using the same schema as online service results
-- [ ] **DATA-03**: When county GIS data exists for an address and no admin override is set, the county data is used as the default official record
-- [ ] **DATA-04**: CLI import tool supports re-importing updated data exports without creating duplicate records (upsert behavior)
+- [x] **DATA-01**: CLI tool (Typer) can bulk import local GIS data files (GeoJSON, KML, SHP) as a provider's geocode results
+- [x] **DATA-02**: Imported county GIS data is stored as a provider ("bibb_county_gis") using the same schema as online service results
+- [x] **DATA-03**: When county GIS data exists for an address and no admin override is set, the county data is used as the default official record
+- [x] **DATA-04**: CLI import tool supports re-importing updated data exports without creating duplicate records (upsert behavior)
 
 ### Infrastructure
 
@@ -102,10 +102,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VAL-04 | Phase 3 — Validation and Data Import | Complete |
 | VAL-05 | Phase 3 — Validation and Data Import | Complete |
 | VAL-06 | Phase 3 — Validation and Data Import | Complete |
-| DATA-01 | Phase 3 — Validation and Data Import | Pending |
-| DATA-02 | Phase 3 — Validation and Data Import | Pending |
-| DATA-03 | Phase 3 — Validation and Data Import | Pending |
-| DATA-04 | Phase 3 — Validation and Data Import | Pending |
+| DATA-01 | Phase 3 — Validation and Data Import | Complete |
+| DATA-02 | Phase 3 — Validation and Data Import | Complete |
+| DATA-03 | Phase 3 — Validation and Data Import | Complete |
+| DATA-04 | Phase 3 — Validation and Data Import | Complete |
 | INFRA-03 | Phase 4 — Batch and Hardening | Pending |
 | INFRA-04 | Phase 4 — Batch and Hardening | Pending |
 | INFRA-06 | Phase 4 — Batch and Hardening | Pending |
