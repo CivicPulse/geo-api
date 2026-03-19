@@ -14,6 +14,8 @@ Build an internal geocoding and address validation caching API in four phases. T
 - [x] **Phase 2: Geocoding** - Multi-provider geocoding with cache, official record, and admin override (completed 2026-03-19)
 - [x] **Phase 3: Validation and Data Import** - USPS address validation and Bibb County GIS CLI import (completed 2026-03-19)
 - [x] **Phase 4: Batch and Hardening** - Batch endpoints, per-item error handling, and HTTP layer completion (completed 2026-03-19)
+- [ ] **Phase 5: Fix Admin Override & Import Order** - Fix admin_overrides table write in API; document GIS-first import constraint (gap closure)
+- [ ] **Phase 6: Documentation & Traceability Cleanup** - Fix SUMMARY frontmatter and ROADMAP checkbox documentation gaps (gap closure)
 
 ## Phase Details
 
@@ -78,8 +80,36 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 04-01-PLAN.md — Batch schemas, config settings, and POST /geocode/batch endpoint with per-item error isolation
-- [ ] 04-02-PLAN.md — POST /validate/batch endpoint with per-item error isolation and full regression test
+- [x] 04-01-PLAN.md — Batch schemas, config settings, and POST /geocode/batch endpoint with per-item error isolation
+- [x] 04-02-PLAN.md — POST /validate/batch endpoint with per-item error isolation and full regression test
+
+### Phase 5: Fix Admin Override & Import Order
+**Goal**: Fix admin_overrides table write in API set_official; document GIS-first import constraint
+**Depends on**: Phase 2, Phase 3
+**Requirements**: DATA-03, GEO-07
+**Gap Closure**: Closes gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. Calling PUT /geocode/{hash}/official with custom coordinates writes a row to admin_overrides with the correct lat/lng/reason
+  2. Calling set_official again for the same address updates the existing admin_overrides row (upsert, not duplicate)
+  3. CLI import skips auto-setting official for addresses that have an admin_overrides row
+  4. The ON CONFLICT DO NOTHING behavior in CLI import is documented with its operational constraint
+**Plans:** 0/1 plans complete
+
+Plans:
+- [ ] 05-01-PLAN.md — Admin override write fix, import-order documentation, and cross-phase integration tests
+
+### Phase 6: Documentation & Traceability Cleanup
+**Goal**: Fix SUMMARY frontmatter and ROADMAP checkbox documentation gaps
+**Depends on**: Nothing
+**Requirements**: GEO-06, GEO-08, GEO-09
+**Gap Closure**: Closes documentation gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. 02-02-SUMMARY.md requirements_completed array includes GEO-06, GEO-07, GEO-08, GEO-09
+  2. All completed plan checkboxes in ROADMAP.md are checked
+**Plans:** 0/1 plans complete
+
+Plans:
+- [ ] 06-01-PLAN.md — Fix SUMMARY frontmatter and ROADMAP documentation gaps
 
 ## Progress
 
@@ -90,6 +120,8 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
-| 2. Geocoding | 2/2 | Complete   | 2026-03-19 |
-| 3. Validation and Data Import | 3/3 | Complete   | 2026-03-19 |
-| 4. Batch and Hardening | 2/2 | Complete   | 2026-03-19 |
+| 2. Geocoding | 2/2 | Complete | 2026-03-19 |
+| 3. Validation and Data Import | 3/3 | Complete | 2026-03-19 |
+| 4. Batch and Hardening | 2/2 | Complete | 2026-03-19 |
+| 5. Fix Admin Override & Import Order | 0/1 | Pending | — |
+| 6. Documentation & Traceability Cleanup | 0/1 | Pending | — |
