@@ -125,26 +125,38 @@ class TestUnsupportedExtension:
 # ──────────────────────────────────────────────────────────────────────────────
 
 class TestImportGISCommand:
+    """Tests for the import_gis CLI command.
+
+    The Typer app has a single command registered as @app.command("import").
+    When a Typer app has only one command, invoking the app directly passes
+    arguments to that command — no subcommand name prefix needed.
+    """
+
+    def _make_mock_engine(self):
+        """Build a mock SQLAlchemy engine that returns address id=1 from all execute calls."""
+        mock_engine = MagicMock()
+        mock_conn = MagicMock()
+        mock_engine.return_value.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_engine.return_value.connect.return_value.__exit__ = MagicMock(return_value=False)
+        mock_result = MagicMock()
+        # fetchone returns (id, was_inserted=True) — address upsert & geocoding upsert
+        mock_result.fetchone.return_value = (1, True)
+        mock_result.scalar_one_or_none.return_value = None  # no admin override
+        mock_conn.execute.return_value = mock_result
+        return mock_engine, mock_conn
+
     def test_import_geojson_cli_runs(self):
         """CLI import command accepts a GeoJSON file and completes."""
         from typer.testing import CliRunner
         from civpulse_geo.cli import app
 
         runner = CliRunner()
+        mock_engine, mock_conn = self._make_mock_engine()
 
-        with patch("civpulse_geo.cli.create_engine") as mock_engine:
-            mock_conn = MagicMock()
-            mock_engine.return_value.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
-            mock_engine.return_value.connect.return_value.__exit__ = MagicMock(return_value=False)
-            # Mock execute to return address IDs
-            mock_result = MagicMock()
-            mock_result.fetchone.return_value = (1,)
-            mock_result.scalar_one_or_none.return_value = 1
-            mock_conn.execute.return_value = mock_result
-
+        with patch("civpulse_geo.cli.create_engine", mock_engine):
             result = runner.invoke(
                 app,
-                ["import", str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+                [str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
             )
             assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
             output = result.output.lower()
@@ -156,19 +168,12 @@ class TestImportGISCommand:
         from civpulse_geo.cli import app
 
         runner = CliRunner()
+        mock_engine, mock_conn = self._make_mock_engine()
 
-        with patch("civpulse_geo.cli.create_engine") as mock_engine:
-            mock_conn = MagicMock()
-            mock_engine.return_value.connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
-            mock_engine.return_value.connect.return_value.__exit__ = MagicMock(return_value=False)
-            mock_result = MagicMock()
-            mock_result.fetchone.return_value = (1,)
-            mock_result.scalar_one_or_none.return_value = 1
-            mock_conn.execute.return_value = mock_result
-
+        with patch("civpulse_geo.cli.create_engine", mock_engine):
             result = runner.invoke(
                 app,
-                ["import", str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+                [str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
             )
             assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
             # Verify that execute was called with SQL containing bibb_county_gis
@@ -185,6 +190,6 @@ class TestImportGISCommand:
         runner = CliRunner()
         result = runner.invoke(
             app,
-            ["import", "fake.csv", "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+            ["fake.csv", "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
         )
         assert result.exit_code != 0
