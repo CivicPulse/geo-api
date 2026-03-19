@@ -44,7 +44,7 @@ Plans:
   3. Each provider's result is stored as a separate record; a caller can request results from a specific provider for comparison
   4. An admin can set the official geocode record for an address to any provider's result or to a custom lat/lng coordinate not from any provider
   5. An admin can force a cache refresh for a specific address, triggering a live re-query from all providers and updating stored results
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 02-01-PLAN.md — Census provider adapter, Pydantic schemas, cache-first service layer, and POST /geocode endpoint
@@ -81,6 +81,6 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
-| 2. Geocoding | 0/2 | Not started | - |
+| 2. Geocoding | 1/2 | In Progress|  |
 | 3. Validation and Data Import | 0/TBD | Not started | - |
 | 4. Batch and Hardening | 0/TBD | Not started | - |
