@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-02-PLAN.md
-last_updated: "2026-03-19T16:02:56.763Z"
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-03-19T17:15:00.000Z"
 progress:
-  total_phases: 4
+  total_phases: 6
   completed_phases: 4
-  total_plans: 10
+  total_plans: 11
   completed_plans: 10
 ---
 
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 04 — batch-and-hardening
+**Current focus:** Phase 05 — fix-admin-override-and-import-order
 
 ## Current Position
 
-Phase: 04 (batch-and-hardening) — EXECUTING
-Plan: 2 of 2
+Phase: 05 (fix-admin-override-and-import-order) — COMPLETE
+Plan: 1 of 1 (COMPLETE)
 
 ## Performance Metrics
 
@@ -95,6 +95,9 @@ Recent decisions affecting current work:
 - [Phase 04]: _validate_one() does not take http_client -- ValidationService uses scourgify (offline), no HTTP client needed; differs from geocode batch
 - [Phase 04]: Uses request.app.state.validation_providers (NOT .providers) -- validation providers registered separately from geocoding providers in app.state
 - [Phase 04]: asyncio.gather without return_exceptions=True is correct -- _validate_one() catches all exceptions, always returns BatchValidateResultItem
+- [Phase 05 Plan 01]: AdminOverride upsert belongs ONLY in set_official else-branch (GEO-07 custom path); if has_result_id: branch (GEO-06) must not write to admin_overrides
+- [Phase 05 Plan 01]: AdminOverride upsert uses index_elements=["address_id"] matching unique=True constraint on AdminOverride model
+- [Phase 05 Plan 01]: DATA-03 documented in both import_gis docstring and inline comment near override_row guard to be visible at two reading points
 
 ### Pending Todos
 

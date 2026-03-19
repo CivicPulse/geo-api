@@ -15,7 +15,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **GEO-04**: API returns confidence/accuracy score on each geocode result
 - [x] **GEO-05**: API response indicates whether result came from cache or live service call
 - [x] **GEO-06**: Admin can set the "official" geocode record for an address to match any provider's result or a custom coordinate
-- [ ] **GEO-07**: Admin can set a custom lat/lng coordinate as the official location (not from any provider)
+- [x] **GEO-07**: Admin can set a custom lat/lng coordinate as the official location (not from any provider)
 - [x] **GEO-08**: API provides a manual cache refresh endpoint to re-query all providers for a given address
 - [x] **GEO-09**: API can return geocode results from a specific provider for admin comparison workflows
 
@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **DATA-01**: CLI tool (Typer) can bulk import local GIS data files (GeoJSON, KML, SHP) as a provider's geocode results
 - [x] **DATA-02**: Imported county GIS data is stored as a provider ("bibb_county_gis") using the same schema as online service results
-- [ ] **DATA-03**: When county GIS data exists for an address and no admin override is set, the county data is used as the default official record
+- [x] **DATA-03**: When county GIS data exists for an address and no admin override is set, the county data is used as the default official record
 - [x] **DATA-04**: CLI import tool supports re-importing updated data exports without creating duplicate records (upsert behavior)
 
 ### Infrastructure
@@ -93,7 +93,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GEO-04 | Phase 2 — Geocoding | Complete |
 | GEO-05 | Phase 2 — Geocoding | Complete |
 | GEO-06 | Phase 6 — Documentation & Traceability Cleanup | Complete |
-| GEO-07 | Phase 5 — Fix Admin Override & Import Order | Pending |
+| GEO-07 | Phase 5 — Fix Admin Override & Import Order | Complete |
 | GEO-08 | Phase 6 — Documentation & Traceability Cleanup | Complete |
 | GEO-09 | Phase 6 — Documentation & Traceability Cleanup | Complete |
 | VAL-01 | Phase 3 — Validation and Data Import | Complete |
@@ -104,7 +104,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | VAL-06 | Phase 3 — Validation and Data Import | Complete |
 | DATA-01 | Phase 3 — Validation and Data Import | Complete |
 | DATA-02 | Phase 3 — Validation and Data Import | Complete |
-| DATA-03 | Phase 5 — Fix Admin Override & Import Order | Pending |
+| DATA-03 | Phase 5 — Fix Admin Override & Import Order | Complete |
 | DATA-04 | Phase 3 — Validation and Data Import | Complete |
 | INFRA-03 | Phase 4 — Batch and Hardening | Complete |
 | INFRA-04 | Phase 4 — Batch and Hardening | Complete |
