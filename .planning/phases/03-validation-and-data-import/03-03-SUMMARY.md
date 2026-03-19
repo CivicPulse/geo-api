@@ -55,13 +55,7 @@ patterns-established:
   - "Router reads providers from request.app.state.validation_providers (not http_client needed for offline scourgify)"
   - "to_freeform() on ValidateRequest handles both input modes before service call"
 
-requirements-completed:
-  - VAL-01
-  - VAL-02
-  - VAL-03
-  - VAL-04
-  - VAL-05
-  - VAL-06
+requirements-completed: [VAL-01, VAL-02, VAL-03, VAL-04, VAL-05, VAL-06]
 
 # Metrics
 duration: 6min

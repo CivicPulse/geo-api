@@ -76,7 +76,7 @@ patterns-established:
   - "Pattern: Three GeoAlchemy2 alembic helpers in env.py — include_object, writer, render_item — required to prevent broken autogenerate migrations"
   - "Pattern: Async engine for app requests, sync URL for Alembic migrations — never use asyncpg with Alembic"
 
-requirements-completed: [INFRA-05, INFRA-07]
+requirements-completed: []
 
 # Metrics
 duration: 4min
