@@ -202,6 +202,146 @@ class GeocodingService:
             "official": official_result,
         }
 
+    async def set_official(
+        self,
+        address_hash: str,
+        db: AsyncSession,
+        geocoding_result_id: int | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        reason: str | None = None,
+    ) -> dict:
+        """Set the official geocoding result for an address.
+
+        Two mutually exclusive paths:
+        - GEO-06: geocoding_result_id provided → point OfficialGeocoding at existing result
+        - GEO-07: latitude + longitude provided → create admin_override result, set as official
+
+        Args:
+            address_hash: SHA-256 hex identifying the address.
+            db: Async database session.
+            geocoding_result_id: ID of an existing GeocodingResult row for this address.
+            latitude: Custom latitude for admin_override path.
+            longitude: Custom longitude for admin_override path.
+            reason: Optional reason string stored in raw_response.
+
+        Returns:
+            Dict with keys:
+                address_hash (str): The address hash.
+                official (GeocodingResultORM): The new official result row.
+                source (str): "provider_result" or "admin_override".
+
+        Raises:
+            ValueError: If address not found, result not found, or invalid argument combo.
+        """
+        # Validate exactly one path is taken
+        has_result_id = geocoding_result_id is not None
+        has_coords = latitude is not None and longitude is not None
+        if has_result_id and has_coords:
+            raise ValueError(
+                "Provide either geocoding_result_id OR latitude+longitude, not both."
+            )
+        if not has_result_id and not has_coords:
+            raise ValueError(
+                "Provide either geocoding_result_id or latitude+longitude."
+            )
+
+        # Step 1: Look up Address by address_hash
+        addr_result = await db.execute(
+            select(Address).where(Address.address_hash == address_hash)
+        )
+        address = addr_result.scalars().first()
+        if address is None:
+            raise ValueError("Address not found")
+
+        if has_result_id:
+            # GEO-06: verify result belongs to this address
+            gr_result = await db.execute(
+                select(GeocodingResultORM).where(
+                    GeocodingResultORM.id == geocoding_result_id,
+                    GeocodingResultORM.address_id == address.id,
+                )
+            )
+            geocoding_result = gr_result.scalars().first()
+            if geocoding_result is None:
+                raise ValueError("Geocoding result not found for this address")
+
+            # Upsert OfficialGeocoding
+            await db.execute(
+                pg_insert(OfficialGeocoding)
+                .values(
+                    address_id=address.id,
+                    geocoding_result_id=geocoding_result_id,
+                )
+                .on_conflict_do_update(
+                    index_elements=["address_id"],
+                    set_={"geocoding_result_id": geocoding_result_id},
+                )
+            )
+            await db.commit()
+            return {
+                "address_hash": address_hash,
+                "official": geocoding_result,
+                "source": "provider_result",
+            }
+        else:
+            # GEO-07: create synthetic admin_override GeocodingResult
+            ewkt_point = f"SRID=4326;POINT({longitude} {latitude})"
+            raw = {"reason": reason, "source": "admin_override"}
+
+            stmt = (
+                pg_insert(GeocodingResultORM)
+                .values(
+                    address_id=address.id,
+                    provider_name="admin_override",
+                    location=ewkt_point,
+                    latitude=latitude,
+                    longitude=longitude,
+                    location_type=None,
+                    confidence=1.0,
+                    raw_response=raw,
+                )
+                .on_conflict_do_update(
+                    constraint="uq_geocoding_address_provider",
+                    set_={
+                        "location": ewkt_point,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "location_type": None,
+                        "confidence": 1.0,
+                        "raw_response": raw,
+                    },
+                )
+                .returning(GeocodingResultORM.id)
+            )
+            upsert_result = await db.execute(stmt)
+            result_id = upsert_result.scalar_one()
+
+            # Re-query the new/updated ORM row
+            requery_result = await db.execute(
+                select(GeocodingResultORM).where(GeocodingResultORM.id == result_id)
+            )
+            new_result = requery_result.scalars().first()
+
+            # Upsert OfficialGeocoding to point at the new result
+            await db.execute(
+                pg_insert(OfficialGeocoding)
+                .values(
+                    address_id=address.id,
+                    geocoding_result_id=result_id,
+                )
+                .on_conflict_do_update(
+                    index_elements=["address_id"],
+                    set_={"geocoding_result_id": result_id},
+                )
+            )
+            await db.commit()
+            return {
+                "address_hash": address_hash,
+                "official": new_result,
+                "source": "admin_override",
+            }
+
     async def _get_official(
         self,
         db: AsyncSession,

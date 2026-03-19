@@ -132,3 +132,117 @@ async def test_post_geocode_missing_address(patched_app_state):
         response = await client.post("/geocode", json={})
 
     assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (02-02): Admin set_official endpoint — API integration tests
+# ---------------------------------------------------------------------------
+
+MOCK_HASH = "a" * 64
+
+
+def _make_mock_official_result(provider_name="census", latitude=38.845, longitude=-76.928,
+                                confidence=0.8):
+    """Build a mock GeocodingResultORM for official result construction."""
+    from civpulse_geo.models.geocoding import GeocodingResult as GeocodingResultORM
+    row = MagicMock(spec=GeocodingResultORM)
+    row.provider_name = provider_name
+    row.latitude = latitude
+    row.longitude = longitude
+    row.location_type = None
+    row.confidence = confidence
+    return row
+
+
+@pytest.mark.asyncio
+async def test_put_official_existing_result(patched_app_state):
+    """PUT /geocode/{hash}/official with geocoding_result_id returns 200 with updated official."""
+    mock_result = _make_mock_official_result()
+
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.set_official",
+        new_callable=AsyncMock,
+        return_value={
+            "address_hash": MOCK_HASH,
+            "official": mock_result,
+            "source": "provider_result",
+        },
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.put(
+                f"/geocode/{MOCK_HASH}/official",
+                json={"geocoding_result_id": 1},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["address_hash"] == MOCK_HASH
+    assert data["source"] == "provider_result"
+    assert data["official"]["provider_name"] == "census"
+
+
+@pytest.mark.asyncio
+async def test_put_official_custom_coordinate(patched_app_state):
+    """PUT /geocode/{hash}/official with lat/lng returns 200 with admin_override official."""
+    mock_result = _make_mock_official_result(
+        provider_name="admin_override", latitude=33.123, longitude=-83.456, confidence=1.0
+    )
+
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.set_official",
+        new_callable=AsyncMock,
+        return_value={
+            "address_hash": MOCK_HASH,
+            "official": mock_result,
+            "source": "admin_override",
+        },
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.put(
+                f"/geocode/{MOCK_HASH}/official",
+                json={"latitude": 33.123, "longitude": -83.456},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source"] == "admin_override"
+    assert data["official"]["provider_name"] == "admin_override"
+    assert data["official"]["latitude"] == 33.123
+
+
+@pytest.mark.asyncio
+async def test_put_official_unknown_hash(patched_app_state):
+    """PUT /geocode/{nonexistent}/official returns 404 when address not found."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.set_official",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Address not found"),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.put(
+                "/geocode/nonexistent/official",
+                json={"geocoding_result_id": 1},
+            )
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_put_official_invalid_result_id(patched_app_state):
+    """PUT /geocode/{hash}/official with invalid geocoding_result_id returns 404."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.set_official",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Geocoding result not found for this address"),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.put(
+                f"/geocode/{MOCK_HASH}/official",
+                json={"geocoding_result_id": 9999},
+            )
+
+    assert response.status_code == 404
