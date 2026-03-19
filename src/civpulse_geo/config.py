@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     database_url_sync: str = "postgresql+psycopg2://civpulse:civpulse@localhost:5432/civpulse_geo"
     log_level: str = "INFO"
     environment: str = "development"
+    max_batch_size: int = 100
+    batch_concurrency_limit: int = 10
 
 
 settings = Settings()
