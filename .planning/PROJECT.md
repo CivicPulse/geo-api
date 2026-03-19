@@ -17,7 +17,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-- [ ] Geocoding with multi-service caching and admin-overridable official records
+- [x] Geocoding with multi-service caching and admin-overridable official records — Validated in Phase 2: Geocoding
 - [ ] Address validation/verification with USPS-standard normalization
 - [ ] Batch support for both geocoding and validation endpoints
 
@@ -59,4 +59,4 @@ Provide a single, reliable source of geocoded and validated address data across 
 | PostGIS for geo storage | Native spatial indexing and queries for geo points | — Pending |
 
 ---
-*Last updated: 2026-03-19 after Phase 1: Foundation complete*
+*Last updated: 2026-03-19 after Phase 2: Geocoding complete*
