@@ -37,8 +37,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Input addresses are normalized to a canonical form before cache lookup to maximize hit rate
-- [ ] **INFRA-02**: External geocoding/validation providers are implemented as plugins with a common interface
+- [x] **INFRA-01**: Input addresses are normalized to a canonical form before cache lookup to maximize hit rate
+- [x] **INFRA-02**: External geocoding/validation providers are implemented as plugins with a common interface
 - [ ] **INFRA-03**: API supports batch geocoding (multiple addresses in one request) with per-item results and error handling
 - [ ] **INFRA-04**: API supports batch address validation (multiple addresses in one request) with per-item results and error handling
 - [x] **INFRA-05**: API exposes a health/readiness endpoint that verifies database connectivity
@@ -83,8 +83,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 — Foundation | Pending |
-| INFRA-02 | Phase 1 — Foundation | Pending |
+| INFRA-01 | Phase 1 — Foundation | Complete |
+| INFRA-02 | Phase 1 — Foundation | Complete |
 | INFRA-05 | Phase 1 — Foundation | Complete |
 | INFRA-07 | Phase 1 — Foundation | Complete |
 | GEO-01 | Phase 2 — Geocoding | Pending |
