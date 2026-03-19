@@ -1,0 +1,65 @@
+# Project State
+
+## Project Reference
+
+See: .planning/PROJECT.md (updated 2026-03-19)
+
+**Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
+**Current focus:** Phase 1 — Foundation
+
+## Current Position
+
+Phase: 1 of 4 (Foundation)
+Plan: 0 of TBD in current phase
+Status: Ready to plan
+Last activity: 2026-03-19 — Roadmap created
+
+Progress: [░░░░░░░░░░] 0%
+
+## Performance Metrics
+
+**Velocity:**
+- Total plans completed: 0
+- Average duration: -
+- Total execution time: 0 hours
+
+**By Phase:**
+
+| Phase | Plans | Total | Avg/Plan |
+|-------|-------|-------|----------|
+| - | - | - | - |
+
+**Recent Trend:**
+- Last 5 plans: none yet
+- Trend: -
+
+*Updated after each plan completion*
+
+## Accumulated Context
+
+### Decisions
+
+Decisions are logged in PROJECT.md Key Decisions table.
+Recent decisions affecting current work:
+
+- [Pre-phase]: Use geography(Point, 4326) not geometry — distance-in-meters semantics, cannot change cheaply after data accumulates
+- [Pre-phase]: Separate addresses table from geocoding_results table — required for admin override and cross-provider comparison workflow
+- [Pre-phase]: Census Geocoder is the first provider (free, no API key, no ToS risk); Google adapter deferred pending ToS legal review
+- [Pre-phase]: USPS validation must have usaddress-scourgify library fallback — USPS v3 OAuth has a migration history of breaking changes
+- [Pre-phase]: No cache expiration — manual refresh endpoint covers the use case
+
+### Pending Todos
+
+None yet.
+
+### Blockers/Concerns
+
+- [Phase 2]: Google Maps Platform ToS caching clause must be reviewed before building the Google adapter — may need legal/procurement sign-off
+- [Phase 3]: USPS v3 API OAuth2 endpoint and token flow must be verified at https://www.usps.com/business/web-tools-apis/ before implementation begins
+- [Phase 2]: Census Geocoder response schema should be verified against a live API response before finalizing the adapter model
+
+## Session Continuity
+
+Last session: 2026-03-19
+Stopped at: Roadmap created, STATE.md initialized — ready to run /gsd:plan-phase 1
+Resume file: None

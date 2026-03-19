@@ -44,6 +44,8 @@ Provide a single, reliable source of geocoded and validated address data across 
 ## Constraints
 
 - **Tech stack**: Python, FastAPI, Loguru, Typer — consistent with other CivPulse APIs
+- **Package management**: `uv` for all Python environment and package management
+- **Dev environment**: Docker Compose for local development (PostgreSQL/PostGIS + API)
 - **Database**: PostgreSQL with PostGIS extension
 - **Scope**: US addresses only
 - **Network**: Internal API, no public exposure

@@ -43,6 +43,7 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **INFRA-04**: API supports batch address validation (multiple addresses in one request) with per-item results and error handling
 - [ ] **INFRA-05**: API exposes a health/readiness endpoint that verifies database connectivity
 - [ ] **INFRA-06**: Batch responses include per-item status codes and error messages for partial failures
+- [ ] **INFRA-07**: `docker compose up` provides a fully running local development environment with PostgreSQL/PostGIS and seed data
 
 ## v2 Requirements
 
@@ -82,13 +83,38 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated during roadmap creation) | | |
+| INFRA-01 | Phase 1 — Foundation | Pending |
+| INFRA-02 | Phase 1 — Foundation | Pending |
+| INFRA-05 | Phase 1 — Foundation | Pending |
+| INFRA-07 | Phase 1 — Foundation | Pending |
+| GEO-01 | Phase 2 — Geocoding | Pending |
+| GEO-02 | Phase 2 — Geocoding | Pending |
+| GEO-03 | Phase 2 — Geocoding | Pending |
+| GEO-04 | Phase 2 — Geocoding | Pending |
+| GEO-05 | Phase 2 — Geocoding | Pending |
+| GEO-06 | Phase 2 — Geocoding | Pending |
+| GEO-07 | Phase 2 — Geocoding | Pending |
+| GEO-08 | Phase 2 — Geocoding | Pending |
+| GEO-09 | Phase 2 — Geocoding | Pending |
+| VAL-01 | Phase 3 — Validation and Data Import | Pending |
+| VAL-02 | Phase 3 — Validation and Data Import | Pending |
+| VAL-03 | Phase 3 — Validation and Data Import | Pending |
+| VAL-04 | Phase 3 — Validation and Data Import | Pending |
+| VAL-05 | Phase 3 — Validation and Data Import | Pending |
+| VAL-06 | Phase 3 — Validation and Data Import | Pending |
+| DATA-01 | Phase 3 — Validation and Data Import | Pending |
+| DATA-02 | Phase 3 — Validation and Data Import | Pending |
+| DATA-03 | Phase 3 — Validation and Data Import | Pending |
+| DATA-04 | Phase 3 — Validation and Data Import | Pending |
+| INFRA-03 | Phase 4 — Batch and Hardening | Pending |
+| INFRA-04 | Phase 4 — Batch and Hardening | Pending |
+| INFRA-06 | Phase 4 — Batch and Hardening | Pending |
 
 **Coverage:**
-- v1 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25
+- v1 requirements: 26 total
+- Mapped to phases: 26
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-19*
-*Last updated: 2026-03-19 after initial definition*
+*Last updated: 2026-03-19 after roadmap creation*
