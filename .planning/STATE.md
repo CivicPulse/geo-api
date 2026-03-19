@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 1 context gathered
-last_updated: "2026-03-19T03:44:07.869Z"
-last_activity: 2026-03-19 — Roadmap created
+status: unknown
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-03-19T04:15:08.246Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 1 — Foundation
+**Current focus:** Phase 01 — foundation
 
 ## Current Position
 
-Phase: 1 of 4 (Foundation)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-03-19 — Roadmap created
-
-Progress: [░░░░░░░░░░] 0%
+Phase: 01 (foundation) — EXECUTING
+Plan: 1 of 3
 
 ## Performance Metrics
 
@@ -52,6 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01 P01 | 4 | 2 tasks | 16 files |
 
 ## Accumulated Context
 
@@ -65,6 +60,9 @@ Recent decisions affecting current work:
 - [Pre-phase]: Census Geocoder is the first provider (free, no API key, no ToS risk); Google adapter deferred pending ToS legal review
 - [Pre-phase]: USPS validation must have usaddress-scourgify library fallback — USPS v3 OAuth has a migration history of breaking changes
 - [Pre-phase]: No cache expiration — manual refresh endpoint covers the use case
+- [Phase 01]: Use Geography(POINT,4326) not Geometry for coordinate columns — locked for distance-in-meters semantics
+- [Phase 01]: Two database URLs: asyncpg (DATABASE_URL) for app, psycopg2 (DATABASE_URL_SYNC) for Alembic — Alembic requires synchronous driver
+- [Phase 01]: SHA-256 hash (64-char hex) as address_hash for O(1) cache lookups; server_default=func.now() for DB-side timestamps
 
 ### Pending Todos
 
@@ -78,6 +76,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T03:44:07.863Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-foundation/01-CONTEXT.md
+Last session: 2026-03-19T04:15:08.240Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

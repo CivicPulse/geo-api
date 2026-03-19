@@ -41,9 +41,9 @@ Requirements for initial release. Each maps to roadmap phases.
 - [ ] **INFRA-02**: External geocoding/validation providers are implemented as plugins with a common interface
 - [ ] **INFRA-03**: API supports batch geocoding (multiple addresses in one request) with per-item results and error handling
 - [ ] **INFRA-04**: API supports batch address validation (multiple addresses in one request) with per-item results and error handling
-- [ ] **INFRA-05**: API exposes a health/readiness endpoint that verifies database connectivity
+- [x] **INFRA-05**: API exposes a health/readiness endpoint that verifies database connectivity
 - [ ] **INFRA-06**: Batch responses include per-item status codes and error messages for partial failures
-- [ ] **INFRA-07**: `docker compose up` provides a fully running local development environment with PostgreSQL/PostGIS and seed data
+- [x] **INFRA-07**: `docker compose up` provides a fully running local development environment with PostgreSQL/PostGIS and seed data
 
 ## v2 Requirements
 
@@ -85,8 +85,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | INFRA-01 | Phase 1 — Foundation | Pending |
 | INFRA-02 | Phase 1 — Foundation | Pending |
-| INFRA-05 | Phase 1 — Foundation | Pending |
-| INFRA-07 | Phase 1 — Foundation | Pending |
+| INFRA-05 | Phase 1 — Foundation | Complete |
+| INFRA-07 | Phase 1 — Foundation | Complete |
 | GEO-01 | Phase 2 — Geocoding | Pending |
 | GEO-02 | Phase 2 — Geocoding | Pending |
 | GEO-03 | Phase 2 — Geocoding | Pending |
