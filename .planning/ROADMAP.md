@@ -75,7 +75,7 @@ Plans:
   1. A POST to the batch geocode endpoint with N addresses returns N result objects; one address failing does not prevent the remaining addresses from being processed and returned
   2. A POST to the batch validation endpoint with N addresses returns N result objects with the same partial-failure isolation
   3. Each item in a batch response includes its own status code and error message so the caller can identify exactly which inputs succeeded and which failed
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 04-01-PLAN.md — Batch schemas, config settings, and POST /geocode/batch endpoint with per-item error isolation
@@ -92,4 +92,4 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
 | 2. Geocoding | 2/2 | Complete   | 2026-03-19 |
 | 3. Validation and Data Import | 3/3 | Complete   | 2026-03-19 |
-| 4. Batch and Hardening | 0/2 | Not started | - |
+| 4. Batch and Hardening | 1/2 | In Progress|  |

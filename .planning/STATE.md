@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Phase 4 context gathered
-last_updated: "2026-03-19T15:35:33.427Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-03-19T15:56:09Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-19)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 03 — validation-and-data-import
+**Current focus:** Phase 04 — batch-and-hardening
 
 ## Current Position
 
-Phase: 03 (validation-and-data-import) — EXECUTING
-Plan: 3 of 3
+Phase: 04 (batch-and-hardening) — EXECUTING
+Plan: 2 of 2
 
 ## Performance Metrics
 
@@ -87,6 +87,10 @@ Recent decisions affecting current work:
 - [Phase 03]: ValidationService is stateless (instantiated per-request) — mirrors GeocodingService pattern
 - [Phase 03]: validation_providers registered separately from geocoding providers in app.state — avoids isinstance confusion between GeocodingProvider and ValidationProvider
 - [Phase 03]: ProviderError from scourgify maps to HTTP 422 (not 500) — unparseable addresses are client-side input errors
+- [Phase 04 Plan 01]: _geocode_one() is a module-level helper in api/geocoding.py, not a GeocodingService method — batch orchestration stays in router layer
+- [Phase 04 Plan 01]: asyncio.gather without return_exceptions=True is correct here — _geocode_one() catches all exceptions and always returns BatchGeocodeResultItem
+- [Phase 04 Plan 01]: All-fail detection uses succeeded==0 and failed>0 (not simply "all failed") — correctly handles empty batch case returning 200
+- [Phase 04 Plan 01]: Batch validate schemas (BatchValidateRequest, BatchValidateResponse, BatchValidateResultItem) defined in Plan 01 as single source of truth for Plan 02
 
 ### Pending Todos
 
@@ -100,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:35:33.420Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-batch-and-hardening/04-CONTEXT.md
+Last session: 2026-03-19T15:56:09Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: .planning/phases/04-batch-and-hardening/04-01-SUMMARY.md

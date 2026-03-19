@@ -39,10 +39,10 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **INFRA-01**: Input addresses are normalized to a canonical form before cache lookup to maximize hit rate
 - [x] **INFRA-02**: External geocoding/validation providers are implemented as plugins with a common interface
-- [ ] **INFRA-03**: API supports batch geocoding (multiple addresses in one request) with per-item results and error handling
+- [x] **INFRA-03**: API supports batch geocoding (multiple addresses in one request) with per-item results and error handling
 - [ ] **INFRA-04**: API supports batch address validation (multiple addresses in one request) with per-item results and error handling
 - [x] **INFRA-05**: API exposes a health/readiness endpoint that verifies database connectivity
-- [ ] **INFRA-06**: Batch responses include per-item status codes and error messages for partial failures
+- [x] **INFRA-06**: Batch responses include per-item status codes and error messages for partial failures
 - [x] **INFRA-07**: `docker compose up` provides a fully running local development environment with PostgreSQL/PostGIS and seed data
 
 ## v2 Requirements
@@ -106,9 +106,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DATA-02 | Phase 3 — Validation and Data Import | Complete |
 | DATA-03 | Phase 3 — Validation and Data Import | Complete |
 | DATA-04 | Phase 3 — Validation and Data Import | Complete |
-| INFRA-03 | Phase 4 — Batch and Hardening | Pending |
+| INFRA-03 | Phase 4 — Batch and Hardening | Complete |
 | INFRA-04 | Phase 4 — Batch and Hardening | Pending |
-| INFRA-06 | Phase 4 — Batch and Hardening | Pending |
+| INFRA-06 | Phase 4 — Batch and Hardening | Complete |
 
 **Coverage:**
 - v1 requirements: 26 total
