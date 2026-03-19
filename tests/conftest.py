@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock
 from civpulse_geo.main import app
 from civpulse_geo.database import get_db
 from civpulse_geo.providers.schemas import GeocodingResult
+from civpulse_geo.providers.schemas import ValidationResult as ValidationResultSchema
 
 
 @pytest.fixture
@@ -56,3 +57,25 @@ def mock_providers():
         )
     )
     return {"census": provider}
+
+
+@pytest.fixture
+def mock_validation_providers():
+    """Mock validation provider registry with a fake scourgify provider."""
+    provider = AsyncMock()
+    provider.provider_name = "scourgify"
+    provider.validate = AsyncMock(
+        return_value=ValidationResultSchema(
+            normalized_address="123 MAIN ST MACON GA 31201",
+            address_line_1="123 MAIN ST",
+            address_line_2=None,
+            city="MACON",
+            state="GA",
+            postal_code="31201",
+            confidence=1.0,
+            delivery_point_verified=False,
+            provider_name="scourgify",
+            original_input="123 Main Street, Macon, GA 31201",
+        )
+    )
+    return {"scourgify": provider}
