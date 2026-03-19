@@ -14,10 +14,10 @@ Requirements for initial release. Each maps to roadmap phases.
 - [x] **GEO-03**: API checks local cache before calling external providers; returns cached result on hit
 - [x] **GEO-04**: API returns confidence/accuracy score on each geocode result
 - [x] **GEO-05**: API response indicates whether result came from cache or live service call
-- [ ] **GEO-06**: Admin can set the "official" geocode record for an address to match any provider's result or a custom coordinate
-- [ ] **GEO-07**: Admin can set a custom lat/lng coordinate as the official location (not from any provider)
-- [ ] **GEO-08**: API provides a manual cache refresh endpoint to re-query all providers for a given address
-- [ ] **GEO-09**: API can return geocode results from a specific provider for admin comparison workflows
+- [x] **GEO-06**: Admin can set the "official" geocode record for an address to match any provider's result or a custom coordinate
+- [x] **GEO-07**: Admin can set a custom lat/lng coordinate as the official location (not from any provider)
+- [x] **GEO-08**: API provides a manual cache refresh endpoint to re-query all providers for a given address
+- [x] **GEO-09**: API can return geocode results from a specific provider for admin comparison workflows
 
 ### Address Validation
 
@@ -92,10 +92,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GEO-03 | Phase 2 — Geocoding | Complete |
 | GEO-04 | Phase 2 — Geocoding | Complete |
 | GEO-05 | Phase 2 — Geocoding | Complete |
-| GEO-06 | Phase 2 — Geocoding | Pending |
-| GEO-07 | Phase 2 — Geocoding | Pending |
-| GEO-08 | Phase 2 — Geocoding | Pending |
-| GEO-09 | Phase 2 — Geocoding | Pending |
+| GEO-06 | Phase 2 — Geocoding | Complete |
+| GEO-07 | Phase 2 — Geocoding | Complete |
+| GEO-08 | Phase 2 — Geocoding | Complete |
+| GEO-09 | Phase 2 — Geocoding | Complete |
 | VAL-01 | Phase 3 — Validation and Data Import | Pending |
 | VAL-02 | Phase 3 — Validation and Data Import | Pending |
 | VAL-03 | Phase 3 — Validation and Data Import | Pending |
