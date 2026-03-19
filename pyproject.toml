@@ -17,6 +17,7 @@ dependencies = [
     "sqlalchemy>=2.0.48",
     "typer>=0.24.1",
     "usaddress-scourgify>=0.6.0",
+    "psycopg2-binary>=2.9.11",
 ]
 
 [build-system]
@@ -32,7 +33,6 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "psycopg2-binary>=2.9.11",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
 ]
