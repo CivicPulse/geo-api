@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 03-02-PLAN.md
-last_updated: "2026-03-19T15:20:00.000Z"
+stopped_at: Completed 03-03-PLAN.md
+last_updated: "2026-03-19T14:34:18.167Z"
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -51,6 +51,7 @@ Plan: 3 of 3
 | Phase 01 P03 | 5 | 2 tasks | 10 files |
 | Phase 02 P01 | 5 | 2 tasks | 13 files |
 | Phase 02 P02 | 4 | 2 tasks | 5 files |
+| Phase 03 P03 | 6 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 03 Plan 02]: fiona.transform.transform_geom used for SHP CRS reprojection (EPSG:2240 to EPSG:4326); geopandas not needed
 - [Phase 03 Plan 02]: geocoding_results upsert uses ON CONFLICT DO UPDATE (not DO NOTHING) to refresh coordinates on re-import of updated GIS data
 - [Phase 03 Plan 02]: OfficialGeocoding auto-set: check admin_overrides first, then INSERT ON CONFLICT (address_id) DO NOTHING — preserves any existing official record
+- [Phase 03]: ValidationService is stateless (instantiated per-request) — mirrors GeocodingService pattern
+- [Phase 03]: validation_providers registered separately from geocoding providers in app.state — avoids isinstance confusion between GeocodingProvider and ValidationProvider
+- [Phase 03]: ProviderError from scourgify maps to HTTP 422 (not 500) — unparseable addresses are client-side input errors
 
 ### Pending Todos
 
@@ -96,6 +100,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19
-Stopped at: Completed 03-02-PLAN.md
-Resume file: .planning/phases/03-validation-and-data-import/03-03-PLAN.md
+Last session: 2026-03-19T14:34:18.161Z
+Stopped at: Completed 03-03-PLAN.md
+Resume file: None

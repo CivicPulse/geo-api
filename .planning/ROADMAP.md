@@ -12,7 +12,7 @@ Build an internal geocoding and address validation caching API in four phases. T
 
 - [x] **Phase 1: Foundation** - PostGIS schema, canonical key strategy, plugin contract, and project scaffolding
 - [x] **Phase 2: Geocoding** - Multi-provider geocoding with cache, official record, and admin override (completed 2026-03-19)
-- [ ] **Phase 3: Validation and Data Import** - USPS address validation and Bibb County GIS CLI import
+- [x] **Phase 3: Validation and Data Import** - USPS address validation and Bibb County GIS CLI import (completed 2026-03-19)
 - [ ] **Phase 4: Batch and Hardening** - Batch endpoints, per-item error handling, and HTTP layer completion
 
 ## Phase Details
@@ -60,7 +60,7 @@ Plans:
   3. ZIP+4 delivery point validation runs as part of the response, confirming whether an address actually receives mail
   4. Running the CLI import tool against a GeoJSON, KML, or SHP file loads the data as provider "bibb_county_gis" records using the same schema as online providers, and re-running on the same file performs an upsert without creating duplicate records
   5. For any address where bibb_county_gis data exists and no admin override is set, that county record is returned as the official geocode result
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 03-01-PLAN.md — Validation data layer: ValidationResult ORM model, Alembic migration, ScourgifyValidationProvider with tests
@@ -87,5 +87,5 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
 | 2. Geocoding | 2/2 | Complete   | 2026-03-19 |
-| 3. Validation and Data Import | 2/3 | In Progress|  |
+| 3. Validation and Data Import | 3/3 | Complete   | 2026-03-19 |
 | 4. Batch and Hardening | 0/TBD | Not started | - |
