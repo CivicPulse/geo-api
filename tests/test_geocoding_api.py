@@ -24,6 +24,7 @@ def _make_mock_orm_row(
     longitude=-76.928,
     location_type=None,
     confidence=0.8,
+    raw_response=None,
 ):
     """Build a mock GeocodingResultORM row for response construction."""
     from civpulse_geo.models.geocoding import GeocodingResult as GeocodingResultORM
@@ -34,6 +35,7 @@ def _make_mock_orm_row(
     row.longitude = longitude
     row.location_type = location_type  # None means no enum value
     row.confidence = confidence
+    row.raw_response = raw_response  # None or a real dict for Pydantic validation
     return row
 
 
@@ -244,5 +246,98 @@ async def test_put_official_invalid_result_id(patched_app_state):
                 f"/geocode/{MOCK_HASH}/official",
                 json={"geocoding_result_id": 9999},
             )
+
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (02-02): Cache refresh and provider-specific query — API tests
+# ---------------------------------------------------------------------------
+
+def _make_mock_refresh_result(address_hash=MOCK_HASH):
+    """Build a mock GeocodingResultORM for refresh response construction."""
+    row = _make_mock_orm_row()
+    return row
+
+
+@pytest.mark.asyncio
+async def test_post_refresh_triggers_re_query(patched_app_state):
+    """POST /geocode/{hash}/refresh returns 200 with results and refreshed_providers."""
+    mock_row = _make_mock_orm_row()
+
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.refresh",
+        new_callable=AsyncMock,
+        return_value={
+            "address_hash": MOCK_HASH,
+            "normalized_address": "4600 SILVER HILL RD WASHINGTON DC 20233",
+            "results": [mock_row],
+            "refreshed_providers": ["census"],
+        },
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(f"/geocode/{MOCK_HASH}/refresh")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["address_hash"] == MOCK_HASH
+    assert "results" in data
+    assert "refreshed_providers" in data
+    assert "census" in data["refreshed_providers"]
+
+
+@pytest.mark.asyncio
+async def test_post_refresh_unknown_hash(patched_app_state):
+    """POST /geocode/{nonexistent}/refresh returns 404 when address not found."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.refresh",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Address not found"),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post("/geocode/nonexistent/refresh")
+
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_provider_results(patched_app_state):
+    """GET /geocode/{hash}/providers/census returns 200 with the census result."""
+    mock_row = _make_mock_orm_row(provider_name="census")
+
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.get_by_provider",
+        new_callable=AsyncMock,
+        return_value={
+            "address_hash": MOCK_HASH,
+            "provider_name": "census",
+            "result": mock_row,
+        },
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(f"/geocode/{MOCK_HASH}/providers/census")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["provider_name"] == "census"
+    assert data["address_hash"] == MOCK_HASH
+    assert "latitude" in data
+    assert "longitude" in data
+
+
+@pytest.mark.asyncio
+async def test_get_provider_not_found(patched_app_state):
+    """GET /geocode/{hash}/providers/nonexistent returns 404."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.get_by_provider",
+        new_callable=AsyncMock,
+        side_effect=ValueError("No result from provider 'nonexistent' for this address"),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get(f"/geocode/{MOCK_HASH}/providers/nonexistent")
 
     assert response.status_code == 404

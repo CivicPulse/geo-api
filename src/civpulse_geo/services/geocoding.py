@@ -342,6 +342,107 @@ class GeocodingService:
                 "source": "admin_override",
             }
 
+    async def refresh(
+        self,
+        address_hash: str,
+        db: AsyncSession,
+        providers: dict[str, GeocodingProvider],
+        http_client: httpx.AsyncClient,
+    ) -> dict:
+        """Force re-query of all providers for an address (GEO-08).
+
+        Bypasses the cache by calling geocode() with force_refresh=True. The
+        existing cache-first logic in geocode() handles the upsert of new results.
+
+        Args:
+            address_hash: SHA-256 hex identifying the address.
+            db: Async database session.
+            providers: Dict of provider name -> instantiated GeocodingProvider.
+            http_client: Shared httpx.AsyncClient from app.state.
+
+        Returns:
+            Dict with keys:
+                address_hash (str): The address hash.
+                normalized_address (str): The normalized address string.
+                results (list[GeocodingResultORM]): Fresh provider results.
+                refreshed_providers (list[str]): Names of providers re-queried.
+
+        Raises:
+            ValueError: If the address_hash is not found in the database.
+        """
+        # Look up Address to get the normalized_address for geocode() call
+        addr_result = await db.execute(
+            select(Address).where(Address.address_hash == address_hash)
+        )
+        address = addr_result.scalars().first()
+        if address is None:
+            raise ValueError("Address not found")
+
+        # Reuse geocode() with force_refresh=True to bypass cache
+        result = await self.geocode(
+            freeform=address.normalized_address,
+            db=db,
+            providers=providers,
+            http_client=http_client,
+            force_refresh=True,
+        )
+
+        return {
+            "address_hash": address_hash,
+            "normalized_address": address.normalized_address,
+            "results": result["results"],
+            "refreshed_providers": list(providers.keys()),
+        }
+
+    async def get_by_provider(
+        self,
+        address_hash: str,
+        provider_name: str,
+        db: AsyncSession,
+    ) -> dict:
+        """Fetch a specific provider's geocoding result for an address (GEO-09).
+
+        Args:
+            address_hash: SHA-256 hex identifying the address.
+            provider_name: Name of the provider (e.g. "census", "admin_override").
+            db: Async database session.
+
+        Returns:
+            Dict with keys:
+                address_hash (str): The address hash.
+                provider_name (str): The provider name queried.
+                result (GeocodingResultORM): The provider's result row.
+
+        Raises:
+            ValueError: If address_hash not found or provider has no result for this address.
+        """
+        # Step 1: Look up Address
+        addr_result = await db.execute(
+            select(Address).where(Address.address_hash == address_hash)
+        )
+        address = addr_result.scalars().first()
+        if address is None:
+            raise ValueError("Address not found")
+
+        # Step 2: Query for the specific provider's result
+        gr_result = await db.execute(
+            select(GeocodingResultORM).where(
+                GeocodingResultORM.address_id == address.id,
+                GeocodingResultORM.provider_name == provider_name,
+            )
+        )
+        geocoding_result = gr_result.scalars().first()
+        if geocoding_result is None:
+            raise ValueError(
+                f"No result from provider '{provider_name}' for this address"
+            )
+
+        return {
+            "address_hash": address_hash,
+            "provider_name": provider_name,
+            "result": geocoding_result,
+        }
+
     async def _get_official(
         self,
         db: AsyncSession,

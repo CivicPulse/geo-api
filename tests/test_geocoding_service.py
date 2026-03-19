@@ -696,3 +696,161 @@ async def test_set_custom_official_stores_reason():
     # The reason should have been passed — we verify via the result returning successfully
     assert result["source"] == "admin_override"
     db.commit.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Task 2 (02-02): refresh and get_by_provider — service layer tests
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_refresh_re_queries_providers():
+    """refresh() calls geocode with force_refresh=True, calling providers even when cached."""
+    from civpulse_geo.services.geocoding import GeocodingService
+
+    service = GeocodingService()
+    db = AsyncMock(spec=AsyncSession)
+    db.commit = AsyncMock()
+
+    address = _make_address(address_id=1, has_results=True)  # has cached results
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    db.execute = AsyncMock(return_value=addr_result)
+
+    provider = _make_provider()
+    http_client = AsyncMock()
+
+    # Mock geocode() to return a fresh result
+    mock_result = {
+        "address_hash": "abc123",
+        "normalized_address": "4600 SILVER HILL RD WASHINGTON DC 20233",
+        "results": [_make_cached_orm_row()],
+        "cache_hit": False,
+        "official": None,
+    }
+
+    with patch.object(service, "geocode", new_callable=AsyncMock, return_value=mock_result) as mock_geocode:
+        result = await service.refresh(
+            address_hash="abc123",
+            db=db,
+            providers={"census": provider},
+            http_client=http_client,
+        )
+
+    # geocode() must have been called with force_refresh=True
+    mock_geocode.assert_called_once()
+    call_kwargs = mock_geocode.call_args
+    assert call_kwargs.kwargs.get("force_refresh") is True or (
+        len(call_kwargs.args) > 4 and call_kwargs.args[4] is True
+    )
+    assert result["address_hash"] == "abc123"
+
+
+@pytest.mark.asyncio
+async def test_refresh_updates_existing_results():
+    """refresh() returns results from geocode() and includes refreshed_providers list."""
+    from civpulse_geo.services.geocoding import GeocodingService
+
+    service = GeocodingService()
+    db = AsyncMock(spec=AsyncSession)
+    db.commit = AsyncMock()
+
+    address = _make_address(address_id=1, has_results=False)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    db.execute = AsyncMock(return_value=addr_result)
+
+    provider = _make_provider()
+    http_client = AsyncMock()
+
+    fresh_row = _make_cached_orm_row()
+    mock_result = {
+        "address_hash": "abc123",
+        "normalized_address": "4600 SILVER HILL RD WASHINGTON DC 20233",
+        "results": [fresh_row],
+        "cache_hit": False,
+        "official": None,
+    }
+
+    with patch.object(service, "geocode", new_callable=AsyncMock, return_value=mock_result):
+        result = await service.refresh(
+            address_hash="abc123",
+            db=db,
+            providers={"census": provider},
+            http_client=http_client,
+        )
+
+    assert result["results"] == [fresh_row]
+    assert "census" in result["refreshed_providers"]
+    assert result["normalized_address"] == "4600 SILVER HILL RD WASHINGTON DC 20233"
+
+
+@pytest.mark.asyncio
+async def test_get_by_provider_returns_specific():
+    """get_by_provider returns only the named provider's result."""
+    from civpulse_geo.services.geocoding import GeocodingService
+
+    service = GeocodingService()
+    db = AsyncMock(spec=AsyncSession)
+
+    address = _make_address(address_id=1, has_results=False)
+    census_result = _make_geocoding_result_orm(result_id=1, address_id=1, provider_name="census")
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    gr_scalars = MagicMock()
+    gr_scalars.first.return_value = census_result
+    gr_result = MagicMock()
+    gr_result.scalars.return_value = gr_scalars
+
+    db.execute = AsyncMock(side_effect=[addr_result, gr_result])
+
+    result = await service.get_by_provider(
+        address_hash="abc123",
+        provider_name="census",
+        db=db,
+    )
+
+    assert result["address_hash"] == "abc123"
+    assert result["provider_name"] == "census"
+    assert result["result"] is census_result
+
+
+@pytest.mark.asyncio
+async def test_get_by_provider_not_found():
+    """get_by_provider raises ValueError when provider has no result for the address."""
+    from civpulse_geo.services.geocoding import GeocodingService
+
+    service = GeocodingService()
+    db = AsyncMock(spec=AsyncSession)
+
+    address = _make_address(address_id=1, has_results=False)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    gr_scalars = MagicMock()
+    gr_scalars.first.return_value = None
+    gr_result = MagicMock()
+    gr_result.scalars.return_value = gr_scalars
+
+    db.execute = AsyncMock(side_effect=[addr_result, gr_result])
+
+    with pytest.raises(ValueError, match="No result from provider"):
+        await service.get_by_provider(
+            address_hash="abc123",
+            provider_name="nonexistent",
+            db=db,
+        )
