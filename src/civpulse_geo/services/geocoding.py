@@ -25,6 +25,7 @@ from civpulse_geo.models.address import Address
 from civpulse_geo.models.geocoding import (
     GeocodingResult as GeocodingResultORM,
     OfficialGeocoding,
+    AdminOverride,
 )
 from civpulse_geo.providers.base import GeocodingProvider
 
@@ -316,6 +317,27 @@ class GeocodingService:
             )
             upsert_result = await db.execute(stmt)
             result_id = upsert_result.scalar_one()
+
+            # Write admin_override row (GEO-07)
+            await db.execute(
+                pg_insert(AdminOverride)
+                .values(
+                    address_id=address.id,
+                    location=ewkt_point,
+                    latitude=latitude,
+                    longitude=longitude,
+                    reason=reason,
+                )
+                .on_conflict_do_update(
+                    index_elements=["address_id"],
+                    set_={
+                        "location": ewkt_point,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "reason": reason,
+                    },
+                )
+            )
 
             # Re-query the new/updated ORM row
             requery_result = await db.execute(

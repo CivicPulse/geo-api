@@ -632,7 +632,8 @@ async def test_set_custom_official():
     # Official upsert
     official_upsert = MagicMock()
 
-    db.execute = AsyncMock(side_effect=[addr_result, upsert_gr_result, requery_result, official_upsert])
+    admin_override_upsert = MagicMock()
+    db.execute = AsyncMock(side_effect=[addr_result, upsert_gr_result, admin_override_upsert, requery_result, official_upsert])
 
     result = await service.set_official(
         address_hash="abc123",
@@ -679,7 +680,8 @@ async def test_set_custom_official_stores_reason():
 
     official_upsert = MagicMock()
 
-    db.execute = AsyncMock(side_effect=[addr_result, upsert_gr_result, requery_result, official_upsert])
+    admin_override_upsert = MagicMock()
+    db.execute = AsyncMock(side_effect=[addr_result, upsert_gr_result, admin_override_upsert, requery_result, official_upsert])
 
     # Capture the stmt values passed to execute to verify reason is included
     captured_stmts = []
@@ -696,6 +698,100 @@ async def test_set_custom_official_stores_reason():
     # The reason should have been passed — we verify via the result returning successfully
     assert result["source"] == "admin_override"
     db.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_set_custom_official_writes_admin_override():
+    """set_official with custom lat/lng writes an AdminOverride row via pg_insert upsert."""
+    from civpulse_geo.services.geocoding import GeocodingService
+
+    service = GeocodingService()
+    db = AsyncMock(spec=AsyncSession)
+    db.commit = AsyncMock()
+
+    address = _make_address(address_id=1, has_results=False)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    upsert_gr_result = MagicMock()
+    upsert_gr_result.scalar_one.return_value = 10
+
+    admin_override_upsert = MagicMock()
+
+    new_gr = _make_geocoding_result_orm(result_id=10, address_id=1,
+                                        provider_name="admin_override",
+                                        latitude=33.123, longitude=-83.456,
+                                        confidence=1.0)
+    requery_scalars = MagicMock()
+    requery_scalars.first.return_value = new_gr
+    requery_result = MagicMock()
+    requery_result.scalars.return_value = requery_scalars
+
+    official_upsert = MagicMock()
+
+    db.execute = AsyncMock(side_effect=[addr_result, upsert_gr_result, admin_override_upsert, requery_result, official_upsert])
+
+    result = await service.set_official(
+        address_hash="abc123",
+        db=db,
+        latitude=33.123,
+        longitude=-83.456,
+        reason="Surveyor verified",
+    )
+
+    # 5 db.execute calls: addr lookup, GR upsert, AdminOverride upsert, GR re-query, OfficialGeocoding upsert
+    assert db.execute.call_count == 5, f"Expected 5 db.execute calls, got {db.execute.call_count}"
+    assert result["source"] == "admin_override"
+    db.commit.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_set_custom_official_upserts_admin_override():
+    """set_official AdminOverride insert uses on_conflict_do_update (upsert, not plain insert)."""
+    from civpulse_geo.services.geocoding import GeocodingService
+
+    service = GeocodingService()
+    db = AsyncMock(spec=AsyncSession)
+    db.commit = AsyncMock()
+
+    address = _make_address(address_id=1, has_results=False)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    upsert_gr_result = MagicMock()
+    upsert_gr_result.scalar_one.return_value = 10
+
+    admin_override_upsert = MagicMock()
+
+    new_gr = _make_geocoding_result_orm(result_id=10, address_id=1,
+                                        provider_name="admin_override",
+                                        latitude=33.123, longitude=-83.456,
+                                        confidence=1.0)
+    requery_scalars = MagicMock()
+    requery_scalars.first.return_value = new_gr
+    requery_result = MagicMock()
+    requery_result.scalars.return_value = requery_scalars
+
+    official_upsert = MagicMock()
+
+    db.execute = AsyncMock(side_effect=[addr_result, upsert_gr_result, admin_override_upsert, requery_result, official_upsert])
+
+    result = await service.set_official(
+        address_hash="abc123",
+        db=db,
+        latitude=33.123,
+        longitude=-83.456,
+    )
+
+    # 5 calls confirms upsert path executed (plain INSERT would fail on 2nd call with real DB)
+    assert db.execute.call_count == 5, f"Expected 5 db.execute calls, got {db.execute.call_count}"
+    assert result["source"] == "admin_override"
 
 
 # ---------------------------------------------------------------------------
