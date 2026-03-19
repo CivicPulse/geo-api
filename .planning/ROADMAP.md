@@ -47,8 +47,8 @@ Plans:
 **Plans:** 2/2 plans complete
 
 Plans:
-- [ ] 02-01-PLAN.md — Census provider adapter, Pydantic schemas, cache-first service layer, and POST /geocode endpoint
-- [ ] 02-02-PLAN.md — Admin set-official, custom coordinate, cache refresh, and provider-specific query endpoints
+- [x] 02-01-PLAN.md — Census provider adapter, Pydantic schemas, cache-first service layer, and POST /geocode endpoint
+- [x] 02-02-PLAN.md — Admin set-official, custom coordinate, cache refresh, and provider-specific query endpoints
 
 ### Phase 3: Validation and Data Import
 **Goal**: Callers can validate and USPS-standardize US addresses through the API, and the Bibb County GIS dataset is importable as a first-class provider whose results serve as the default official record when no admin override exists
@@ -60,7 +60,12 @@ Plans:
   3. ZIP+4 delivery point validation runs as part of the response, confirming whether an address actually receives mail
   4. Running the CLI import tool against a GeoJSON, KML, or SHP file loads the data as provider "bibb_county_gis" records using the same schema as online providers, and re-running on the same file performs an upsert without creating duplicate records
   5. For any address where bibb_county_gis data exists and no admin override is set, that county record is returned as the official geocode result
-**Plans**: TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Validation data layer: ValidationResult ORM model, Alembic migration, ScourgifyValidationProvider with tests
+- [ ] 03-02-PLAN.md — GIS Import CLI: multi-format parsers (GeoJSON/KML/SHP), upsert loop, OfficialGeocoding auto-set
+- [ ] 03-03-PLAN.md — Validation API: ValidationService, Pydantic schemas, POST /validate endpoint, app wiring
 
 ### Phase 4: Batch and Hardening
 **Goal**: Callers can submit multiple addresses in a single geocoding or validation request and receive per-item results with individual status codes, completing the full v1 HTTP surface
@@ -82,5 +87,5 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 |-------|----------------|--------|-----------|
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
 | 2. Geocoding | 2/2 | Complete   | 2026-03-19 |
-| 3. Validation and Data Import | 0/TBD | Not started | - |
+| 3. Validation and Data Import | 0/3 | Planned | - |
 | 4. Batch and Hardening | 0/TBD | Not started | - |
