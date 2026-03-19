@@ -21,6 +21,8 @@ Provide a single, reliable source of geocoded and validated address data across 
 - [x] Address validation/verification with USPS-standard normalization — Validated in Phase 3: Validation and Data Import
 - [x] GIS data import with upsert and OfficialGeocoding auto-set — Validated in Phase 3: Validation and Data Import
 - [x] Batch support for both geocoding and validation endpoints — Validated in Phase 4: Batch and Hardening
+- [x] Admin override coordinates persist to admin_overrides table (upsert) — Validated in Phase 5: Fix Admin Override & Import Order
+- [x] GIS-first import ordering constraint documented in CLI — Validated in Phase 5: Fix Admin Override & Import Order
 
 ### Out of Scope
 
@@ -60,4 +62,4 @@ Provide a single, reliable source of geocoded and validated address data across 
 | PostGIS for geo storage | Native spatial indexing and queries for geo points | — Pending |
 
 ---
-*Last updated: 2026-03-19 after Phase 4: Batch and Hardening complete — all v1 milestone phases delivered*
+*Last updated: 2026-03-19 after Phase 5: Fix Admin Override & Import Order complete — gap closure for admin_overrides write and DATA-03 documentation*
