@@ -13,7 +13,7 @@ Build an internal geocoding and address validation caching API in four phases. T
 - [x] **Phase 1: Foundation** - PostGIS schema, canonical key strategy, plugin contract, and project scaffolding
 - [x] **Phase 2: Geocoding** - Multi-provider geocoding with cache, official record, and admin override (completed 2026-03-19)
 - [x] **Phase 3: Validation and Data Import** - USPS address validation and Bibb County GIS CLI import (completed 2026-03-19)
-- [ ] **Phase 4: Batch and Hardening** - Batch endpoints, per-item error handling, and HTTP layer completion
+- [x] **Phase 4: Batch and Hardening** - Batch endpoints, per-item error handling, and HTTP layer completion (completed 2026-03-19)
 
 ## Phase Details
 
@@ -75,7 +75,7 @@ Plans:
   1. A POST to the batch geocode endpoint with N addresses returns N result objects; one address failing does not prevent the remaining addresses from being processed and returned
   2. A POST to the batch validation endpoint with N addresses returns N result objects with the same partial-failure isolation
   3. Each item in a batch response includes its own status code and error message so the caller can identify exactly which inputs succeeded and which failed
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 04-01-PLAN.md — Batch schemas, config settings, and POST /geocode/batch endpoint with per-item error isolation
@@ -92,4 +92,4 @@ Note: Phase 3 depends only on Phase 1 (not Phase 2) and could run in parallel wi
 | 1. Foundation | 3/3 | Complete | 2026-03-19 |
 | 2. Geocoding | 2/2 | Complete   | 2026-03-19 |
 | 3. Validation and Data Import | 3/3 | Complete   | 2026-03-19 |
-| 4. Batch and Hardening | 1/2 | In Progress|  |
+| 4. Batch and Hardening | 2/2 | Complete   | 2026-03-19 |

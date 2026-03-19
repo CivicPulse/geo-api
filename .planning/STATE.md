@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-03-19T15:56:09Z"
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-03-19T16:02:56.763Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # Project State
@@ -52,6 +52,7 @@ Plan: 2 of 2
 | Phase 02 P01 | 5 | 2 tasks | 13 files |
 | Phase 02 P02 | 4 | 2 tasks | 5 files |
 | Phase 03 P03 | 6 | 2 tasks | 7 files |
+| Phase 04 P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,9 @@ Recent decisions affecting current work:
 - [Phase 04 Plan 01]: asyncio.gather without return_exceptions=True is correct here — _geocode_one() catches all exceptions and always returns BatchGeocodeResultItem
 - [Phase 04 Plan 01]: All-fail detection uses succeeded==0 and failed>0 (not simply "all failed") — correctly handles empty batch case returning 200
 - [Phase 04 Plan 01]: Batch validate schemas (BatchValidateRequest, BatchValidateResponse, BatchValidateResultItem) defined in Plan 01 as single source of truth for Plan 02
+- [Phase 04]: _validate_one() does not take http_client -- ValidationService uses scourgify (offline), no HTTP client needed; differs from geocode batch
+- [Phase 04]: Uses request.app.state.validation_providers (NOT .providers) -- validation providers registered separately from geocoding providers in app.state
+- [Phase 04]: asyncio.gather without return_exceptions=True is correct -- _validate_one() catches all exceptions, always returns BatchValidateResultItem
 
 ### Pending Todos
 
@@ -104,6 +108,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-03-19T15:56:09Z
-Stopped at: Completed 04-01-PLAN.md
-Resume file: .planning/phases/04-batch-and-hardening/04-01-SUMMARY.md
+Last session: 2026-03-19T16:02:56.756Z
+Stopped at: Completed 04-02-PLAN.md
+Resume file: None
