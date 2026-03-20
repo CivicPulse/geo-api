@@ -24,7 +24,10 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-(None — next milestone requirements defined via `/gsd:new-milestone`)
+- [ ] Local data source providers (OpenAddresses, NAD, PostGIS Tiger/LINE)
+- [ ] Both geocoding and validation interfaces for each local provider
+- [ ] Direct-return pipeline (no DB caching for local providers)
+- [ ] PostGIS Tiger geocoder with optional setup scripts
 
 ### Out of Scope
 
@@ -36,6 +39,17 @@ Provide a single, reliable source of geocoded and validated address data across 
 - Cache expiration / TTL — addresses rarely change; manual refresh available
 - Routing / directions / distance matrix — different problem domain
 - Autocomplete / typeahead — interactive UX feature; this is a batch/point-lookup API
+
+## Current Milestone: v1.1 Local Data Sources
+
+**Goal:** Add local data source providers (OpenAddresses, NAD, PostGIS Tiger/LINE geocoder) that implement the existing provider ABCs but query local data directly — no external API calls, no result caching.
+
+**Target features:**
+- OpenAddresses provider (geocoding + validation from `data/*.geojson.gz`)
+- National Address Database (NAD) provider (geocoding + validation from `NAD_r21` datasets)
+- PostGIS Tiger/LINE geocoder provider (geocoding + validation via PostgreSQL extension)
+- Direct-return pipeline that bypasses DB caching for local providers
+- Optional Tiger geocoder setup scripts (works with or without pre-installed extension)
 
 ## Context
 
@@ -72,4 +86,4 @@ Known target providers: US Census Geocoder (implemented), Google Geocoding API (
 | ON CONFLICT DO NOTHING for OfficialGeocoding | First-writer-wins preserves existing official records | ⚠️ Revisit — requires GIS import before API geocoding; documented as operational constraint |
 
 ---
-*Last updated: 2026-03-20 after v1.0 milestone*
+*Last updated: 2026-03-20 after v1.1 milestone start*
