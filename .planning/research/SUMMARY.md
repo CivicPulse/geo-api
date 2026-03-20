@@ -1,17 +1,17 @@
 # Project Research Summary
 
-**Project:** CivPulse Geo API
-**Domain:** Internal geocoding and address validation caching API
-**Researched:** 2026-03-19
-**Confidence:** MEDIUM (no external tooling available; all findings from training data, knowledge cutoff August 2025)
+**Project:** CivPulse Geo API — v1.1 Local Data Source Providers
+**Domain:** Local geocoding and address validation provider integration
+**Researched:** 2026-03-20
+**Confidence:** HIGH — all findings verified against actual data files and live codebase
 
 ## Executive Summary
 
-CivPulse Geo API is an internal caching proxy that sits between CivPulse microservices and multiple geocoding / address validation providers. The defining characteristic is that it stores every provider's result as a distinct row, then exposes an "official" record per address that an admin can override. This is not a thin geocoding wrapper — it is a canonical address registry with a multi-provider comparison and override workflow at its core. The de facto approach for this kind of system is: lazy-populate a PostGIS-backed cache keyed on a normalized form of the input address, fan out to providers concurrently on cache miss, persist raw responses for durability, and expose an explicit official-record pointer rather than deriving priority at query time.
+The v1.1 milestone adds three local geocoding data source providers (OpenAddresses, NAD, PostGIS Tiger) to the existing CivPulse Geo API plugin architecture. All three providers implement the existing `GeocodingProvider` and `ValidationProvider` ABCs, and all three share a critical behavioral constraint: results bypass DB caching entirely and are returned directly to callers. This "direct-return pipeline" is not a nice-to-have — it is an explicitly stated requirement in PROJECT.md and the correct architectural response to the fact that local data is already on-disk and caching it would create staleness and write overhead with no benefit.
 
-The recommended stack is FastAPI + SQLAlchemy 2 async + asyncpg + PostGIS + GeoAlchemy2, with httpx for external provider calls and tenacity for retry. Address normalization uses usaddress + usaddress-scourgify offline, with USPS v3 API as the authoritative validation source. The plugin contract for providers should be defined early — it gates every provider integration and all future extensions. uv, ruff, mypy, and pytest round out the development environment; the test suite must run against a real PostGIS instance (pytest-postgresql) because PostGIS spatial functions cannot be meaningfully mocked.
+The core implementation challenge is scale. NAD r21 is 35.8 GB uncompressed (~80M rows) and cannot be scanned at query time under any circumstance. OpenAddresses county files are small enough for in-memory dev use, but production deployments with multi-state coverage require PostGIS import. The PostGIS Tiger geocoder requires both extension installation and a separate TIGER/LINE data loading step — and must degrade gracefully when data is absent. All three providers must be backed by PostGIS staging tables and queried via indexed SQL, not by file I/O at request time.
 
-The highest-risk areas are: (1) cache key design — normalization must happen before the cache lookup, not after; (2) Google Maps ToS — caching results outside a Google Map context may violate the platform agreement and must be reviewed before building the adapter; (3) the PostGIS geometry/geography distinction — distances in meters require the `geography` type or explicit casts, and the schema choice cannot be cheaply changed after data accumulates; and (4) USPS API continuity — the v3 OAuth migration broke many integrations and the library-based scourgify fallback must be planned from the start.
+No new Python libraries are required. The entire implementation fits within the existing dependency footprint: stdlib `gzip` + `json` for OpenAddresses streaming at load time, stdlib `csv` + `zipfile` for NAD streaming at load time, `fiona` (already installed at 1.10.1) for NAD FGDB if needed, `usaddress` (already locked as a transitive dep) for address component parsing, and `sqlalchemy.text()` + `asyncpg` (already in use) for Tiger SQL function calls. The key risks are architectural: accidentally routing local providers through the cached pipeline (causes DB bloat), blocking the async event loop with synchronous file I/O, and not handling Tiger's optional data presence gracefully.
 
 ---
 
@@ -19,217 +19,167 @@ The highest-risk areas are: (1) cache key design — normalization must happen b
 
 ### Recommended Stack
 
-The project stack is largely pre-decided (FastAPI, Python 3.12+, PostgreSQL/PostGIS, Loguru, Typer). The key decisions in the research concern the integration glue: SQLAlchemy 2 async with GeoAlchemy2 is the correct ORM/spatial bridge for this combination — it handles WKB serialization, Alembic migration types, and async session management cleanly. asyncpg is the required driver. For external HTTP calls, httpx with tenacity provides async-native, retry-capable clients; using requests in an async app is an antipattern. The Google Maps official client (`googlemaps`) and boto3 cover two of the five providers; USPS and Geoapify use httpx directly because no maintained Python clients exist for them.
+The v1.1 stack is entirely additive within the existing dependency footprint. No new packages are required in `pyproject.toml`. The critical insight from stack research is that each data source maps to capabilities already installed: GeoJSONL streaming to stdlib, CSV streaming to stdlib, Esri FGDB to `fiona`'s OpenFileGDB driver (confirmed present in project venv), and Tiger geocoding to PostGIS via the existing async SQLAlchemy session.
 
-See `.planning/research/STACK.md` for full version table and alternatives considered.
+See `.planning/research/STACK.md` for full version table and "What NOT to Add" rationale.
 
 **Core technologies:**
-- FastAPI 0.111+ + Uvicorn: HTTP layer — pre-decided, async-native, OpenAPI autodoc
-- SQLAlchemy 2.0 async + asyncpg 0.29+: ORM + driver — the only combination with clean GeoAlchemy2 support and async sessions
-- GeoAlchemy2 0.14+: PostGIS bridge — handles WKB serialization and Alembic geometry column migrations
-- PostGIS 3.4+ with `geography(Point, 4326)`: spatial storage — use `geography` not `geometry` to get distance-in-meters semantics automatically
-- httpx 0.27+ + tenacity 8.3+: external HTTP — async-native, unified sync/async API, clean retry with exponential backoff
-- usaddress 0.5.10 + usaddress-scourgify 0.4.1: offline address parsing and USPS normalization — offline fallback that generates cache keys without hitting external APIs
-- pydantic-settings 2.3+: env-var config — manages the five sets of external API credentials cleanly
-- pytest + pytest-asyncio + pytest-postgresql + respx: test stack — real PostGIS instance is required; mock httpx for provider calls
-
-**Version validation needed before pinning:** usaddress, usaddress-scourgify, censusgeocode (all low-activity packages), and the USPS v3 API OAuth endpoint URLs.
+- `gzip` + `json` (stdlib): Stream OpenAddresses `.geojson.gz` NDJSON files line-by-line at load time — `json.load()` raises `JSONDecodeError` on these files; only `json.loads(line)` works
+- `csv.DictReader` + `zipfile` (stdlib): Stream NAD `NAD_r21.txt` with `utf-8-sig` encoding directly from inside the zip — do not extract the 35.8 GB file before reading
+- `fiona` 1.10.1 (already installed): OpenFileGDB driver confirmed present in project venv — use TXT over FGDB for the runtime provider (TXT is streamable in-zip; FGDB requires extraction)
+- `usaddress` 0.5.16 (transitive dep, already in `uv.lock`): Address component decomposition before field-matching — do not add to `pyproject.toml`
+- `sqlalchemy.text()` + `asyncpg` (already installed): Tiger geocoder SQL function calls via existing async session — extract coordinates with `ST_X`/`ST_Y` in SQL to avoid WKB parsing
+- PostGIS `geography(POINT,4326)` (existing pattern): Storage type for both new staging tables — consistent with existing schema; ST_DWithin distances interpreted as meters automatically
 
 ---
 
 ### Expected Features
 
-The feature set is tightly scoped. The core loop is: normalize input → cache lookup → fan out to providers on miss → store all results → return official record. Everything else is layered on top of this loop.
+The feature set is tightly scoped to three provider pairs and the service-layer changes needed to support them.
 
-See `.planning/research/FEATURES.md` for full feature table and dependency graph.
+See `.planning/research/FEATURES.md` for full feature table, dependency graph, provider behavior reference, and confidence/location_type mapping tables.
 
-**Must have (table stakes):**
-- Single-address forward geocoding with cache hit/miss indicator
-- Single-address address validation with USPS standardization and ranked suggestions
-- Freeform and structured field input for both operations
-- Confidence/accuracy score on geocode results, normalized across providers
-- Batch geocoding and batch validation endpoints (stated requirement)
-- Per-item status in batch responses — partial failures must not silently drop results
-- Health/readiness endpoint with DB connectivity check
+**Must have (v1.1 table stakes):**
+- OpenAddresses geocoding + validation provider — data files present; county-level files support dev use immediately
+- NAD import CLI command — required before NAD provider can function; streams 80M rows in 50K-row COPY batches
+- NAD geocoding + validation provider — PostGIS table query with (state, zip_code, street_name) B-tree index
+- PostGIS Tiger geocoder provider — SQL function call via existing async session; graceful failure when Tiger data not loaded
+- PostGIS Tiger validation provider — `normalize_address()` uses bundled lookup tables, always available when extension is installed
+- Direct-return pipeline (no DB caching for local providers) — `is_local` property on provider ABC; service layer bypass path
+- `location_type` + `confidence` mapping per provider — verified against actual data field schemas
+- `delivery_point_verified = False` for all three providers — none have USPS DPV data
 
-**Should have (differentiators):**
-- Multi-provider result storage — each provider result is a distinct row, not a merged record
-- Admin-overridable "official" geocode record — explicit pointer, not derived priority ranking
-- Custom admin coordinate (not from any provider) for known landmark corrections
-- Plugin-style provider registration — new providers added by config, not code surgery
-- Input normalization before cache lookup — "123 Main Street" and "123 Main St" must hit the same cache entry
-- Manual cache refresh endpoint — required because the cache never expires by design
-- USPS library-based normalization fallback for when USPS API is unavailable
+**Should have (production readiness, P2):**
+- Optional Tiger setup scripts — explicit CLI command, never automatic at container startup
+- OpenAddresses PostGIS import CLI — for full-state or national coverage beyond dev county files
+- Configuration-driven provider file paths — `OPENADDRESSES_GLOB` setting avoids hardcoded filenames and parcel file confusion
 
-**Defer to v2+:**
-- Reverse geocoding (no stated use case yet)
-- Per-provider result retrieval endpoint (admin UI is a separate system)
-- ZIP+4 delivery point validation (validate basic USPS normalization first)
-- Geographic area / radius search queries
-- Audit trail for admin overrides
-
-**Explicit anti-features (do not build):**
-- Authentication/API keys — internal service, network-isolated
-- Cache TTL/expiration — addresses rarely change; manual refresh is sufficient
-- International addresses — US-only for v1
-- Rate limiting, webhooks, autocomplete, routing
+**Defer (v2+):**
+- OpenAddresses incremental data refresh — trigger only when data staleness becomes an operational issue
+- NAD table partitioning by state — defer until query latency exceeds acceptable threshold
+- Reverse geocoding via Tiger `Reverse_Geocode()` — explicitly out of scope in PROJECT.md v1
+- `delivery_point_verified = True` for any local provider — requires USPS DPV source not present in any of these datasets
 
 ---
 
 ### Architecture Approach
 
-The recommended architecture is a clean four-layer design: FastAPI (transport + input validation) → Service layer (CacheService, GeocodingOrchestrator, ValidationOrchestrator) → Provider layer (ProviderRegistry + concrete adapters) → Persistence layer (repositories + PostgreSQL/PostGIS). The key structural decision is the data model: a separate `addresses` table (canonical identity, cache key), `geocoding_results` table (one row per address/provider pair), `validation_results` table (one row per address/provider pair), and `official_geocoding` table (one row per address with an explicit FK to the chosen result or a custom coordinate). The official record is an explicit pointer — never a runtime priority ranking.
+The architecture is a minimal, backward-compatible extension of the existing plugin system. The `GeocodingProvider` and `ValidationProvider` ABCs gain a single `is_local` property (default `False`) to signal bypass routing. `GeocodingService.geocode()` and `ValidationService.validate()` gain a split: local providers are called and collected without DB writes; remote providers use the existing cache-first pipeline unchanged. The response merges both result sets. Two new PostGIS staging tables (`openaddresses_points`, `nad_points`) are added via Alembic migrations with spatial GIST indexes. Three new provider files mirror the existing one-file-per-provider pattern.
 
-See `.planning/research/ARCHITECTURE.md` for full component table, data model DDL, provider plugin contract, and suggested build order.
+See `.planning/research/ARCHITECTURE.md` for full component table, staging table DDL, data flow diagrams, and the 10-step recommended build order.
 
 **Major components:**
-1. **FastAPI layer** — HTTP transport, Pydantic validation, batch splitting, response shaping; never calls DB or providers directly
-2. **CacheService** — checks DB before any external call; coordinates cache-miss flow; central to every request path
-3. **GeocodingOrchestrator** — calls all enabled providers via asyncio.gather, persists results, triggers official record derivation
-4. **ValidationOrchestrator** — normalizes input, calls validation providers, ranks suggestions, persists
-5. **ProviderRegistry** — holds registered providers; isolates per-provider failures so one timeout doesn't fail the request
-6. **OfficialRecordService + AdminOverrideService** — maintains the single official point per address; accepts admin-supplied coordinates or provider result selection
-7. **Repository layer** — pure data access (AddressRepository, GeocodingResultRepository, ValidationResultRepository, OfficialGeocodingRepository); no business logic
-
-**Key patterns:**
-- Cache-aside (lazy population) — never pre-warm; hit rate improves naturally as addresses accumulate
-- Provider fault isolation — each provider call in try/except; partial results are better than errors
-- Idempotent persistence — INSERT ... ON CONFLICT DO NOTHING on (address_id, provider)
-- Raw response preservation — store full provider JSON in JSONB alongside extracted fields; provider APIs evolve
+1. `providers/base.py` modification — add `is_local` property with default `False`; backward-compatible; all existing providers inherit `False`
+2. `services/geocoding.py` + `services/validation.py` modification — local provider bypass path; cache check scoped to remote-only providers; response merges local + remote result sets
+3. `providers/openaddresses.py` (new) — `OAGeocodingProvider` + `OAValidationProvider` querying `openaddresses_points` PostGIS table; `source_hash` dedup on re-load
+4. `providers/nad.py` (new) — `NADGeocodingProvider` + `NADValidationProvider` querying `nad_points` PostGIS table; ILIKE street name matching
+5. `providers/tiger.py` (new) — `TigerGeocodingProvider` + `TigerValidationProvider` calling Tiger SQL functions; conditional registration at startup based on `pg_extension` check
+6. `cli/commands.py` (new) — `load-oa`, `load-nad`, `setup-tiger` Typer commands; data loading is CLI-only, never API-triggered or container-startup-triggered
+7. `models/local_sources.py` (new) — `OpenAddressesPoint`, `NADPoint` ORM models for read-only staging tables
+8. Alembic migrations — `openaddresses_points` and `nad_points` tables with GIST indexes (spatial indexes must be written manually; Alembic autogenerate does not emit them)
 
 ---
 
 ### Critical Pitfalls
 
-The following five pitfalls are data-model-level or legal — they are expensive or impossible to fix after the fact.
+The following pitfalls are the highest-consequence mistakes for this milestone, verified against the codebase.
 
-1. **Cache key on raw input string** — "123 Main St" and "123 Main Street" miss each other. Normalize to canonical form (USPS abbreviations, uppercase, stripped punctuation) *before* any cache lookup. Store raw input separately for debugging. Address this in Phase 1 before any caching logic is written.
+See `.planning/research/PITFALLS.md` for the full 25-pitfall catalog with phase mapping and recovery strategies.
 
-2. **Lat/lon as FLOAT columns instead of PostGIS geography** — Every future spatial query requires a migration and manual Haversine math. Use `GEOGRAPHY(POINT, 4326)` from day one. Add GiST index immediately. Note: ST_MakePoint takes longitude first, then latitude — this ordering trips up nearly everyone.
+1. **Local providers accidentally writing to the provider cache (Pitfalls 6, 18)** — Introduce `is_local` property before implementing any provider. Service layer must check it before calling `_upsert_geocoding_result()`. Integration tests must assert `geocoding_results` is NOT touched by local provider calls. Registering local providers in `app.state.providers` alongside `CensusGeocodingProvider` is the single most likely architectural mistake.
 
-3. **Two-table separation of address identity from provider results** — The canonical `addresses` table (one row per unique address, holds the canonical key and parsed fields) must be separate from `geocoding_results` (one row per address/provider pair). A single-table design makes the admin override workflow and cross-provider comparison impossible without schema surgery.
+2. **Synchronous file I/O blocking the async event loop (Pitfall 9)** — All file I/O in provider `geocode()` methods must be wrapped in `asyncio.to_thread()`. The ABC is async but `gzip.open()` and `csv.DictReader` are blocking C-level calls. Establish this pattern in the first local provider built; subsequent providers follow automatically.
 
-4. **Google Maps Platform ToS on caching** — Google's terms prohibit caching geocoding results for use outside a Google Map display context. This must be reviewed before building the Google adapter. Census Geocoder (free, no caching restrictions) should be the primary provider for initial development; Google treated as optional/fallback after legal review.
+3. **Loading large datasets into application memory at provider init (Pitfall 8)** — OpenAddresses and NAD data must be loaded into PostGIS staging tables via CLI, not held in application memory. Loading NAD (35.8 GB uncompressed / ~80M rows) into memory is not feasible on any deployment.
 
-5. **USPS API as single point of failure** — The USPS v3 OAuth API has a migration history of breaking changes. The validation pipeline must have a library-based fallback (usaddress-scourgify) that standardizes format without hitting USPS. This fallback does not validate deliverability but is sufficient for cache key generation and format normalization.
+4. **Tiger data not loaded even though extension is installed (Pitfall 11)** — Extension installation and data loading are two separate steps. At startup, check `SELECT count(*) FROM tiger_data.county > 0` and log a clear warning if empty. Provider must return `confidence=0.0` / NO_MATCH gracefully, not crash. Tiger data loading must be a separate CLI command, never automatic at container startup.
 
-See `.planning/research/PITFALLS.md` for the full 15-pitfall catalog including moderate pitfalls (no confidence normalization across providers, batch endpoint HTTP status semantics, "not found" vs "error" caching distinction).
+5. **Tiger rating not converted to confidence float (Pitfall 12)** — Tiger `rating` is 0–100+ where lower is better; `GeocodingResult.confidence` is 0.0–1.0 where higher is better. Apply `max(0.0, 1.0 - rating / 100.0)` in the provider. A raw rating of `20` must not appear as `confidence=20.0`.
 
 ---
 
 ## Implications for Roadmap
 
-The build order is constrained by hard dependencies: the data model and canonical key strategy must exist before any caching logic; the provider plugin contract must exist before any provider adapters; single-address flows must work before batch flows. The architecture research provides an explicit 9-step build order that maps directly to phases.
+The dependency graph and pitfall-phase mapping from research suggest a 4-phase structure. The ordering is driven by two constraints: the `is_local` service bypass must exist before any local provider is wired up, and PostGIS staging tables must exist before provider query logic is written. All other phases follow naturally from data complexity (smallest to largest) and implementation novelty (PostGIS table queries before SQL function calls, SQL function calls before bulk 80M-row loading).
 
 ---
 
-### Phase 1: Foundation — Data Model, Schema, and Canonical Key
+### Phase 1: Provider Pipeline Refactor and Staging Table Infrastructure
 
-**Rationale:** Everything depends on the database schema and the canonical key strategy. Getting the data model wrong (FLOAT columns, single-table design, wrong PostGIS type) is the most expensive class of mistake in this domain. Build this before any application code.
+**Rationale:** The architectural boundary between local and remote providers must be established before any local provider is implemented. Registering local providers in the cached pipeline is the highest-risk mistake (Pitfalls 6 and 18) and cannot be retrofitted easily once other phases are built on top of it. Alembic migrations for staging tables must also precede all provider query work.
 
-**Delivers:** PostgreSQL/PostGIS schema with migrations; canonical address normalization function; AddressRepository; GeocodingResultRepository; ValidationResultRepository; OfficialGeocodingRepository; project scaffolding (FastAPI app shell, pydantic-settings config, Loguru logging, uv/ruff/mypy/pre-commit toolchain).
+**Delivers:** `is_local` property on provider ABCs (default `False`, backward-compatible), service-layer bypass path in `GeocodingService` and `ValidationService`, `openaddresses_points` and `nad_points` staging tables with GIST + B-tree indexes, Docker GDAL package verification (`'OpenFileGDB' in fiona.supported_drivers`), `load_geojson_lines()` NDJSON streaming parser in `cli/parsers.py`
 
-**Addresses:** Input normalization (table stakes), multi-provider result storage (differentiator), admin official record (differentiator).
+**Addresses:** Direct-return pipeline requirement
 
-**Avoids:** Pitfall 1 (cache key on raw input), Pitfall 2 (FLOAT columns), Pitfall 3 (single-table design), Pitfall 7 (admin override conflated with service results), Pitfall 8 (geometry vs. geography SRID), Pitfall 11 (coordinate precision).
+**Avoids:** Pitfalls 6 (accidental cache writes), 18 (wrong registry), 7 (GDAL driver missing in Docker), 2 (FLOAT columns instead of geography — staging tables use `geography(POINT,4326)` from day one)
 
-**Research flag:** No deep research needed — PostGIS schema design and GeoAlchemy2 integration are well-documented patterns.
-
----
-
-### Phase 2: Provider Plugin Contract + First Provider (Census)
-
-**Rationale:** The plugin contract gates all provider work. Validate it with Census (free, no API key, no ToS concerns) before investing in the other four providers. This phase proves the CacheService + GeocodingOrchestrator end-to-end loop.
-
-**Delivers:** GeocodingProvider and ValidationProvider abstract base classes; ProviderRegistry with explicit registration; CensusGeocodingProvider concrete implementation; CacheService (cache-miss flow); GeocodingOrchestrator (single provider, single address); end-to-end test: input → normalize → cache miss → Census → persist → return.
-
-**Addresses:** Plugin-style provider architecture (differentiator), cache hit/miss indicator (table stakes).
-
-**Avoids:** Pitfall 5 (parser failures swallowed silently — build the failure path explicitly here), Pitfall 14 (plugin architecture that requires restart to add providers), Pitfall 15 ("not found" vs "error" cache distinction).
-
-**Research flag:** Verify Census Geocoder current response schema before building the adapter. Documentation URLs may have changed since training data cutoff.
+**Research flag:** Standard patterns — well-understood SQLAlchemy, Alembic, and PostGIS work; no phase research needed
 
 ---
 
-### Phase 3: Remaining Geocoding Providers + Confidence Normalization
+### Phase 2: OpenAddresses Provider
 
-**Rationale:** Once the plugin contract is proven, remaining providers are parallel work. Confidence normalization must happen at the adapter level — each adapter maps its native score to the internal 0.0–1.0 scale. This is the phase where Google ToS must be resolved.
+**Rationale:** OpenAddresses county files are small (the Bibb county file is tiny) and provide fast end-to-end feedback on the full provider pattern. Build and validate the NDJSON streaming loader, PostGIS COPY load command, and provider query pattern here before tackling NAD's scale. Establishes the `asyncio.to_thread()` file I/O pattern and explicit file glob configuration for all subsequent providers.
 
-**Delivers:** GoogleGeocodingProvider (pending ToS review), AmazonLocationProvider (via boto3), GeoapifyProvider (via httpx), confidence normalization to internal scale for all providers; OfficialRecordService (auto-derive official record from highest-confidence provider result after all providers have run).
+**Delivers:** `load-oa` CLI command (NDJSON streaming → 10K-row COPY batches → `openaddresses_points`), `OAGeocodingProvider`, `OAValidationProvider`, `location_type` mapping from `accuracy` field, `confidence` mapping per `accuracy` value, `source_hash` dedup logic
 
-**Addresses:** Multi-provider result storage (differentiator), confidence/accuracy score (table stakes).
+**Addresses:** OpenAddresses geocode + validate (P1 features)
 
-**Avoids:** Pitfall 4 (Google ToS — must be explicitly reviewed and documented before merging Google adapter), Pitfall 10 (confidence scores incomparable — normalize in each adapter).
+**Avoids:** Pitfalls 8 (in-memory load), 9 (blocking I/O), 13 (null/missing OA field handling — use `.get()` with defaults), 15 (exact-string matching — decompose to components before querying), 25 (parcel file discovery — configure with explicit glob `*_Addresses_*.geojson.gz`)
 
-**Research flag:** Google Maps Platform ToS requires explicit verification before the adapter is built. Amazon Location Service response schema should be verified against current AWS docs.
-
----
-
-### Phase 4: USPS Validation Provider + Validation Pipeline
-
-**Rationale:** Validation is architecturally parallel to geocoding but USPS v3 OAuth is a complex integration. Build it after geocoding providers are proven to avoid mixing two complex integrations in the same phase.
-
-**Delivers:** USPSValidationProvider with OAuth2 token management; ValidationOrchestrator; ranked suggestion list with confidence scores; USPS library-based fallback (usaddress-scourgify) when API is unavailable; validation result caching.
-
-**Addresses:** USPS standardization (table stakes), ranked suggestions with confidence (differentiator), ZIP+4 (optional for v1 — validate basic flow first).
-
-**Avoids:** Pitfall 9 (USPS as single point of failure — implement library fallback in this phase, not later), Pitfall 13 (PO Box / rural route / APO address edge cases — add explicit test cases at implementation time).
-
-**Research flag:** USPS v3 API OAuth2 endpoint URLs and token flow must be verified against current USPS documentation before implementation. Training data may be stale on the exact auth flow.
+**Research flag:** Standard patterns — NDJSON streaming and PostgreSQL COPY are well-documented with verified data schemas from on-disk files; no phase research needed
 
 ---
 
-### Phase 5: Admin Override Endpoints + Official Record Management
+### Phase 3: PostGIS Tiger Provider
 
-**Rationale:** Admin override depends on having geocoding results to override. Build this after providers are wired and producing results. This is the core differentiator of the service.
+**Rationale:** Tiger comes before NAD in build order because the Tiger provider is the most architecturally distinct (SQL function call vs table query, conditional registration, multi-extension dependency chain) and the most failure-prone (optional extension + optional data + rating-to-confidence inversion). Tackling Tiger while the codebase is clean reduces risk. The Tiger validation provider also provides useful functionality independently of Tiger data being loaded.
 
-**Delivers:** AdminOverrideService; PATCH /addresses/{id}/official endpoint (accepts provider_result_id or custom lat/lon); is_admin_override flag and override_note on official_geocoding; manual cache refresh endpoint (force re-query from live providers for a specific address).
+**Delivers:** `TigerGeocodingProvider`, `TigerValidationProvider`, startup extension check + conditional provider registration with warning log, `setup-tiger` CLI command, Tiger extension installation order documented, rating-to-confidence conversion (`max(0.0, 1.0 - rating / 100.0)`)
 
-**Addresses:** Admin-overridable official record (differentiator), custom admin coordinate (differentiator), manual cache refresh (differentiator).
+**Addresses:** Tiger geocode + validate providers (P1 features), optional Tiger setup scripts (P2)
 
-**Avoids:** Pitfall 7 (admin override conflated with service results — explicit official_geocoding table with is_admin_override flag).
+**Avoids:** Pitfalls 10 (missing extensions — install in order: postgis → fuzzystrmatch → postgis_tiger_geocoder → address_standardizer), 11 (data not loaded — startup check + graceful NO_MATCH), 12 (rating mapping), 16 (Tiger data loading breaking Docker startup)
 
-**Research flag:** No deep research needed — this is internal business logic derived directly from PROJECT.md requirements.
+**Research flag:** Verify Tiger extension availability in `postgis/postgis:17-3.5` Docker image at the start of this phase — research was MEDIUM confidence on exact image contents. Run `SELECT name FROM pg_available_extensions WHERE name LIKE 'postgis%' OR name LIKE 'address%' OR name = 'fuzzystrmatch'` before writing provider code.
 
 ---
 
-### Phase 6: Batch Endpoints + HTTP Layer Hardening
+### Phase 4: NAD Provider
 
-**Rationale:** Batch endpoints are fan-out over the single-address path. Build last because they add error-handling complexity that is easier to reason about once the single-address paths are solid.
+**Rationale:** NAD is the most complex data loading task (~80M rows, estimated 20–40 min import, 50K-row COPY batches) but the query pattern mirrors what was already built and proven for OpenAddresses. Coming last means the staging table schema, provider ABC pattern, `asyncio.to_thread()` pattern, and service-layer bypass are all validated before tackling the scale challenge. Build order within this phase: import CLI first, then provider query logic.
 
-**Delivers:** POST /geocode/batch and POST /validate/batch; asyncio.gather fan-out with per-item status; HTTP 200 always for batch (per-item status in body, not HTTP error codes); health/readiness endpoint with DB connectivity check; full FastAPI endpoint layer for all single-address operations.
+**Delivers:** `load-nad` CLI command (streams `NAD_r21.txt` from inside zip → 50K-row COPY batches → `nad_points`), `NADGeocodingProvider`, `NADValidationProvider`, `location_type` mapping from `Placement` field, `confidence` mapping per `Placement` value, TXT format selection documented (prefer over FGDB: streamable in-zip, no extraction required)
 
-**Addresses:** Batch geocoding and validation (table stakes), health endpoint (table stakes), per-item error details (table stakes).
+**Addresses:** NAD geocode + validate + import CLI (P1 features)
 
-**Avoids:** Pitfall 6 (no idempotency in batch — cache-first per item makes retries nearly free), Pitfall 12 (all-or-nothing HTTP status for batch — always 200, per-item status in body).
+**Avoids:** Pitfalls 8 (in-memory load — physically impossible at 35.8 GB), 14 (FGDB vs TXT format — TXT preferred), 15 (address matching — `StNam_Full` includes direction and type; parse to components before querying), column-index parsing (always use `csv.DictReader` with header names, not positional index)
 
-**Research flag:** No deep research needed — batch patterns are well-documented.
+**Research flag:** Standard patterns — CSV streaming and PostgreSQL COPY are well-documented; same patterns proven in Phase 2; no phase research needed
 
 ---
 
 ### Phase Ordering Rationale
 
-- Phase 1 before everything: the data model is the load-bearing foundation. Wrong decisions here (FLOAT columns, single-table) are irreversible at scale.
-- Phase 2 before Phase 3: the plugin contract must be proven with one provider before adding four more. Census is the correct first provider because it has no API key requirement and no ToS concerns.
-- Phase 3 before Phase 5: admin override requires geocoding results to exist; providers must be running before admin override is meaningful.
-- Phase 4 (USPS) is decoupled from Phases 2-3: validation and geocoding share the CacheService and repository patterns but USPS integration is its own complex API. Parallelizing Phases 3 and 4 is feasible if there are separate engineers.
-- Phase 6 last: batch is fan-out complexity on top of solid single-address logic. Adding batch complexity before the single-address path is hardened creates debugging difficulty.
+- Phase 1 before everything: the `is_local` bypass must exist before any local provider touches the service layer. This is not optional — wiring a local provider into the existing pipeline before the bypass exists guarantees the accidental-cache-write failure mode.
+- Phase 2 before Phase 4: OpenAddresses county-level files validate the full load-to-query pattern at manageable scale. Once the pattern is proven, NAD is mechanically the same at 100x the row count.
+- Phase 3 before Phase 4: Tiger's SQL function call pattern is different enough from table queries to warrant proving it separately. If Phase 3 surfaces architectural changes to the provider ABC, NAD can incorporate them without rework.
+- Phase 4 last: NAD's import time (20–40 min) makes iteration slow. Build on a proven foundation to minimize re-runs.
 
 ---
 
 ### Research Flags
 
-Phases needing deeper research or external validation during planning:
+Phases needing deeper research during planning:
 
-- **Phase 2:** Verify Census Geocoder current response schema (field names may have changed; API endpoint may have version-incremented).
-- **Phase 3:** Google Maps Platform ToS caching clause requires explicit legal/procurement review before the adapter is built — not just documentation reading. Also verify Amazon Location Service geocoding response schema against current AWS docs.
-- **Phase 4:** USPS v3 API OAuth2 flow is the highest-uncertainty external dependency in the project. Verify current token endpoint, grant type, and scopes at https://www.usps.com/business/web-tools-apis/ before starting implementation.
+- **Phase 3 (Tiger):** Verify Docker image extension contents. Research found MEDIUM confidence that `postgis/postgis:17-3.5` includes all five Tiger extensions — confirm before writing provider code.
 
-Phases with well-documented standard patterns (deep research not needed):
+Phases with standard patterns (skip research-phase):
 
-- **Phase 1:** PostGIS schema design, GeoAlchemy2 Alembic migrations, and SQLAlchemy 2 async session setup are extensively documented.
-- **Phase 5:** Admin override logic is internal business logic derived from PROJECT.md; no external research needed.
-- **Phase 6:** Batch fan-out with asyncio.gather and per-item response semantics are standard FastAPI patterns.
+- **Phase 1:** Alembic migrations with manual spatial indexes, SQLAlchemy ABC additions — well-established in this codebase
+- **Phase 2:** NDJSON streaming, PostgreSQL COPY, PostGIS text queries — well-documented with schemas verified from on-disk files
+- **Phase 4:** CSV streaming and PostgreSQL COPY — same patterns as Phase 2; field schema verified from on-disk data
 
 ---
 
@@ -237,41 +187,51 @@ Phases with well-documented standard patterns (deep research not needed):
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | MEDIUM | Core framework choices are pre-decided (HIGH). GeoAlchemy2 + asyncpg combination is well-established (HIGH). usaddress and censusgeocode version numbers should be verified on PyPI before pinning — no external tooling available during research. |
-| Features | MEDIUM | Table stakes and admin override workflow derived from PROJECT.md (HIGH). Provider-specific features (USPS DPV codes, Census response fields) not verified against current API docs due to tooling restrictions. |
-| Architecture | HIGH | Layered architecture, cache-aside, plugin contract, and two-table data model are well-established patterns with broad consensus. Not dependent on live documentation. |
-| Pitfalls | MEDIUM | All pitfalls are well-documented failure patterns in geocoding systems and PostGIS usage (MEDIUM-HIGH). Google ToS and USPS API state require live verification — training data may be stale. |
+| Stack | HIGH | All findings verified against actual data files and project venv; `fiona` OpenFileGDB driver confirmed; `usaddress` confirmed in `uv.lock`; no new deps needed |
+| Features | HIGH | Data schemas verified from on-disk files (`US_GA_Bibb_Addresses_2026-03-20.geojson.gz`, `NAD_r21_TXT.zip`); PostGIS function signatures from official docs; field domain values sampled from 500K-row NAD subset |
+| Architecture | HIGH | Direct codebase inspection of `providers/base.py`, `services/geocoding.py`, `services/validation.py`, `providers/census.py`, `providers/scourgify.py`, `main.py`, `cli/parsers.py`; build order follows clear dependency graph |
+| Pitfalls | MEDIUM-HIGH | v1.1 pitfalls web-verified and grounded in codebase inspection; v1.0 carry-over pitfalls from training data (MEDIUM). Tiger Docker image extension contents are the single remaining MEDIUM-confidence finding |
 
-**Overall confidence:** MEDIUM
+**Overall confidence:** HIGH
 
 ---
 
 ### Gaps to Address
 
-- **Google Maps ToS caching clause:** Training data documents a caching restriction; current ToS must be read and a decision made before building the adapter. Resolution: legal/procurement review in Phase 3 planning.
-- **USPS v3 OAuth2 endpoint details:** The 2023-2024 migration introduced a new auth flow. Exact token endpoint, scopes, and rate limits are unknown from training data alone. Resolution: read https://www.usps.com/business/web-tools-apis/ at the start of Phase 4.
-- **usaddress Python 3.12 compatibility:** Package has low release activity. Verify installability on Python 3.12 before committing to it in pyproject.toml. Resolution: `uv add usaddress` smoke test in Phase 1.
-- **usaddress-scourgify 0.4.1 Python 3.12 compatibility:** Same risk as usaddress. Verify in Phase 1.
-- **Census Geocoder response schema:** Field names and endpoint versioning may have changed. Resolution: manual inspection of a live Census API response in Phase 2 before finalizing the adapter model.
-- **Confidence normalization thresholds:** The internal 0.0–1.0 mapping (ROOFTOP=1.0, RANGE_INTERPOLATED=0.8, etc.) is a suggested starting point, not a validated standard. Resolution: compare against actual provider outputs during Phase 3 and adjust.
+- **Tiger Docker image contents:** Verify with `SELECT name FROM pg_available_extensions WHERE name LIKE 'postgis%' OR name LIKE 'address%' OR name = 'fuzzystrmatch'` in the Tiger phase before writing provider code. Research found MEDIUM confidence that all five extensions are present in `postgis/postgis:17-3.5`.
+- **NAD FGDB vs TXT format decision:** Research recommends TXT for the runtime provider (streamable in-zip, no extraction required). Confirm this holds in the Phase 4 plan — if FGDB is ever needed, the Dockerfile must add GDAL system packages and the decision must be explicit.
+- **Address match rate thresholds:** Research establishes scourgify pre-normalization + exact component matching as the strategy. Pitfall research flags a match rate below 60% as a warning sign. Measure match rate against a representative sample of known addresses during Phase 2 and revisit before Phase 4 NAD.
+- **Tiger/LINE dev data:** National Tiger data is 1–2 GB per state. A dev-friendly pre-seeded single-state subset for Docker Compose local development is deferred to Tiger setup scripts in Phase 3 — an explicit decision on whether to bundle a minimal dataset is needed during Phase 3 planning.
 
 ---
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `.planning/PROJECT.md` — project requirements, constraints, and out-of-scope decisions; admin override and multi-provider result storage requirements derived directly from this file
-- Training data: PostGIS documentation, GeoAlchemy2 documentation, SQLAlchemy 2 async documentation, FastAPI async patterns — well-established and stable patterns
+- `data/US_GA_Bibb_Addresses_2026-03-20.geojson.gz` — confirmed GeoJSONL line-delimited format, full field schema
+- `data/NAD_r21_TXT.zip/TXT/NAD_r21.txt` + `TXT/schema.ini` — confirmed 60-field CSV schema, `utf-8-sig` BOM encoding, field domain values sampled from 500K rows
+- `data/collection-us-south.zip` — 3,054 files; path pattern `us/{state}/{county}-addresses-county.geojson` confirmed
+- `fiona.supported_drivers` in project venv — `OpenFileGDB` driver confirmed present in fiona 1.10.1
+- `uv.lock` — `usaddress==0.5.16` confirmed locked as transitive dependency
+- Direct codebase inspection: `providers/base.py`, `services/geocoding.py`, `services/validation.py`, `providers/census.py`, `providers/scourgify.py`, `main.py`, `cli/parsers.py`
+- [PostGIS geocode() function](https://postgis.net/docs/Geocode.html) — function signature, return type, rating scale
+- [PostGIS Normalize_Address](https://postgis.net/docs/Normalize_Address.html) — validation without TIGER data
+- [PostGIS Extras](https://postgis.net/docs/Extras.html) — Tiger geocoder overview, extension list
+- [GDAL OpenFileGDB driver](https://gdal.org/en/stable/drivers/vector/openfilegdb.html) — no ESRI license required for read
+- [NAD schema documentation](https://www.transportation.gov/sites/dot.gov/files/2023-07/NAD_Schema_202304.pdf) — 60-column definitions
+- [OpenAddresses schema](https://github.com/openaddresses/openaddresses/blob/master/schema/layers/address_conform.json) — field semantics
+- [FastAPI async/blocking I/O](https://fastapi.tiangolo.com/async/) — asyncio.to_thread() guidance
+- [asyncio.to_thread Python docs](https://docs.python.org/3/library/asyncio-task.html) — official
 
 ### Secondary (MEDIUM confidence)
-- Training data: Google Maps Python client (`googlemaps`), boto3 Amazon Location Service, usaddress library, usaddress-scourgify — versions and behavior as of knowledge cutoff August 2025
-- Training data: Cache-aside pattern (Martin Fowler PEAA), provider fault isolation patterns, plugin registry patterns
+- [RustProof Labs Tiger setup](https://blog.rustprooflabs.com/2023/10/geocode-with-postgis-setup) — extension creation steps, timing data
+- [postgis/docker-postgis](https://github.com/postgis/docker-postgis) — Tiger extension availability in official image
+- [PostGIS Tiger Geocoder Cheatsheet](https://postgis.net/docs/manual-3.6/tiger_geocoder_cheatsheet-en.html) — function reference
+- [ijson PyPI](https://pypi.org/project/ijson/) — streaming JSON; referenced in pitfalls but not required since OA files are NDJSON (not FeatureCollection)
 
-### Tertiary (LOW confidence — verify before use)
-- Google Maps Platform Terms of Service caching clause — verify at https://cloud.google.com/maps-platform/terms before building the Google adapter
-- USPS v3 API OAuth2 endpoint and auth flow — verify at https://www.usps.com/business/web-tools-apis/ before Phase 4
-- Version numbers for usaddress (0.5.10), usaddress-scourgify (0.4.1), censusgeocode (0.5+), pytest-postgresql (5.0+) — verify on PyPI before pinning
+### Tertiary (LOW confidence)
+- v1.0 SUMMARY.md research (training data, knowledge cutoff August 2025) — v1.0 pitfall patterns; superseded by v1.1 web-verified research where they overlap
 
 ---
-*Research completed: 2026-03-19*
+*Research completed: 2026-03-20*
 *Ready for roadmap: yes*
