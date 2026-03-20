@@ -12,18 +12,19 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Validated
 
-- [x] PostgreSQL + PostGIS data storage — Validated in Phase 1: Foundation
-- [x] Plugin-style architecture for geocoding/validation service providers — Validated in Phase 1: Foundation
+- [x] PostgreSQL + PostGIS data storage — v1.0
+- [x] Plugin-style architecture for geocoding/validation service providers — v1.0
+- [x] Geocoding with multi-service caching and admin-overridable official records — v1.0
+- [x] Address validation/verification with USPS-standard normalization — v1.0
+- [x] GIS data import with upsert and OfficialGeocoding auto-set — v1.0
+- [x] Batch support for both geocoding and validation endpoints — v1.0
+- [x] Admin override coordinates persist to admin_overrides table (upsert) — v1.0
+- [x] GIS-first import ordering constraint documented in CLI — v1.0
+- [x] Documentation traceability: all SUMMARY frontmatter and ROADMAP checkboxes consistent — v1.0
 
 ### Active
 
-- [x] Geocoding with multi-service caching and admin-overridable official records — Validated in Phase 2: Geocoding
-- [x] Address validation/verification with USPS-standard normalization — Validated in Phase 3: Validation and Data Import
-- [x] GIS data import with upsert and OfficialGeocoding auto-set — Validated in Phase 3: Validation and Data Import
-- [x] Batch support for both geocoding and validation endpoints — Validated in Phase 4: Batch and Hardening
-- [x] Admin override coordinates persist to admin_overrides table (upsert) — Validated in Phase 5: Fix Admin Override & Import Order
-- [x] GIS-first import ordering constraint documented in CLI — Validated in Phase 5: Fix Admin Override & Import Order
-- [x] Documentation traceability: all SUMMARY frontmatter and ROADMAP checkboxes consistent — Validated in Phase 6: Documentation & Traceability Cleanup
+(None — next milestone requirements defined via `/gsd:new-milestone`)
 
 ### Out of Scope
 
@@ -31,18 +32,21 @@ Provide a single, reliable source of geocoded and validated address data across 
 - Admin UI — this API serves data; admin interface is a separate system
 - Authentication — internal service, network-level security only
 - Audit trail for admin overrides — deferred, not a v1 concern
+- Reverse geocoding (lat/lng → address) — v2 candidate
+- Cache expiration / TTL — addresses rarely change; manual refresh available
+- Routing / directions / distance matrix — different problem domain
+- Autocomplete / typeahead — interactive UX feature; this is a batch/point-lookup API
 
 ## Context
 
-- Part of the CivPulse ecosystem alongside run-api and vote-api
-- Uses the same tech stack: Python, FastAPI, Loguru, Typer
-- Internal API consumed by other CivPulse services, not directly by end users
-- Known target services: Google Geocoding API, USPS, US Census Geocoder, Amazon Location Service, Geoapify — more welcome
-- Addresses often get different geocode results from different services; admins need to pick the correct one or set a custom location
-- Address validation must handle partial/invalid input and return USPS-standardized suggestions (e.g., "road" → "RD", "Georga" → "GA", proper casing)
-- Validation accepts both freeform string input and structured field-based input
-- Cached results do not expire — once stored, treated as permanent unless manually refreshed
-- When multiple corrected addresses are possible, return all suggestions ranked with confidence scores
+Shipped v1.0 with 7,488 LOC Python, 179 tests passing.
+Tech stack: FastAPI, SQLAlchemy 2.0, GeoAlchemy2, asyncpg, httpx, Alembic, Pydantic, scourgify, fiona, Typer.
+Database: PostgreSQL 17 + PostGIS 3.5.
+Dev environment: Docker Compose (API + PostGIS with seed data).
+
+Part of the CivPulse ecosystem alongside run-api and vote-api. Internal API consumed by other CivPulse services, not directly by end users.
+
+Known target providers: US Census Geocoder (implemented), Google Geocoding API (deferred — ToS review), USPS, Amazon Location Service, Geoapify.
 
 ## Constraints
 
@@ -57,10 +61,15 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| No cache expiration | Addresses/locations rarely change; manual refresh available | — Pending |
-| No auth layer | Internal service behind network security | — Pending |
-| Multiple service results stored separately | Enables comparison and admin override workflow | — Pending |
-| PostGIS for geo storage | Native spatial indexing and queries for geo points | — Pending |
+| No cache expiration | Addresses/locations rarely change; manual refresh available | ✓ Good — manual refresh endpoint covers the use case |
+| No auth layer | Internal service behind network security | ✓ Good — simplifies API surface |
+| Multiple service results stored separately | Enables comparison and admin override workflow | ✓ Good — core differentiator |
+| PostGIS for geo storage | Native spatial indexing and queries for geo points | ✓ Good — Geography(POINT,4326) provides distance-in-meters semantics |
+| SHA-256 canonical address hash | O(1) cache lookups, deterministic key from normalized address | ✓ Good — handles all suffix/directional/ZIP variants |
+| Two database URLs (asyncpg + psycopg2) | Alembic requires synchronous driver | ✓ Good — clean separation of async app vs sync migrations |
+| Census Geocoder as first provider | Free, no API key, no ToS risk | ✓ Good — unblocked development |
+| scourgify for offline validation | No external API dependency for basic USPS normalization | ⚠️ Revisit — delivery_point_verified always False; real DPV needs paid USPS API |
+| ON CONFLICT DO NOTHING for OfficialGeocoding | First-writer-wins preserves existing official records | ⚠️ Revisit — requires GIS import before API geocoding; documented as operational constraint |
 
 ---
-*Last updated: 2026-03-19 after Phase 6: Documentation & Traceability Cleanup complete — all v1.0 milestone phases done, 26/26 requirements satisfied*
+*Last updated: 2026-03-20 after v1.0 milestone*
