@@ -57,10 +57,11 @@ Plans:
   2. Geocoding an address against OA data returns a location_type mapped from the OA accuracy field (rooftop/parcel/interpolated/centroid)
   3. Validating an address against OA data returns a normalized result with USPS-standard fields
   4. OA provider is automatically registered in the provider list when the openaddresses_points table contains at least one row, and absent otherwise
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 08-01: TBD
+- [ ] 08-01-PLAN.md — OA geocoding and validation providers with accuracy mapping and lifespan registration
+- [ ] 08-02-PLAN.md — load-oa CLI NDJSON import with batch upsert and street suffix parsing
 
 ### Phase 9: Tiger Provider
 **Goal**: Users can geocode and validate addresses via the PostGIS Tiger geocoder SQL functions, with the provider degrading gracefully when Tiger data is not installed
@@ -104,6 +105,6 @@ Plans:
 | 5. Fix Admin Override & Import Order | v1.0 | 1/1 | Complete | 2026-03-19 |
 | 6. Documentation & Traceability Cleanup | v1.0 | 1/1 | Complete | 2026-03-19 |
 | 7. Pipeline Infrastructure | 2/2 | Complete   | 2026-03-22 | - |
-| 8. OpenAddresses Provider | v1.1 | 0/? | Not started | - |
+| 8. OpenAddresses Provider | v1.1 | 0/2 | Not started | - |
 | 9. Tiger Provider | v1.1 | 0/? | Not started | - |
 | 10. NAD Provider | v1.1 | 0/? | Not started | - |
