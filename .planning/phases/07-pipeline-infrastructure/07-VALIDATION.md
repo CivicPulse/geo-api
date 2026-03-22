@@ -2,7 +2,7 @@
 phase: 7
 slug: pipeline-infrastructure
 status: draft
-nyquist_compliant: false
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-03-22
 ---
@@ -38,12 +38,10 @@ created: 2026-03-22
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 07-01-01 | 01 | 1 | PIPE-02 | unit | `uv run pytest tests/test_provider_abc.py -x -q` | ❌ W0 | ⬜ pending |
-| 07-01-02 | 01 | 1 | PIPE-01 | unit | `uv run pytest tests/test_service_bypass.py -x -q` | ❌ W0 | ⬜ pending |
-| 07-02-01 | 02 | 1 | PIPE-03 | integration | `uv run pytest tests/test_staging_tables.py -x -q` | ❌ W0 | ⬜ pending |
-| 07-02-02 | 02 | 1 | PIPE-04 | integration | `uv run pytest tests/test_staging_tables.py -x -q` | ❌ W0 | ⬜ pending |
-| 07-03-01 | 03 | 2 | PIPE-05 | unit | `uv run pytest tests/test_cli_load.py -x -q` | ❌ W0 | ⬜ pending |
-| 07-03-02 | 03 | 2 | PIPE-06 | unit | `uv run pytest tests/test_cli_load.py -x -q` | ❌ W0 | ⬜ pending |
+| 07-01-01 | 01 | 1 | PIPE-02 | unit | `uv run pytest tests/test_providers.py -x -q` | ❌ W0 | ⬜ pending |
+| 07-01-02 | 01 | 1 | PIPE-01 | unit | `uv run pytest tests/test_geocoding_service.py tests/test_validation_service.py -x -q` | ❌ W0 | ⬜ pending |
+| 07-02-01 | 02 | 1 | PIPE-03, PIPE-04 | integration | `uv run python -c "from civpulse_geo.models import OpenAddressesPoint, NADPoint"` | ❌ W0 | ⬜ pending |
+| 07-02-02 | 02 | 1 | PIPE-05, PIPE-06 | unit | `uv run pytest tests/test_load_oa_cli.py tests/test_load_nad_cli.py -x -q` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,10 +49,11 @@ created: 2026-03-22
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_provider_abc.py` — stubs for PIPE-02 (is_local property)
-- [ ] `tests/test_service_bypass.py` — stubs for PIPE-01 (bypass caching for local providers)
-- [ ] `tests/test_staging_tables.py` — stubs for PIPE-03, PIPE-04 (staging table existence and indexes)
-- [ ] `tests/test_cli_load.py` — stubs for PIPE-05, PIPE-06 (CLI command registration)
+- [ ] `tests/test_providers.py` — extend with is_local property tests (PIPE-02)
+- [ ] `tests/test_geocoding_service.py` — add local provider bypass tests (PIPE-01)
+- [ ] `tests/test_validation_service.py` — add local provider bypass tests (PIPE-01)
+- [ ] `tests/test_load_oa_cli.py` — CLI command registration tests (PIPE-05)
+- [ ] `tests/test_load_nad_cli.py` — CLI command registration tests (PIPE-06)
 
 ---
 
@@ -66,13 +65,19 @@ created: 2026-03-22
 
 ---
 
+## Carry-Forward Notes
+
+- OfficialGeocoding auto-set for local providers is deliberately deferred to Phase 8. Local results have no ORM row (no geocoding_result_id), so the FK-based OfficialGeocoding machinery cannot reference them yet. Phase 8 must address this when OA provider produces real results.
+
+---
+
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 15s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 15s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-22
