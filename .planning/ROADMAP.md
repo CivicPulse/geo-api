@@ -42,10 +42,11 @@ Full details archived in `milestones/v1.0-ROADMAP.md`.
   3. openaddresses_points table exists in the database with a GiST spatial index
   4. nad_points table exists in the database with a GiST spatial index
   5. CLI load-oa and load-nad commands are registered and display help text (data loading wired up in later phases)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 07-01: TBD
+- [ ] 07-01-PLAN.md — Provider ABC is_local property and service layer bypass for local providers
+- [ ] 07-02-PLAN.md — Staging table migrations, ORM models, and CLI command stubs
 
 ### Phase 8: OpenAddresses Provider
 **Goal**: Users can geocode and validate addresses against loaded OpenAddresses data, with results returned directly without DB caching
@@ -102,7 +103,7 @@ Plans:
 | 4. Batch and Hardening | v1.0 | 2/2 | Complete | 2026-03-19 |
 | 5. Fix Admin Override & Import Order | v1.0 | 1/1 | Complete | 2026-03-19 |
 | 6. Documentation & Traceability Cleanup | v1.0 | 1/1 | Complete | 2026-03-19 |
-| 7. Pipeline Infrastructure | v1.1 | 0/? | Not started | - |
+| 7. Pipeline Infrastructure | v1.1 | 0/2 | Not started | - |
 | 8. OpenAddresses Provider | v1.1 | 0/? | Not started | - |
 | 9. Tiger Provider | v1.1 | 0/? | Not started | - |
 | 10. NAD Provider | v1.1 | 0/? | Not started | - |
