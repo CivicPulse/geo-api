@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
 status: unknown
-stopped_at: "Completed 08-02-PLAN.md"
-last_updated: "2026-03-22T20:02:00Z"
+stopped_at: Completed 08-01-PLAN.md
+last_updated: "2026-03-22T20:03:39.115Z"
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -45,6 +45,9 @@ Recent decisions affecting current work:
 - [08-02]: OA hash used directly as source_hash (not recomputed) — trusts OA deduplication, avoids SHA-256 overhead on 60k+ rows
 - [08-02]: engine.connect() used over engine.begin() so _upsert_oa_batch can call conn.commit() per batch for incremental durability
 - [08-02]: Two-pass .geojson.gz approach (count then import) accepted for clean Rich progress bar despite reading file twice
+- [Phase 08]: geocode() accepts **kwargs to avoid TypeError from service layer http_client= call
+- [Phase 08]: OA providers registered directly in lifespan (not via load_providers) because they require async_sessionmaker
+- [Phase 08]: ST_Y/ST_X lat/lng extracted in same SELECT as row fetch to avoid second DB round-trip
 
 ### Pending Todos
 
@@ -58,6 +61,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T20:02:00Z
-Stopped at: Completed 08-02-PLAN.md
-Resume file: .planning/phases/08-openaddresses-provider/08-02-SUMMARY.md
+Last session: 2026-03-22T20:03:39.110Z
+Stopped at: Completed 08-01-PLAN.md
+Resume file: None
