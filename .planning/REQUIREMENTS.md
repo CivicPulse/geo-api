@@ -9,8 +9,8 @@ Requirements for local data source providers. Each maps to roadmap phases.
 
 ### Pipeline Infrastructure
 
-- [ ] **PIPE-01**: Service layer bypasses DB caching for providers with is_local=True
-- [ ] **PIPE-02**: Provider ABCs expose is_local property (default False)
+- [x] **PIPE-01**: Service layer bypasses DB caching for providers with is_local=True
+- [x] **PIPE-02**: Provider ABCs expose is_local property (default False)
 - [ ] **PIPE-03**: Alembic migration creates openaddresses_points staging table with GiST spatial index
 - [ ] **PIPE-04**: Alembic migration creates nad_points staging table with GiST spatial index
 - [ ] **PIPE-05**: CLI command imports OpenAddresses .geojson.gz files into staging table
@@ -67,8 +67,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | Phase 7 | Pending |
-| PIPE-02 | Phase 7 | Pending |
+| PIPE-01 | Phase 7 | Complete |
+| PIPE-02 | Phase 7 | Complete |
 | PIPE-03 | Phase 7 | Pending |
 | PIPE-04 | Phase 7 | Pending |
 | PIPE-05 | Phase 7 | Pending |

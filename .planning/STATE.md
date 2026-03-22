@@ -2,16 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
-status: planning
-stopped_at: Phase 7 context gathered
-last_updated: "2026-03-22T14:27:28.043Z"
-last_activity: 2026-03-22 — v1.1 roadmap created (Phases 7-10)
+status: in_progress
+stopped_at: "Completed 07-01-PLAN.md"
+last_updated: "2026-03-22T15:10:00Z"
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -21,16 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** v1.1 Phase 7 — Pipeline Infrastructure
+**Current focus:** Phase 07 — pipeline-infrastructure
 
 ## Current Position
 
-Phase: 7 of 10 (Pipeline Infrastructure)
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-03-22 — v1.1 roadmap created (Phases 7-10)
-
-Progress: [░░░░░░░░░░] 0% (v1.1 milestone)
+Phase: 07 (pipeline-infrastructure) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -42,6 +36,9 @@ Recent decisions affecting current work:
 - [v1.1 Roadmap]: Local providers bypass DB cache entirely via is_local property on provider ABCs — establish this before any provider is implemented
 - [v1.1 Roadmap]: Build order is Pipeline → OA → Tiger → NAD (complexity and scale increasing; Tiger before NAD to isolate SQL function pattern from table-query pattern)
 - [v1.1 Research]: No new Python dependencies — gzip/json/csv stdlib + usaddress (transitive) + existing asyncpg/sqlalchemy cover all three providers
+- [07-01]: is_local is a concrete property (not abstract) so existing providers need zero changes
+- [07-01]: OfficialGeocoding auto-set skipped for local-only requests — no ORM row to reference
+- [07-01]: AsyncMock(spec=GeocodingProvider) returns truthy mock for is_local — test helpers must explicitly set is_local=False
 
 ### Pending Todos
 
@@ -55,6 +52,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T14:27:28.037Z
-Stopped at: Phase 7 context gathered
+Last session: 2026-03-22T15:10:00Z
+Stopped at: Completed 07-01-PLAN.md
 Resume file: .planning/phases/07-pipeline-infrastructure/07-CONTEXT.md
