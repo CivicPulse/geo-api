@@ -5,12 +5,15 @@ as provider geocoding results and auto-setting OfficialGeocoding records.
 """
 from __future__ import annotations
 
+import gzip
 import json
+import time
 from pathlib import Path
 
 import typer
+import usaddress
 from loguru import logger
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 from sqlalchemy import create_engine, text
 
 from civpulse_geo.cli.parsers import load_geojson, load_kml, load_shp
@@ -18,6 +21,8 @@ from civpulse_geo.config import settings
 from civpulse_geo.normalization import canonical_key, parse_address_components
 
 app = typer.Typer(help="CivPulse Geo CLI -- GIS data import tools.")
+
+OA_BATCH_SIZE = 1000
 
 # Bibb County GeoJSON/KML field mapping
 BIBB_FIELD_MAP = {
@@ -267,6 +272,100 @@ def _upsert_address(
     return existing[0] if existing else None
 
 
+def _parse_street_components(street: str) -> tuple[str, str | None]:
+    """Extract street_name and street_suffix from OA street field using usaddress."""
+    if not street:
+        return street or "", None
+    tokens = usaddress.parse(street)
+    name_parts = [tok for tok, lbl in tokens if lbl == "StreetName"]
+    suffix_parts = [tok for tok, lbl in tokens if lbl == "StreetNamePostType"]
+    street_name = " ".join(name_parts) if name_parts else street
+    street_suffix = suffix_parts[0] if suffix_parts else None
+    return street_name, street_suffix
+
+
+def _parse_oa_feature(feat: dict, stats: dict) -> dict | None:
+    """Parse an OA GeoJSON feature into a dict suitable for DB insert.
+
+    Returns None and increments stats["skipped"] if the feature is invalid.
+    """
+    props = feat.get("properties", {})
+    geom = feat.get("geometry")
+
+    # Validate coordinates
+    if not geom or not geom.get("coordinates") or len(geom["coordinates"]) < 2:
+        stats["skipped"] += 1
+        source_hash = (props or {}).get("hash", "unknown")
+        logger.warning(f"Feature skipped (missing coordinates): hash={source_hash}")
+        return None
+
+    lng, lat = geom["coordinates"][0], geom["coordinates"][1]
+
+    # Validate numeric coordinates
+    if not isinstance(lng, (int, float)) or not isinstance(lat, (int, float)):
+        stats["skipped"] += 1
+        return None
+
+    # Require source_hash for deduplication
+    source_hash = props.get("hash", "")
+    if not source_hash:
+        stats["skipped"] += 1
+        return None
+
+    # Parse street components
+    street_name, street_suffix = _parse_street_components(props.get("street", "") or "")
+
+    return {
+        "source_hash": source_hash,
+        "street_number": props.get("number") or None,
+        "street_name": street_name or None,
+        "street_suffix": street_suffix,
+        "unit": props.get("unit") or None,
+        "city": props.get("city") or None,
+        "district": props.get("district") or None,
+        "region": props.get("region") or None,
+        "postcode": props.get("postcode") or None,
+        "location": f"SRID=4326;POINT({lng} {lat})",
+        "accuracy": props.get("accuracy") or None,
+    }
+
+
+def _upsert_oa_batch(conn, batch: list[dict], stats: dict) -> None:
+    """Upsert a batch of OA rows into openaddresses_points using ON CONFLICT."""
+    for row in batch:
+        result = conn.execute(
+            text("""
+                INSERT INTO openaddresses_points (
+                    source_hash, street_number, street_name, street_suffix,
+                    unit, city, district, region, postcode, location, accuracy
+                ) VALUES (
+                    :source_hash, :street_number, :street_name, :street_suffix,
+                    :unit, :city, :district, :region, :postcode,
+                    ST_GeogFromText(:location), :accuracy
+                )
+                ON CONFLICT ON CONSTRAINT uq_oa_source_hash DO UPDATE
+                    SET street_number = EXCLUDED.street_number,
+                        street_name   = EXCLUDED.street_name,
+                        street_suffix = EXCLUDED.street_suffix,
+                        unit          = EXCLUDED.unit,
+                        city          = EXCLUDED.city,
+                        district      = EXCLUDED.district,
+                        region        = EXCLUDED.region,
+                        postcode      = EXCLUDED.postcode,
+                        location      = EXCLUDED.location,
+                        accuracy      = EXCLUDED.accuracy
+                RETURNING (xmax = 0) AS was_inserted
+            """),
+            row,
+        )
+        was_inserted = result.scalar()
+        if was_inserted:
+            stats["inserted"] += 1
+        else:
+            stats["updated"] += 1
+    conn.commit()
+
+
 @app.command("load-oa")
 def load_openaddresses(
     file: Path = typer.Argument(..., help="Path to OpenAddresses .geojson.gz file"),
@@ -282,9 +381,59 @@ def load_openaddresses(
     if not str(file).endswith(".geojson.gz"):
         typer.echo(f"Error: expected .geojson.gz file, got: {file.suffix}", err=True)
         raise typer.Exit(1)
-    # Phase 8 implements data loading; this stub confirms wiring
-    typer.echo(f"load-oa: {file} (data loading implemented in Phase 8)")
-    raise typer.Exit(0)
+
+    db_url = database_url or settings.database_url_sync
+    engine = create_engine(db_url)
+    start_time = time.time()
+    stats = {"processed": 0, "inserted": 0, "updated": 0, "skipped": 0}
+
+    # Two-pass: count lines first for progress bar
+    logger.info(f"Counting records in {file}...")
+    total_lines = sum(1 for _ in gzip.open(file, "rt"))
+    logger.info(f"Found {total_lines} records")
+
+    with engine.connect() as conn:
+        batch: list[dict] = []
+        with Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+            task = progress.add_task("Importing OA data...", total=total_lines)
+            with gzip.open(file, "rt") as f:
+                for line in f:
+                    stats["processed"] += 1
+                    try:
+                        feat = json.loads(line)
+                    except json.JSONDecodeError:
+                        stats["skipped"] += 1
+                        logger.warning(
+                            f"Malformed JSON line skipped at record {stats['processed']}"
+                        )
+                        progress.advance(task)
+                        continue
+
+                    row = _parse_oa_feature(feat, stats)
+                    if row:
+                        batch.append(row)
+
+                    if len(batch) >= OA_BATCH_SIZE:
+                        _upsert_oa_batch(conn, batch, stats)
+                        batch.clear()
+
+                    progress.advance(task)
+
+                # Flush remaining batch
+                if batch:
+                    _upsert_oa_batch(conn, batch, stats)
+
+    elapsed = time.time() - start_time
+    typer.echo(f"\nImport complete in {elapsed:.1f}s")
+    typer.echo(f"  Processed: {stats['processed']}")
+    typer.echo(f"  Inserted:  {stats['inserted']}")
+    typer.echo(f"  Updated:   {stats['updated']}")
+    typer.echo(f"  Skipped:   {stats['skipped']}")
 
 
 @app.command("load-nad")
