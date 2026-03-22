@@ -11,10 +11,10 @@ Requirements for local data source providers. Each maps to roadmap phases.
 
 - [x] **PIPE-01**: Service layer bypasses DB caching for providers with is_local=True
 - [x] **PIPE-02**: Provider ABCs expose is_local property (default False)
-- [ ] **PIPE-03**: Alembic migration creates openaddresses_points staging table with GiST spatial index
-- [ ] **PIPE-04**: Alembic migration creates nad_points staging table with GiST spatial index
-- [ ] **PIPE-05**: CLI command imports OpenAddresses .geojson.gz files into staging table
-- [ ] **PIPE-06**: CLI command imports NAD r21 TXT CSV into staging table via COPY
+- [x] **PIPE-03**: Alembic migration creates openaddresses_points staging table with GiST spatial index
+- [x] **PIPE-04**: Alembic migration creates nad_points staging table with GiST spatial index
+- [x] **PIPE-05**: CLI command imports OpenAddresses .geojson.gz files into staging table
+- [x] **PIPE-06**: CLI command imports NAD r21 TXT CSV into staging table via COPY
 
 ### OpenAddresses
 
@@ -69,10 +69,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | PIPE-01 | Phase 7 | Complete |
 | PIPE-02 | Phase 7 | Complete |
-| PIPE-03 | Phase 7 | Pending |
-| PIPE-04 | Phase 7 | Pending |
-| PIPE-05 | Phase 7 | Pending |
-| PIPE-06 | Phase 7 | Pending |
+| PIPE-03 | Phase 7 | Complete |
+| PIPE-04 | Phase 7 | Complete |
+| PIPE-05 | Phase 7 | Complete |
+| PIPE-06 | Phase 7 | Complete |
 | OA-01 | Phase 8 | Pending |
 | OA-02 | Phase 8 | Pending |
 | OA-03 | Phase 8 | Pending |

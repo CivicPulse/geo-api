@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
 status: in_progress
-stopped_at: "Completed 07-01-PLAN.md"
-last_updated: "2026-03-22T15:10:00Z"
+stopped_at: "Completed 07-02-PLAN.md"
+last_updated: "2026-03-22T15:35:00Z"
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,8 +23,8 @@ See: .planning/PROJECT.md (updated 2026-03-20)
 
 ## Current Position
 
-Phase: 07 (pipeline-infrastructure) — EXECUTING
-Plan: 2 of 2
+Phase: 07 (pipeline-infrastructure) — COMPLETE
+Plan: 2 of 2 (all plans complete)
 
 ## Accumulated Context
 
@@ -39,6 +39,9 @@ Recent decisions affecting current work:
 - [07-01]: is_local is a concrete property (not abstract) so existing providers need zero changes
 - [07-01]: OfficialGeocoding auto-set skipped for local-only requests — no ORM row to reference
 - [07-01]: AsyncMock(spec=GeocodingProvider) returns truthy mock for is_local — test helpers must explicitly set is_local=False
+- [07-02]: Staging table source_hash is String(64) for SHA-256 hex digests supporting upsert deduplication
+- [07-02]: load-oa validates .geojson.gz extension; load-nad validates file existence only (Phase 10 validates TXT format)
+- [07-02]: CLI stubs use raise typer.Exit(0) pattern for clean exit with Typer CliRunner
 
 ### Pending Todos
 
@@ -52,6 +55,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T15:10:00Z
-Stopped at: Completed 07-01-PLAN.md
-Resume file: .planning/phases/07-pipeline-infrastructure/07-CONTEXT.md
+Last session: 2026-03-22T15:35:00Z
+Stopped at: Completed 07-02-PLAN.md
+Resume file: .planning/phases/07-pipeline-infrastructure/07-02-SUMMARY.md
