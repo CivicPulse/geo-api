@@ -29,6 +29,16 @@ class GeocodingProvider(abc.ABC):
     """
 
     @property
+    def is_local(self) -> bool:
+        """True for providers that query local staging tables (bypass DB cache).
+
+        Local providers (e.g., openaddresses, nad, tiger) return results directly
+        without writing to geocoding_results. Defaults to False for all remote
+        providers -- no subclass changes required.
+        """
+        return False
+
+    @property
     @abc.abstractmethod
     def provider_name(self) -> str:
         """Unique string identifier for this provider.
@@ -83,6 +93,16 @@ class ValidationProvider(abc.ABC):
     - validate(address): single address -> structured validation result dict
     - batch_validate(addresses): list of addresses -> list of result dicts
     """
+
+    @property
+    def is_local(self) -> bool:
+        """True for providers that query local staging tables (bypass DB cache).
+
+        Local providers (e.g., openaddresses, nad, tiger) return results directly
+        without writing to validation_results. Defaults to False for all remote
+        providers -- no subclass changes required.
+        """
+        return False
 
     @property
     @abc.abstractmethod

@@ -315,3 +315,53 @@ class TestGeocodingResultSchema:
             confidence=0.5, raw_response={}, provider_name="census",
         )
         assert result.provider_name == "census"
+
+
+# ---------------------------------------------------------------------------
+# is_local property tests
+# ---------------------------------------------------------------------------
+
+class _LocalGeocodingProvider(_ConcreteGeocodingProvider):
+    @property
+    def is_local(self) -> bool:
+        return True
+
+
+class _LocalValidationProvider(_ConcreteValidationProvider):
+    @property
+    def is_local(self) -> bool:
+        return True
+
+
+class TestIsLocalProperty:
+    def test_is_local_defaults_false_geocoding(self):
+        """GeocodingProvider.is_local defaults to False for concrete providers."""
+        provider = _ConcreteGeocodingProvider()
+        assert provider.is_local is False
+
+    def test_is_local_defaults_false_validation(self):
+        """ValidationProvider.is_local defaults to False for concrete providers."""
+        provider = _ConcreteValidationProvider()
+        assert provider.is_local is False
+
+    def test_is_local_override_returns_true(self):
+        """A subclass overriding is_local to True returns True."""
+        geo_provider = _LocalGeocodingProvider()
+        val_provider = _LocalValidationProvider()
+        assert geo_provider.is_local is True
+        assert val_provider.is_local is True
+
+    def test_concrete_providers_still_instantiate(self):
+        """Existing concrete providers still instantiate without any changes."""
+        geo = _ConcreteGeocodingProvider()
+        val = _ConcreteValidationProvider()
+        assert geo.provider_name == "test-geocoder"
+        assert val.provider_name == "test-validator"
+
+    def test_is_local_not_in_abstract_methods(self):
+        """is_local is NOT in GeocodingProvider.__abstractmethods__ (it is concrete)."""
+        assert "is_local" not in GeocodingProvider.__abstractmethods__
+
+    def test_is_local_not_in_validation_abstract_methods(self):
+        """is_local is NOT in ValidationProvider.__abstractmethods__ (it is concrete)."""
+        assert "is_local" not in ValidationProvider.__abstractmethods__
