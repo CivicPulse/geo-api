@@ -10,6 +10,7 @@ from pathlib import Path
 
 import typer
 from loguru import logger
+from rich.progress import Progress, SpinnerColumn, TextColumn
 from sqlalchemy import create_engine, text
 
 from civpulse_geo.cli.parsers import load_geojson, load_kml, load_shp
@@ -264,3 +265,40 @@ def _upsert_address(
         {"hash": address_hash},
     ).fetchone()
     return existing[0] if existing else None
+
+
+@app.command("load-oa")
+def load_openaddresses(
+    file: Path = typer.Argument(..., help="Path to OpenAddresses .geojson.gz file"),
+    database_url: str | None = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL_SYNC",
+        help="Synchronous PostgreSQL URL (psycopg2).",
+    ),
+) -> None:
+    """Import an OpenAddresses .geojson.gz file into the openaddresses_points staging table."""
+    if not file.exists():
+        typer.echo(f"Error: file not found: {file}", err=True)
+        raise typer.Exit(1)
+    if not str(file).endswith(".geojson.gz"):
+        typer.echo(f"Error: expected .geojson.gz file, got: {file.suffix}", err=True)
+        raise typer.Exit(1)
+    # Phase 8 implements data loading; this stub confirms wiring
+    typer.echo(f"load-oa: {file} (data loading implemented in Phase 8)")
+    raise typer.Exit(0)
+
+
+@app.command("load-nad")
+def load_nad(
+    file: Path = typer.Argument(..., help="Path to NAD r21 TXT (pipe-delimited) file"),
+    database_url: str | None = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL_SYNC",
+        help="Synchronous PostgreSQL URL (psycopg2).",
+    ),
+) -> None:
+    """Import a NAD r21 TXT file into the nad_points staging table via PostgreSQL COPY."""
+    if not file.exists():
+        typer.echo(f"Error: file not found: {file}", err=True)
+        raise typer.Exit(1)
+    # Phase 10 implements data loading; this stub confirms wiring
+    typer.echo(f"load-nad: {file} (data loading implemented in Phase 10)")
+    raise typer.Exit(0)

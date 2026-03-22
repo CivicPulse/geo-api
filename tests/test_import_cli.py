@@ -156,7 +156,7 @@ class TestImportGISCommand:
         with patch("civpulse_geo.cli.create_engine", mock_engine):
             result = runner.invoke(
                 app,
-                [str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+                ["import", str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
             )
             assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
             output = result.output.lower()
@@ -173,7 +173,7 @@ class TestImportGISCommand:
         with patch("civpulse_geo.cli.create_engine", mock_engine):
             result = runner.invoke(
                 app,
-                [str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+                ["import", str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
             )
             assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
             # Verify that execute was called with SQL containing bibb_county_gis
@@ -190,7 +190,7 @@ class TestImportGISCommand:
         runner = CliRunner()
         result = runner.invoke(
             app,
-            ["fake.csv", "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+            ["import", "fake.csv", "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
         )
         assert result.exit_code != 0
 
@@ -231,6 +231,6 @@ class TestImportGISCommand:
         with patch("civpulse_geo.cli.create_engine", mock_engine):
             result = runner.invoke(
                 app,
-                [str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
+                ["import", str(GEOJSON_PATH), "--database-url", "postgresql+psycopg2://test:test@localhost/test"],
             )
             assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
