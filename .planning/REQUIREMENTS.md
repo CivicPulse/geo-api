@@ -18,7 +18,7 @@ Requirements for local data source providers. Each maps to roadmap phases.
 
 ### OpenAddresses
 
-- [ ] **OA-01**: User can geocode an address against loaded OpenAddresses data
+- [x] **OA-01**: User can geocode an address against loaded OpenAddresses data
 - [ ] **OA-02**: User can validate an address against OpenAddresses records
 - [ ] **OA-03**: OA geocoding returns location_type based on accuracy field (rooftop/parcel/interpolated/centroid)
 - [ ] **OA-04**: OA provider registered automatically when staging table has data
@@ -73,7 +73,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-04 | Phase 7 | Complete |
 | PIPE-05 | Phase 7 | Complete |
 | PIPE-06 | Phase 7 | Complete |
-| OA-01 | Phase 8 | Pending |
+| OA-01 | Phase 8 | Complete |
 | OA-02 | Phase 8 | Pending |
 | OA-03 | Phase 8 | Pending |
 | OA-04 | Phase 8 | Pending |

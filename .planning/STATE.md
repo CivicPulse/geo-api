@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
 status: unknown
-stopped_at: Phase 8 context gathered
-last_updated: "2026-03-22T19:44:12.042Z"
+stopped_at: "Completed 08-02-PLAN.md"
+last_updated: "2026-03-22T20:02:00Z"
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 4
+  completed_plans: 3
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 07 — pipeline-infrastructure
+**Current focus:** Phase 08 — openaddresses-provider
 
 ## Current Position
 
-Phase: 07 (pipeline-infrastructure) — COMPLETE
-Plan: 2 of 2 (all plans complete)
+Phase: 08 (openaddresses-provider) — EXECUTING
+Plan: 2 of 2 (complete)
 
 ## Accumulated Context
 
@@ -42,6 +42,9 @@ Recent decisions affecting current work:
 - [07-02]: Staging table source_hash is String(64) for SHA-256 hex digests supporting upsert deduplication
 - [07-02]: load-oa validates .geojson.gz extension; load-nad validates file existence only (Phase 10 validates TXT format)
 - [07-02]: CLI stubs use raise typer.Exit(0) pattern for clean exit with Typer CliRunner
+- [08-02]: OA hash used directly as source_hash (not recomputed) — trusts OA deduplication, avoids SHA-256 overhead on 60k+ rows
+- [08-02]: engine.connect() used over engine.begin() so _upsert_oa_batch can call conn.commit() per batch for incremental durability
+- [08-02]: Two-pass .geojson.gz approach (count then import) accepted for clean Rich progress bar despite reading file twice
 
 ### Pending Todos
 
@@ -55,6 +58,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-22T19:44:12.035Z
-Stopped at: Phase 8 context gathered
-Resume file: .planning/phases/08-openaddresses-provider/08-CONTEXT.md
+Last session: 2026-03-22T20:02:00Z
+Stopped at: Completed 08-02-PLAN.md
+Resume file: .planning/phases/08-openaddresses-provider/08-02-SUMMARY.md
