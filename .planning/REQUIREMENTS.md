@@ -67,31 +67,31 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | — | Pending |
-| PIPE-02 | — | Pending |
-| PIPE-03 | — | Pending |
-| PIPE-04 | — | Pending |
-| PIPE-05 | — | Pending |
-| PIPE-06 | — | Pending |
-| OA-01 | — | Pending |
-| OA-02 | — | Pending |
-| OA-03 | — | Pending |
-| OA-04 | — | Pending |
-| NAD-01 | — | Pending |
-| NAD-02 | — | Pending |
-| NAD-03 | — | Pending |
-| NAD-04 | — | Pending |
-| TIGR-01 | — | Pending |
-| TIGR-02 | — | Pending |
-| TIGR-03 | — | Pending |
-| TIGR-04 | — | Pending |
-| TIGR-05 | — | Pending |
+| PIPE-01 | Phase 7 | Pending |
+| PIPE-02 | Phase 7 | Pending |
+| PIPE-03 | Phase 7 | Pending |
+| PIPE-04 | Phase 7 | Pending |
+| PIPE-05 | Phase 7 | Pending |
+| PIPE-06 | Phase 7 | Pending |
+| OA-01 | Phase 8 | Pending |
+| OA-02 | Phase 8 | Pending |
+| OA-03 | Phase 8 | Pending |
+| OA-04 | Phase 8 | Pending |
+| NAD-01 | Phase 10 | Pending |
+| NAD-02 | Phase 10 | Pending |
+| NAD-03 | Phase 10 | Pending |
+| NAD-04 | Phase 10 | Pending |
+| TIGR-01 | Phase 9 | Pending |
+| TIGR-02 | Phase 9 | Pending |
+| TIGR-03 | Phase 9 | Pending |
+| TIGR-04 | Phase 9 | Pending |
+| TIGR-05 | Phase 9 | Pending |
 
 **Coverage:**
 - v1.1 requirements: 19 total
-- Mapped to phases: 0
-- Unmapped: 19
+- Mapped to phases: 19
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-22*
-*Last updated: 2026-03-22 after initial definition*
+*Last updated: 2026-03-22 after roadmap creation*
