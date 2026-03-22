@@ -18,6 +18,7 @@ from civpulse_geo.normalization import canonical_key, parse_address_components
 from civpulse_geo.models.address import Address
 from civpulse_geo.models.validation import ValidationResult as ValidationResultORM
 from civpulse_geo.providers.base import ValidationProvider
+from civpulse_geo.providers.schemas import ValidationResult as ValidationResultSchema
 
 
 class ValidationService:
@@ -80,7 +81,13 @@ class ValidationService:
             db.add(address)
             await db.flush()  # get address.id
 
-        # Step 3: Cache check -- query validation_results for this address
+        # Determine which providers are local vs remote
+        local_providers = {k: v for k, v in providers.items()
+                           if isinstance(v, ValidationProvider) and v.is_local}
+        remote_providers = {k: v for k, v in providers.items()
+                            if isinstance(v, ValidationProvider) and not v.is_local}
+
+        # Step 3: Cache check -- query validation_results for this address (only for pure-remote requests)
         cache_result = await db.execute(
             select(ValidationResultORM).where(
                 ValidationResultORM.address_id == address.id
@@ -88,21 +95,26 @@ class ValidationService:
         )
         cached = cache_result.scalars().all()
 
-        if cached:
+        if cached and not local_providers:
             await db.commit()
             return {
                 "address_hash": address_hash,
                 "original_input": freeform,
                 "candidates": cached,
+                "local_candidates": [],
                 "cache_hit": True,
             }
 
-        # Step 4: Call validation providers on cache miss
-        new_results: list[ValidationResultORM] = []
-        for provider_name, provider in providers.items():
-            if not isinstance(provider, ValidationProvider):
-                continue
+        # Step 4a: Call local providers (bypass DB write)
+        local_candidates: list[ValidationResultSchema] = []
+        for provider_name, provider in local_providers.items():
+            # Provider raises ProviderError for unparseable -- propagate to caller
+            provider_result = await provider.validate(freeform)
+            local_candidates.append(provider_result)
 
+        # Step 4b: Call remote providers on cache miss
+        new_results: list[ValidationResultORM] = []
+        for provider_name, provider in remote_providers.items():
             # Provider raises ProviderError for unparseable -- propagate to caller
             provider_result = await provider.validate(freeform)
 
@@ -161,6 +173,7 @@ class ValidationService:
             "address_hash": address_hash,
             "original_input": freeform,
             "candidates": new_results,
+            "local_candidates": local_candidates,
             "cache_hit": False,
         }
 

@@ -25,6 +25,7 @@ def _make_provider(lat=38.845, lng=-76.928, confidence=0.8, location_type="RANGE
 
     provider = AsyncMock(spec=GeocodingProvider)
     provider.provider_name = "census"
+    provider.is_local = False  # Explicitly mark as remote provider
     provider.geocode = AsyncMock(
         return_value=ProviderResult(
             lat=lat,
@@ -950,3 +951,190 @@ async def test_get_by_provider_not_found():
             provider_name="nonexistent",
             db=db,
         )
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (07-01): Local provider bypass tests
+# ---------------------------------------------------------------------------
+
+def _make_local_geocoding_provider():
+    """Build a mock GeocodingProvider with is_local=True."""
+    from civpulse_geo.providers.base import GeocodingProvider
+
+    provider = AsyncMock(spec=GeocodingProvider)
+    provider.provider_name = "test-local"
+    provider.is_local = True
+    provider.geocode = AsyncMock(
+        return_value=ProviderResult(
+            lat=32.84, lng=-83.63, location_type="ROOFTOP",
+            confidence=0.95, raw_response={}, provider_name="test-local",
+        )
+    )
+    return provider
+
+
+def _make_db_for_local_provider(address_id=1):
+    """Build a mock db session that simulates a new address (cache miss) for local provider tests.
+
+    Returns (db, address) tuple. The address is pre-configured with empty geocoding_results.
+    db.execute sequence:
+      1. Address lookup with selectinload -> address found
+      2. OfficialGeocoding lookup in _get_official -> None (no official set yet)
+    (No upsert calls should happen for local providers.)
+    """
+    db = AsyncMock(spec=AsyncSession)
+    db.flush = AsyncMock()
+    db.commit = AsyncMock()
+    db.add = MagicMock()
+
+    address = _make_address(address_id=address_id, has_results=False)
+
+    # First execute: address lookup -> returns address
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    # Second execute: OfficialGeocoding lookup in _get_official -> returns None
+    none_scalars = MagicMock()
+    none_scalars.first.return_value = None
+    none_result = MagicMock()
+    none_result.scalars.return_value = none_scalars
+
+    db.execute = AsyncMock(side_effect=[addr_result, none_result])
+    return db, address
+
+
+class TestLocalProviderBypass:
+    """Tests verifying that local providers bypass geocoding_results DB writes."""
+
+    @pytest.mark.asyncio
+    async def test_local_provider_bypasses_geocoding_results_write(self):
+        """geocode() with a local provider does NOT call pg_insert(GeocodingResultORM)."""
+        service = GeocodingService()
+        local_provider = _make_local_geocoding_provider()
+        http_client = AsyncMock()
+
+        db, address = _make_db_for_local_provider()
+
+        result = await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"test-local": local_provider},
+            http_client=http_client,
+        )
+
+        # Only address lookup should have been called (1 execute),
+        # plus no geocoding_results insert
+        # The result should have local_results with the provider result
+        assert "local_results" in result
+        assert len(result["local_results"]) == 1
+        assert result["local_results"][0].provider_name == "test-local"
+
+        # results (remote ORM rows) should be empty
+        assert result["results"] == []
+
+    @pytest.mark.asyncio
+    async def test_local_provider_result_in_local_results_key(self):
+        """geocode() with local provider returns provider result under local_results, not results."""
+        service = GeocodingService()
+        local_provider = _make_local_geocoding_provider()
+        http_client = AsyncMock()
+
+        db, address = _make_db_for_local_provider()
+
+        result = await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"test-local": local_provider},
+            http_client=http_client,
+        )
+
+        assert "local_results" in result
+        assert "results" in result
+        # Local results should contain the schema result (not an ORM row)
+        assert len(result["local_results"]) == 1
+        local = result["local_results"][0]
+        assert local.lat == 32.84
+        assert local.lng == -83.63
+        # Remote results should be empty
+        assert result["results"] == []
+
+    @pytest.mark.asyncio
+    async def test_local_provider_db_execute_count(self):
+        """geocode() with local provider calls db.execute only for address lookup (no upsert)."""
+        service = GeocodingService()
+        local_provider = _make_local_geocoding_provider()
+        http_client = AsyncMock()
+
+        db, address = _make_db_for_local_provider()
+
+        await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"test-local": local_provider},
+            http_client=http_client,
+        )
+
+        # Should only execute address lookup (1 call) — no upsert for geocoding_results
+        assert db.execute.call_count == 1, (
+            f"Expected 1 db.execute call (address lookup), got {db.execute.call_count}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_return_includes_local_results_key(self):
+        """Cache-hit return path includes local_results key (empty list)."""
+        service = GeocodingService()
+        remote_provider = _make_provider()  # is_local=False by default
+        http_client = AsyncMock()
+
+        db = AsyncMock(spec=AsyncSession)
+        db.commit = AsyncMock()
+
+        cached_address = _make_address(has_results=True)
+
+        addr_scalars = MagicMock()
+        addr_scalars.first.return_value = cached_address
+        addr_result = MagicMock()
+        addr_result.scalars.return_value = addr_scalars
+
+        official_scalars = MagicMock()
+        official_scalars.first.return_value = None
+        official_result = MagicMock()
+        official_result.scalars.return_value = official_scalars
+
+        gr_scalars = MagicMock()
+        gr_scalars.first.return_value = None
+        gr_result = MagicMock()
+        gr_result.scalars.return_value = gr_scalars
+
+        db.execute = AsyncMock(side_effect=[addr_result, official_result, gr_result])
+
+        result = await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"census": remote_provider},
+            http_client=http_client,
+        )
+
+        assert result["cache_hit"] is True
+        assert "local_results" in result
+        assert result["local_results"] == []
+
+    @pytest.mark.asyncio
+    async def test_local_provider_geocode_is_called(self):
+        """geocode() calls provider.geocode() even when there are no remote providers."""
+        service = GeocodingService()
+        local_provider = _make_local_geocoding_provider()
+        http_client = AsyncMock()
+
+        db, address = _make_db_for_local_provider()
+
+        await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"test-local": local_provider},
+            http_client=http_client,
+        )
+
+        local_provider.geocode.assert_called_once()

@@ -129,6 +129,7 @@ def _make_validation_provider(result=None):
 
     provider = AsyncMock(spec=ValidationProvider)
     provider.provider_name = "scourgify"
+    provider.is_local = False  # Explicitly mark as remote provider
     provider.validate = AsyncMock(
         return_value=result or _make_provider_result()
     )
@@ -463,3 +464,170 @@ async def test_validate_creates_address_on_miss():
     from civpulse_geo.models.address import Address
     assert len(added) == 1
     assert isinstance(added[0], Address)
+
+
+# ---------------------------------------------------------------------------
+# Task 1 (07-01): Local provider bypass tests
+# ---------------------------------------------------------------------------
+
+def _make_local_validation_provider():
+    """Build a mock ValidationProvider with is_local=True."""
+    from civpulse_geo.providers.base import ValidationProvider
+
+    provider = AsyncMock(spec=ValidationProvider)
+    provider.provider_name = "test-local-validator"
+    provider.is_local = True
+    provider.validate = AsyncMock(
+        return_value=_make_provider_result(
+            normalized_address="123 MAIN ST MACON GA 31201",
+            provider_name="test-local-validator",
+        )
+    )
+    return provider
+
+
+def _make_db_for_local_validation(address_id=1):
+    """Build a mock db for local provider validation tests.
+
+    Returns (db, address) tuple. Address has no cached validation results.
+    db.execute sequence:
+      1. Address lookup -> address found (no cached validation results)
+      2. Cache check -> empty list (ensures no cache short-circuit)
+    """
+    db = AsyncMock(spec=AsyncSession)
+    db.flush = AsyncMock()
+    db.commit = AsyncMock()
+    db.add = MagicMock()
+
+    address = _make_address_orm(address_id=address_id)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    # Cache check returns empty (no cached validation results)
+    cache_scalars = MagicMock()
+    cache_scalars.all.return_value = []
+    cache_result = MagicMock()
+    cache_result.scalars.return_value = cache_scalars
+
+    db.execute = AsyncMock(side_effect=[addr_result, cache_result])
+    return db, address
+
+
+class TestLocalProviderBypass:
+    """Tests verifying that local providers bypass validation_results DB writes."""
+
+    @pytest.mark.asyncio
+    async def test_local_provider_bypasses_validation_results_write(self):
+        """validate() with a local provider does NOT call pg_insert(ValidationResultORM)."""
+        service = ValidationService()
+        local_provider = _make_local_validation_provider()
+
+        db, address = _make_db_for_local_validation()
+
+        result = await service.validate(
+            freeform="123 Main Street, Macon, GA 31201",
+            db=db,
+            providers={"test-local-validator": local_provider},
+        )
+
+        # local_candidates key should be present with the provider result
+        assert "local_candidates" in result
+        assert len(result["local_candidates"]) == 1
+        assert result["local_candidates"][0].provider_name == "test-local-validator"
+
+        # candidates (remote ORM rows) should be empty
+        assert result["candidates"] == []
+
+    @pytest.mark.asyncio
+    async def test_local_provider_result_in_local_candidates_key(self):
+        """validate() with local provider returns result under local_candidates, not candidates."""
+        service = ValidationService()
+        local_provider = _make_local_validation_provider()
+
+        db, address = _make_db_for_local_validation()
+
+        result = await service.validate(
+            freeform="123 Main Street, Macon, GA 31201",
+            db=db,
+            providers={"test-local-validator": local_provider},
+        )
+
+        assert "local_candidates" in result
+        assert "candidates" in result
+        assert len(result["local_candidates"]) == 1
+        local = result["local_candidates"][0]
+        assert local.normalized_address == "123 MAIN ST MACON GA 31201"
+        # Remote candidates should be empty
+        assert result["candidates"] == []
+
+    @pytest.mark.asyncio
+    async def test_local_provider_db_execute_count(self):
+        """validate() with local provider calls db.execute only for address lookup and cache check."""
+        service = ValidationService()
+        local_provider = _make_local_validation_provider()
+
+        db, address = _make_db_for_local_validation()
+
+        await service.validate(
+            freeform="123 Main Street, Macon, GA 31201",
+            db=db,
+            providers={"test-local-validator": local_provider},
+        )
+
+        # Should execute: 1) address lookup, 2) cache check — no upsert for validation_results
+        assert db.execute.call_count == 2, (
+            f"Expected 2 db.execute calls (address lookup + cache check), got {db.execute.call_count}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_return_includes_local_candidates_key(self):
+        """Cache-hit return path includes local_candidates key (empty list)."""
+        service = ValidationService()
+        provider = _make_validation_provider()
+
+        db = AsyncMock(spec=AsyncSession)
+        db.commit = AsyncMock()
+
+        address = _make_address_orm(address_id=5)
+        cached_row = _make_validation_orm_row(row_id=10, address_id=5)
+
+        addr_scalars = MagicMock()
+        addr_scalars.first.return_value = address
+        addr_result = MagicMock()
+        addr_result.scalars.return_value = addr_scalars
+
+        cache_scalars = MagicMock()
+        cache_scalars.all.return_value = [cached_row]
+        cache_result = MagicMock()
+        cache_result.scalars.return_value = cache_scalars
+
+        db.execute = AsyncMock(side_effect=[addr_result, cache_result])
+
+        result = await service.validate(
+            freeform="123 Main Street, Macon, GA 31201",
+            db=db,
+            providers={"scourgify": provider},
+        )
+
+        assert result["cache_hit"] is True
+        assert "local_candidates" in result
+        assert result["local_candidates"] == []
+
+    @pytest.mark.asyncio
+    async def test_local_provider_validate_is_called(self):
+        """validate() calls provider.validate() for local providers."""
+        service = ValidationService()
+        local_provider = _make_local_validation_provider()
+
+        db, address = _make_db_for_local_validation()
+
+        await service.validate(
+            freeform="123 Main Street, Macon, GA 31201",
+            db=db,
+            providers={"test-local-validator": local_provider},
+        )
+
+        local_provider.validate.assert_called_once()

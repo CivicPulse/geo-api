@@ -28,6 +28,7 @@ from civpulse_geo.models.geocoding import (
     AdminOverride,
 )
 from civpulse_geo.providers.base import GeocodingProvider
+from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
 
 
 class GeocodingService:
@@ -93,8 +94,14 @@ class GeocodingService:
             db.add(address)
             await db.flush()  # get address.id
 
-        # Step 3: Cache check (skip if force_refresh)
-        if not force_refresh and address.geocoding_results:
+        # Determine which providers are local vs remote
+        local_providers = {k: v for k, v in providers.items()
+                           if isinstance(v, GeocodingProvider) and v.is_local}
+        remote_providers = {k: v for k, v in providers.items()
+                            if isinstance(v, GeocodingProvider) and not v.is_local}
+
+        # Step 3: Cache check (skip if force_refresh or any local providers requested)
+        if not force_refresh and address.geocoding_results and not local_providers:
             cached = address.geocoding_results
 
             # Load official result for this address
@@ -105,16 +112,22 @@ class GeocodingService:
                 "address_hash": address_hash,
                 "normalized_address": normalized,
                 "results": cached,
+                "local_results": [],
                 "cache_hit": True,
                 "official": official_result,
             }
 
-        # Step 4: Call providers on cache miss
-        new_results: list[GeocodingResultORM] = []
-        for provider_name, provider in providers.items():
-            if not isinstance(provider, GeocodingProvider):
-                continue
+        # Step 4a: Call local providers on any request (bypass DB write)
+        local_results: list[GeocodingResultSchema] = []
+        for provider_name, provider in local_providers.items():
+            provider_result = await provider.geocode(
+                normalized, http_client=http_client
+            )
+            local_results.append(provider_result)
 
+        # Step 4b: Call remote providers on cache miss
+        new_results: list[GeocodingResultORM] = []
+        for provider_name, provider in remote_providers.items():
             provider_result = await provider.geocode(
                 normalized, http_client=http_client
             )
@@ -177,7 +190,9 @@ class GeocodingService:
             if orm_row:
                 new_results.append(orm_row)
 
-        # Step 6: Auto-set OfficialGeocoding on first successful match
+        # Step 6: Auto-set OfficialGeocoding on first successful remote match
+        # Local results have no ORM row and cannot be referenced by geocoding_result_id
+        official_result = None
         successful = [r for r in new_results if r.confidence and r.confidence > 0.0]
         if successful:
             await db.execute(
@@ -192,13 +207,15 @@ class GeocodingService:
         # Step 7: Commit and return
         await db.commit()
 
-        # Re-load official after commit
-        official_result = await self._get_official(db, address.id)
+        # Re-load official after commit (only when remote results exist)
+        if new_results:
+            official_result = await self._get_official(db, address.id)
 
         return {
             "address_hash": address_hash,
             "normalized_address": normalized,
             "results": new_results,
+            "local_results": local_results,
             "cache_hit": False,
             "official": official_result,
         }
