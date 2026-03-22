@@ -3,6 +3,8 @@ from civpulse_geo.models.enums import LocationType
 from civpulse_geo.models.address import Address
 from civpulse_geo.models.geocoding import GeocodingResult, OfficialGeocoding, AdminOverride
 from civpulse_geo.models.validation import ValidationResult as ValidationResultORM
+from civpulse_geo.models.openaddresses import OpenAddressesPoint
+from civpulse_geo.models.nad import NADPoint
 
 __all__ = [
     "Base",
@@ -13,4 +15,6 @@ __all__ = [
     "OfficialGeocoding",
     "AdminOverride",
     "ValidationResultORM",
+    "OpenAddressesPoint",
+    "NADPoint",
 ]
