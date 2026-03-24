@@ -29,6 +29,7 @@ Full details archived in `milestones/v1.0-ROADMAP.md`.
 - [x] **Phase 8: OpenAddresses Provider** — OA geocoding and validation from .geojson.gz files via PostGIS staging table (completed 2026-03-22)
 - [x] **Phase 9: Tiger Provider** — Tiger geocoding and validation via PostGIS geocode() and normalize_address() SQL functions (completed 2026-03-24)
 - [x] **Phase 10: NAD Provider** — NAD geocoding and validation from 80M-row staging table with bulk COPY import (completed 2026-03-24)
+- [ ] **Phase 11: Fix Batch Endpoint Local Provider Serialization** — Batch endpoints include local provider results in every response item (closes GAP-INT-01)
 
 ## Phase Details
 
@@ -93,6 +94,16 @@ Plans:
 Plans:
 - [ ] 10-01-PLAN.md — NAD geocoding and validation providers with Placement mapping and conditional lifespan registration
 - [ ] 10-02-PLAN.md — load-nad CLI COPY-based bulk import from ZIP with state filtering and city fallback
+
+### Phase 11: Fix Batch Endpoint Local Provider Serialization
+**Goal**: Batch endpoints include local provider results in every response item, matching the behavior of the single-address endpoints
+**Depends on**: Phase 10
+**Requirements**: (none — not a stated v1.1 requirement; fixes broken behavior for batch callers)
+**Gap Closure**: Closes GAP-INT-01 from v1.1 milestone audit
+**Plans**: 1 plan
+
+Plans:
+- [ ] 11-01-PLAN.md — Add local_results/local_candidates serialization to _geocode_one() and _validate_one()
 
 ## Progress
 
