@@ -7,6 +7,7 @@ services:
       POSTGRES_PASSWORD: civpulse
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts/20_tiger_setup.sh:/docker-entrypoint-initdb.d/20_tiger_setup.sh
     ports:
       - "5432:5432"
     healthcheck:
