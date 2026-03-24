@@ -28,6 +28,7 @@ class GeocodeResponse(BaseModel):
     normalized_address: str
     cache_hit: bool
     results: list[GeocodeProviderResult]
+    local_results: list[GeocodeProviderResult] = []
     official: GeocodeProviderResult | None = None
 
 

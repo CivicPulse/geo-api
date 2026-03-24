@@ -24,6 +24,8 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from sqlalchemy import text
+
 from civpulse_geo.models.openaddresses import OpenAddressesPoint
 from civpulse_geo.providers.base import GeocodingProvider, ValidationProvider
 from civpulse_geo.providers.exceptions import ProviderError
@@ -45,6 +47,22 @@ DEFAULT_ACCURACY: tuple[str, float] = ("APPROXIMATE", 0.1)  # empty string or un
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
+async def _oa_data_available(session_factory: async_sessionmaker[AsyncSession]) -> bool:
+    """Check whether the openaddresses_points table contains any rows.
+
+    Returns True if at least one row exists, False otherwise or on any error.
+    Used at startup to conditionally register OA providers.
+    """
+    try:
+        async with session_factory() as session:
+            result = await session.execute(
+                text("SELECT EXISTS(SELECT 1 FROM openaddresses_points LIMIT 1)")
+            )
+            return bool(result.scalar())
+    except Exception:
+        return False
+
 
 def _parse_input_address(address: str) -> tuple[str | None, str | None, str | None]:
     """Parse a freeform address string into (street_number, street_name, postal_code).

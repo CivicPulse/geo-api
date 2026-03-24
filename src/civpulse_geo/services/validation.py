@@ -87,7 +87,14 @@ class ValidationService:
         remote_providers = {k: v for k, v in providers.items()
                             if isinstance(v, ValidationProvider) and not v.is_local}
 
-        # Step 3: Cache check -- query validation_results for this address (only for pure-remote requests)
+        # Step 3a: Always call local providers (bypass DB write; results never cached)
+        local_candidates: list[ValidationResultSchema] = []
+        for provider_name, provider in local_providers.items():
+            # Provider raises ProviderError for unparseable -- propagate to caller
+            provider_result = await provider.validate(freeform)
+            local_candidates.append(provider_result)
+
+        # Step 3b: Cache check for remote providers (local candidates already computed above)
         cache_result = await db.execute(
             select(ValidationResultORM).where(
                 ValidationResultORM.address_id == address.id
@@ -95,24 +102,17 @@ class ValidationService:
         )
         cached = cache_result.scalars().all()
 
-        if cached and not local_providers:
+        if cached:
             await db.commit()
             return {
                 "address_hash": address_hash,
                 "original_input": freeform,
                 "candidates": cached,
-                "local_candidates": [],
+                "local_candidates": local_candidates,
                 "cache_hit": True,
             }
 
-        # Step 4a: Call local providers (bypass DB write)
-        local_candidates: list[ValidationResultSchema] = []
-        for provider_name, provider in local_providers.items():
-            # Provider raises ProviderError for unparseable -- propagate to caller
-            provider_result = await provider.validate(freeform)
-            local_candidates.append(provider_result)
-
-        # Step 4b: Call remote providers on cache miss
+        # Step 4: Call remote providers on cache miss
         new_results: list[ValidationResultORM] = []
         for provider_name, provider in remote_providers.items():
             # Provider raises ProviderError for unparseable -- propagate to caller

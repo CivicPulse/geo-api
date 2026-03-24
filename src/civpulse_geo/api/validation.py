@@ -72,10 +72,26 @@ async def validate_address(
         for c in result["candidates"]
     ]
 
+    local_candidates = [
+        ValidationCandidate(
+            normalized_address=c.normalized_address or "",
+            address_line_1=c.address_line_1,
+            address_line_2=c.address_line_2,
+            city=c.city,
+            state=c.state,
+            postal_code=c.postal_code,
+            confidence=c.confidence or 0.0,
+            delivery_point_verified=c.delivery_point_verified,
+            provider_name=c.provider_name,
+        )
+        for c in result.get("local_candidates", [])
+    ]
+
     return ValidateResponse(
         address_hash=result["address_hash"],
         original_input=freeform,
         candidates=candidates,
+        local_candidates=local_candidates,
         cache_hit=result["cache_hit"],
     )
 

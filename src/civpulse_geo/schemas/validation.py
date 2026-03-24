@@ -58,4 +58,5 @@ class ValidateResponse(BaseModel):
     address_hash: str
     original_input: str
     candidates: list[ValidationCandidate]
+    local_candidates: list[ValidationCandidate] = []
     cache_hit: bool
