@@ -121,4 +121,4 @@ Plans:
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
 | 9. Tiger Provider | 2/2 | Complete   | 2026-03-24 | - |
 | 10. NAD Provider | 2/2 | Complete    | 2026-03-24 | - |
-| 11. Fix Batch Local Serialization | 1/1 | Complete   | 2026-03-24 | - |
+| 11. Fix Batch Local Serialization | 1/1 | Complete    | 2026-03-24 | - |
