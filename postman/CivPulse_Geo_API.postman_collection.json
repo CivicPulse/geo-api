@@ -1,0 +1,247 @@
+{
+  "info": {
+    "_postman_id": "civpulse-geo-api-collection",
+    "name": "CivPulse Geo API",
+    "description": "CivPulse Geo API -- geocoding and address validation endpoints. Run 'POST /geocode' first to populate the address_hash variable used by subsequent geocoding requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "address_hash",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "provider_name",
+      "value": "census",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status and database connectivity. Returns 200 with status and database fields when healthy, 503 when database is unavailable."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Geocoding",
+      "item": [
+        {
+          "name": "POST /geocode",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    if (json.address_hash) {",
+                  "        pm.collectionVariables.set(\"address_hash\", json.address_hash);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"1600 Pennsylvania Ave NW, Washington, DC 20500\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/geocode",
+              "host": ["{{baseUrl}}"],
+              "path": ["geocode"]
+            },
+            "description": "Geocode a freeform US address. Returns cached results if available. The address_hash variable is automatically set by the test script for use in subsequent requests."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /geocode/batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addresses\": [\n    \"1600 Pennsylvania Ave NW, Washington, DC 20500\",\n    \"350 Fifth Avenue, New York, NY 10118\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/geocode/batch",
+              "host": ["{{baseUrl}}"],
+              "path": ["geocode", "batch"]
+            },
+            "description": "Batch geocode multiple addresses concurrently. Returns per-item results with individual status codes. Returns outer 422 only when ALL items fail."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /geocode/{address_hash}/official",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": 38.8977,\n  \"longitude\": -77.0365,\n  \"reason\": \"Manual override test\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/geocode/{{address_hash}}/official",
+              "host": ["{{baseUrl}}"],
+              "path": ["geocode", "{{address_hash}}", "official"]
+            },
+            "description": "Set the official geocoding result for an address. Pass geocoding_result_id to point at an existing provider result, or pass latitude+longitude to create a custom admin_override coordinate. Returns 404 if the address_hash is not found."
+          },
+          "response": []
+        },
+        {
+          "name": "POST /geocode/{address_hash}/refresh",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "url": {
+              "raw": "{{baseUrl}}/geocode/{{address_hash}}/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["geocode", "{{address_hash}}", "refresh"]
+            },
+            "description": "Force re-query of all providers for an address, bypassing the cache. Results are upserted. Returns 404 if the address_hash is not found."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /geocode/{address_hash}/providers/{provider_name}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/geocode/{{address_hash}}/providers/{{provider_name}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["geocode", "{{address_hash}}", "providers", "{{provider_name}}"]
+            },
+            "description": "Fetch the result from a specific provider for an address. Returns 404 if the address_hash or provider_name is not found. The provider_name variable defaults to 'census'."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Validation",
+      "item": [
+        {
+          "name": "POST /validate (freeform)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"1600 Pennsylvania Ave NW, Washington, DC 20500\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["validate"]
+            },
+            "description": "Validate and USPS-standardize a US address using a freeform string. Returns candidates array with confidence scores. Returns 422 if the address is unparseable."
+          },
+          "response": [
+            {
+              "name": "Structured input example",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"street\": \"1600 Pennsylvania Ave NW\",\n  \"city\": \"Washington\",\n  \"state\": \"DC\",\n  \"zip_code\": \"20500\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/validate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["validate"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "cookie": [],
+              "body": ""
+            }
+          ]
+        },
+        {
+          "name": "POST /validate/batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"addresses\": [\n    \"1600 Pennsylvania Ave NW, Washington, DC 20500\",\n    \"350 Fifth Avenue, New York, NY 10118\"\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/validate/batch",
+              "host": ["{{baseUrl}}"],
+              "path": ["validate", "batch"]
+            },
+            "description": "Batch validate multiple addresses concurrently. Returns per-item results with individual status codes. Returns outer 422 only when ALL items fail."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
