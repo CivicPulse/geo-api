@@ -71,8 +71,14 @@ None.
 - Google Maps Platform ToS caching clause must be reviewed before building the Google adapter
 - VAL-06 delivery_point_verified is always False with scourgify — real DPV needs a paid USPS API adapter
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260324-lqg | fix Tiger extension check predicate | 2026-03-24 | 86ef71b | [260324-lqg-fix-tiger-extension-check-predicate](./quick/260324-lqg-fix-tiger-extension-check-predicate/) |
+
 ## Session Continuity
 
-Last session: 2026-03-24T14:42:20.318Z
-Stopped at: Completed 11-01-PLAN.md
+Last activity: 2026-03-24 - Completed quick task 260324-lqg: fix Tiger extension check predicate
+Stopped at: Completed quick task 260324-lqg
 Resume file: None
