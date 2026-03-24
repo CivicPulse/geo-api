@@ -88,10 +88,11 @@ Plans:
   2. Geocoding an address against NAD returns location_type and confidence mapped from the NAD Placement field
   3. Validating an address against NAD returns a normalized result with USPS-standard fields
   4. NAD provider is automatically registered in the provider list when the nad_points table contains at least one row, and absent otherwise
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 10-01: TBD
+- [ ] 10-01-PLAN.md — NAD geocoding and validation providers with Placement mapping and conditional lifespan registration
+- [ ] 10-02-PLAN.md — load-nad CLI COPY-based bulk import from ZIP with state filtering and city fallback
 
 ## Progress
 
@@ -108,4 +109,4 @@ Plans:
 | 7. Pipeline Infrastructure | 2/2 | Complete   | 2026-03-22 | - |
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
 | 9. Tiger Provider | 2/2 | Complete   | 2026-03-24 | - |
-| 10. NAD Provider | v1.1 | 0/? | Not started | - |
+| 10. NAD Provider | v1.1 | 0/2 | Not started | - |
