@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import gzip
 import json
+import subprocess
 import time
 from pathlib import Path
 
@@ -23,6 +24,115 @@ from civpulse_geo.normalization import canonical_key, parse_address_components
 app = typer.Typer(help="CivPulse Geo CLI -- GIS data import tools.")
 
 OA_BATCH_SIZE = 1000
+
+# ---------------------------------------------------------------------------
+# Tiger geocoder — FIPS / abbreviation conversion
+# ---------------------------------------------------------------------------
+
+FIPS_TO_ABBREV: dict[str, str] = {
+    "01": "AL", "02": "AK", "04": "AZ", "05": "AR", "06": "CA",
+    "08": "CO", "09": "CT", "10": "DE", "11": "DC", "12": "FL",
+    "13": "GA", "15": "HI", "16": "ID", "17": "IL", "18": "IN",
+    "19": "IA", "20": "KS", "21": "KY", "22": "LA", "23": "ME",
+    "24": "MD", "25": "MA", "26": "MI", "27": "MN", "28": "MS",
+    "29": "MO", "30": "MT", "31": "NE", "32": "NV", "33": "NH",
+    "34": "NJ", "35": "NM", "36": "NY", "37": "NC", "38": "ND",
+    "39": "OH", "40": "OK", "41": "OR", "42": "PA", "44": "RI",
+    "45": "SC", "46": "SD", "47": "TN", "48": "TX", "49": "UT",
+    "50": "VT", "51": "VA", "53": "WA", "54": "WV", "55": "WI",
+    "56": "WY",
+}
+
+ABBREV_TO_FIPS: dict[str, str] = {v: k for k, v in FIPS_TO_ABBREV.items()}
+
+TIGER_EXTENSIONS = [
+    "fuzzystrmatch",
+    "address_standardizer",
+    "address_standardizer_data_us",
+    "postgis_tiger_geocoder",
+]
+
+
+def _resolve_state(value: str) -> str | None:
+    """Convert a FIPS code or state abbreviation to a 2-letter state abbreviation.
+
+    Accepts:
+    - 2-digit FIPS code (e.g., "13" -> "GA")
+    - 2-letter abbreviation (e.g., "GA" -> "GA", case insensitive)
+
+    Returns None if the value is unrecognized.
+    """
+    upper = value.strip().upper()
+    # Check if it's a known abbreviation
+    if upper in ABBREV_TO_FIPS:
+        return upper
+    # Check if it's a FIPS code (zero-pad to 2 digits)
+    padded = value.strip().zfill(2)
+    return FIPS_TO_ABBREV.get(padded)
+
+
+@app.command("setup-tiger")
+def setup_tiger(
+    states: list[str] = typer.Argument(..., help="State FIPS codes or abbreviations (e.g., 13 for GA, or GA directly)"),
+    database_url: str | None = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL_SYNC",
+        help="Synchronous PostgreSQL URL (psycopg2).",
+    ),
+) -> None:
+    """Install Tiger extensions and load TIGER/Line data for specified state(s).
+
+    Accepts state FIPS codes (e.g., 13 for Georgia) or 2-letter abbreviations (e.g., GA).
+    Fully idempotent: safe to re-run for already-installed extensions and loaded states.
+
+    This command must run inside the Docker container where shp2pgsql and wget are available:
+        docker compose exec db geo-import setup-tiger 13
+    """
+    # Step 1: Resolve FIPS codes to abbreviations
+    abbrevs: list[str] = []
+    for state in states:
+        abbrev = _resolve_state(state)
+        if abbrev is None:
+            typer.echo(f"Error: unknown state identifier: {state}", err=True)
+            raise typer.Exit(1)
+        abbrevs.append(abbrev)
+
+    db_url = database_url or settings.database_url_sync
+    engine = create_engine(db_url)
+
+    # Step 2: Install extensions (idempotent)
+    typer.echo("Installing Tiger extensions...")
+    with engine.connect() as conn:
+        for ext in TIGER_EXTENSIONS:
+            conn.execute(text(f"CREATE EXTENSION IF NOT EXISTS {ext}"))
+        conn.commit()
+    typer.echo("Tiger extensions installed.")
+
+    # Step 3: Generate and execute loader script per state
+    for abbrev in abbrevs:
+        typer.echo(f"Generating loader script for {abbrev}...")
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT Loader_Generate_Script(ARRAY[:state], 'sh')"),
+                {"state": abbrev},
+            )
+            script_text = result.scalar()
+
+        if not script_text:
+            typer.echo(f"Warning: Loader_Generate_Script returned empty for {abbrev}", err=True)
+            continue
+
+        typer.echo(f"Executing loader script for {abbrev}...")
+        proc = subprocess.run(
+            ["bash", "-c", script_text],
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            typer.echo(f"Error loading {abbrev}: {proc.stderr}", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"Tiger data loaded for {abbrev}.")
+
+    typer.echo("setup-tiger complete.")
 
 # Bibb County GeoJSON/KML field mapping
 BIBB_FIELD_MAP = {

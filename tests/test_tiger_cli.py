@@ -134,10 +134,18 @@ class TestSetupTigerCLI:
         result = runner.invoke(app, ["setup-tiger", "13"])
         assert result.exit_code == 0
 
-        # Count CREATE EXTENSION calls
+        # Count CREATE EXTENSION calls — text() args are TextClause objects;
+        # convert each arg to string using its .text attribute or str()
+        def _sql_text(call_obj) -> str:
+            args = call_obj[0]
+            if args:
+                arg = args[0]
+                return getattr(arg, "text", str(arg))
+            return ""
+
         create_ext_calls = [
             c for c in mock_conn.execute.call_args_list
-            if "CREATE EXTENSION" in str(c)
+            if "CREATE EXTENSION" in _sql_text(c)
         ]
         assert len(create_ext_calls) == 4
 
@@ -151,7 +159,10 @@ class TestSetupTigerCLI:
 
         runner.invoke(app, ["setup-tiger", "13"])
 
-        all_sql = " ".join(str(c) for c in mock_conn.execute.call_args_list)
+        all_sql = " ".join(
+            getattr(c[0][0], "text", str(c[0][0])) if c[0] else ""
+            for c in mock_conn.execute.call_args_list
+        )
         assert "fuzzystrmatch" in all_sql
 
     @patch("subprocess.run")
@@ -164,7 +175,10 @@ class TestSetupTigerCLI:
 
         runner.invoke(app, ["setup-tiger", "13"])
 
-        all_sql = " ".join(str(c) for c in mock_conn.execute.call_args_list)
+        all_sql = " ".join(
+            getattr(c[0][0], "text", str(c[0][0])) if c[0] else ""
+            for c in mock_conn.execute.call_args_list
+        )
         assert "postgis_tiger_geocoder" in all_sql
 
     @patch("subprocess.run")
@@ -178,10 +192,14 @@ class TestSetupTigerCLI:
         result = runner.invoke(app, ["setup-tiger", "13"])
         assert result.exit_code == 0
 
-        all_sql = " ".join(str(c) for c in mock_conn.execute.call_args_list)
+        # Verify Loader_Generate_Script appears in SQL
+        all_sql = " ".join(
+            getattr(c[0][0], "text", str(c[0][0])) if c[0] else ""
+            for c in mock_conn.execute.call_args_list
+        )
         assert "Loader_Generate_Script" in all_sql
-        # The parameter should be the abbreviation GA, not the FIPS 13
-        # Check that GA was passed (via params dict or directly)
+
+        # Verify the parameter passed was the abbreviation GA (not FIPS 13)
         all_params = " ".join(str(c) for c in mock_conn.execute.call_args_list)
         assert "GA" in all_params
 
