@@ -9,7 +9,7 @@ from civpulse_geo.models.base import Base, TimestampMixin
 class NADPoint(Base, TimestampMixin):
     """Staging table for National Address Database (NAD) address point data.
 
-    Source data is pipe-delimited TXT files from the NAD r21 release.
+    Source data is CSV-delimited (CSVDelimited format per schema.ini) from the NAD r21 release.
     The source_hash uniquely identifies each source record for upsert support.
     Phase 10 implements the data loading logic that populates this table.
     """

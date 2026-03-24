@@ -15,6 +15,11 @@ from civpulse_geo.providers.tiger import (
     TigerValidationProvider,
     _tiger_extension_available,
 )
+from civpulse_geo.providers.nad import (
+    NADGeocodingProvider,
+    NADValidationProvider,
+    _nad_data_available,
+)
 
 
 @asynccontextmanager
@@ -34,6 +39,15 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning(
             "postgis_tiger_geocoder extension not available — Tiger provider not registered"
+        )
+    # NAD providers (conditional on data presence in nad_points table)
+    if await _nad_data_available(AsyncSessionLocal):
+        app.state.providers["national_address_database"] = NADGeocodingProvider(AsyncSessionLocal)
+        app.state.validation_providers["national_address_database"] = NADValidationProvider(AsyncSessionLocal)
+        logger.info("NAD provider registered")
+    else:
+        logger.warning(
+            "nad_points table is empty — NAD provider not registered"
         )
     logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     logger.info(f"Loaded {len(app.state.validation_providers)} validation provider(s)")
