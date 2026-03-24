@@ -109,4 +109,4 @@ Plans:
 | 7. Pipeline Infrastructure | 2/2 | Complete   | 2026-03-22 | - |
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
 | 9. Tiger Provider | 2/2 | Complete   | 2026-03-24 | - |
-| 10. NAD Provider | 2/2 | Complete   | 2026-03-24 | - |
+| 10. NAD Provider | 2/2 | Complete    | 2026-03-24 | - |
