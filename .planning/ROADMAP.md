@@ -107,5 +107,5 @@ Plans:
 | 6. Documentation & Traceability Cleanup | v1.0 | 1/1 | Complete | 2026-03-19 |
 | 7. Pipeline Infrastructure | 2/2 | Complete   | 2026-03-22 | - |
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
-| 9. Tiger Provider | v1.1 | 0/2 | Not started | - |
+| 9. Tiger Provider | 1/2 | In Progress|  | - |
 | 10. NAD Provider | v1.1 | 0/? | Not started | - |

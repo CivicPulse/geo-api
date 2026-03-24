@@ -32,10 +32,10 @@ Requirements for local data source providers. Each maps to roadmap phases.
 
 ### Tiger
 
-- [ ] **TIGR-01**: User can geocode an address via PostGIS Tiger geocode() function
-- [ ] **TIGR-02**: User can validate/normalize an address via PostGIS normalize_address()
-- [ ] **TIGR-03**: Tiger geocoding maps rating score to confidence (0=best -> 1.0 confidence)
-- [ ] **TIGR-04**: Tiger provider degrades gracefully when extension/data not installed
+- [x] **TIGR-01**: User can geocode an address via PostGIS Tiger geocode() function
+- [x] **TIGR-02**: User can validate/normalize an address via PostGIS normalize_address()
+- [x] **TIGR-03**: Tiger geocoding maps rating score to confidence (0=best -> 1.0 confidence)
+- [x] **TIGR-04**: Tiger provider degrades gracefully when extension/data not installed
 - [ ] **TIGR-05**: Setup scripts install Tiger extensions and load data per state
 
 ## Future Requirements
@@ -81,10 +81,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NAD-02 | Phase 10 | Pending |
 | NAD-03 | Phase 10 | Pending |
 | NAD-04 | Phase 10 | Pending |
-| TIGR-01 | Phase 9 | Pending |
-| TIGR-02 | Phase 9 | Pending |
-| TIGR-03 | Phase 9 | Pending |
-| TIGR-04 | Phase 9 | Pending |
+| TIGR-01 | Phase 9 | Complete |
+| TIGR-02 | Phase 9 | Complete |
+| TIGR-03 | Phase 9 | Complete |
+| TIGR-04 | Phase 9 | Complete |
 | TIGR-05 | Phase 9 | Pending |
 
 **Coverage:**

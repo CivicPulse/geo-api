@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
 status: unknown
-stopped_at: Phase 9 context gathered
-last_updated: "2026-03-24T06:37:42.135Z"
+stopped_at: Completed 09-01-PLAN.md
+last_updated: "2026-03-24T07:04:00.000Z"
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 6
+  completed_plans: 5
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 08 — openaddresses-provider
+**Current focus:** Phase 09 — tiger-provider
 
 ## Current Position
 
-Phase: 08 (openaddresses-provider) — EXECUTING
-Plan: 2 of 2 (complete)
+Phase: 09 (tiger-provider) — EXECUTING
+Plan: 2 of 2
 
 ## Accumulated Context
 
@@ -48,6 +48,10 @@ Recent decisions affecting current work:
 - [Phase 08]: geocode() accepts **kwargs to avoid TypeError from service layer http_client= call
 - [Phase 08]: OA providers registered directly in lifespan (not via load_providers) because they require async_sessionmaker
 - [Phase 08]: ST_Y/ST_X lat/lng extracted in same SELECT as row fetch to avoid second DB round-trip
+- [09-01]: Tiger calls PostGIS SQL functions directly (geocode/normalize_address) rather than staging table — no data import step needed
+- [09-01]: Confidence = max(0.0, min(1.0, (100 - rating) / 100)) — clamped to never be negative for ratings > 100
+- [09-01]: _tiger_extension_available uses bare except to ensure startup never crashes when Tiger is absent
+- [09-01]: Provider count log lines moved after Tiger registration block to report final inclusive count
 
 ### Pending Todos
 
@@ -61,6 +65,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T06:37:42.128Z
-Stopped at: Phase 9 context gathered
-Resume file: .planning/phases/09-tiger-provider/09-CONTEXT.md
+Last session: 2026-03-24T07:04:00Z
+Stopped at: Completed 09-01-PLAN.md
+Resume file: .planning/phases/09-tiger-provider/09-01-SUMMARY.md
