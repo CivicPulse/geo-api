@@ -9,7 +9,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/20_tiger_setup.sh:/docker-entrypoint-initdb.d/20_tiger_setup.sh
     ports:
-      - "5432:5432"
+      - "5462:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U civpulse -d civpulse_geo"]
       interval: 5s
@@ -23,13 +23,16 @@ services:
       DATABASE_URL_SYNC: postgresql+psycopg2://civpulse:civpulse@db:5432/civpulse_geo
       LOG_LEVEL: DEBUG
       ENVIRONMENT: development
+      DEBUG: "1"
     ports:
-      - "8000:8000"
+      - "8042:8000"
+      - "5680:5680"
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./data:/app/data
+      - ./src:/app/src
 
 volumes:
   postgres_data:
