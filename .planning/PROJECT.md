@@ -27,7 +27,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - [ ] Local data source providers (OpenAddresses, NAD, PostGIS Tiger/LINE)
 - [ ] Both geocoding and validation interfaces for each local provider
 - [x] Direct-return pipeline (no DB caching for local providers) — Validated in Phase 7-8
-- [ ] PostGIS Tiger geocoder with optional setup scripts
+- [x] PostGIS Tiger geocoder with optional setup scripts — Validated in Phase 9
 
 ### Out of Scope
 
@@ -86,4 +86,4 @@ Known target providers: US Census Geocoder (implemented), Google Geocoding API (
 | ON CONFLICT DO NOTHING for OfficialGeocoding | First-writer-wins preserves existing official records | ⚠️ Revisit — requires GIS import before API geocoding; documented as operational constraint |
 
 ---
-*Last updated: 2026-03-22 after Phase 8 (OpenAddresses Provider) complete*
+*Last updated: 2026-03-24 after Phase 9 (Tiger Provider) complete*
