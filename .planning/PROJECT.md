@@ -29,6 +29,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - [x] Direct-return pipeline (no DB caching for local providers) — Validated in Phase 7-8
 - [x] PostGIS Tiger geocoder with optional setup scripts — Validated in Phase 9
 - [x] National Address Database (NAD) provider with COPY-based bulk import — Validated in Phase 10
+- [x] Batch endpoints serialize local_results/local_candidates per item — Validated in Phase 11 (GAP-INT-01 closure)
 
 ### Out of Scope
 
@@ -71,6 +72,7 @@ Known target providers: US Census Geocoder (implemented), Google Geocoding API (
 - **Database**: PostgreSQL with PostGIS extension
 - **Scope**: US addresses only
 - **Network**: Internal API, no public exposure
+- **Verification/UAT**: All testing and verification must be automated using Playwright MCP or Chrome DevTools MCP — no interactive/manual checkpoint prompts
 
 ## Key Decisions
 
@@ -87,4 +89,4 @@ Known target providers: US Census Geocoder (implemented), Google Geocoding API (
 | ON CONFLICT DO NOTHING for OfficialGeocoding | First-writer-wins preserves existing official records | ⚠️ Revisit — requires GIS import before API geocoding; documented as operational constraint |
 
 ---
-*Last updated: 2026-03-24 after Phase 10 (NAD Provider) complete — milestone v1.1 Local Data Sources fully delivered*
+*Last updated: 2026-03-24 after Phase 11 (Fix Batch Local Serialization) complete — v1.1 milestone fully delivered, GAP-INT-01 closed*
