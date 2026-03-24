@@ -136,6 +136,57 @@ download() {
   return 1
 }
 
+# --- Helper: fetch directory listing with retry-after support ---
+
+fetch_listing() {
+  local url="$1"
+  local max_retries=5
+  local base_wait=60
+
+  for attempt in $(seq 1 $max_retries); do
+    local header_file
+    header_file=$(mktemp)
+    local body http_code
+    body=$(curl -s -D "$header_file" -w '\n%{http_code}' "$url" || true)
+    http_code=$(echo "$body" | tail -1)
+    body=$(echo "$body" | sed '$d')
+
+    if [[ "$http_code" == "200" && -n "$body" ]]; then
+      rm -f "$header_file"
+      echo "$body"
+      return 0
+    fi
+
+    if [[ "$http_code" == "429" ]]; then
+      # Parse retry-after header (case-insensitive)
+      local retry_after
+      retry_after=$(grep -i '^retry-after:' "$header_file" | head -1 | tr -d '\r' | awk '{print $2}')
+      rm -f "$header_file"
+
+      # Use server's retry-after if numeric, otherwise exponential backoff
+      local wait_secs
+      if [[ -n "$retry_after" && "$retry_after" =~ ^[0-9]+$ ]]; then
+        wait_secs=$((retry_after + 10))
+      else
+        wait_secs=$((base_wait * attempt))
+      fi
+
+      echo "  [listing] Rate limited (429). Waiting ${wait_secs}s (attempt ${attempt}/${max_retries})..." >&2
+      sleep "$wait_secs"
+      continue
+    fi
+
+    # Other HTTP error
+    rm -f "$header_file"
+    local wait_secs=$((base_wait * attempt))
+    echo "  [listing] HTTP ${http_code} fetching ${url}. Retrying in ${wait_secs}s (attempt ${attempt}/${max_retries})..." >&2
+    sleep "$wait_secs"
+  done
+
+  echo "  [listing] FAILED to fetch ${url} after ${max_retries} retries" >&2
+  return 1
+}
+
 # --- National tables (download once) ---
 
 for table in "${NATIONAL_TABLES[@]}"; do
@@ -149,6 +200,23 @@ for table in "${NATIONAL_TABLES[@]}"; do
     echo "[national] Downloading ${fname}..."
     download "$url" "${dir}/${fname}"
   fi
+done
+
+# --- Pre-fetch county table directory listings (4 requests, not 4×N) ---
+
+echo ""
+echo "=== Pre-fetching county table listings ==="
+declare -A COUNTY_LISTINGS
+for table in "${COUNTY_TABLES[@]}"; do
+  echo "  Fetching ${table} listing..."
+  if listing=$(fetch_listing "${BASE_URL}/${table}/"); then
+    COUNTY_LISTINGS[$table]="$listing"
+    echo "  ${table}: OK"
+  else
+    echo "  WARNING: Could not fetch ${table} listing. County downloads for ${table} will be skipped." >&2
+    COUNTY_LISTINGS[$table]=""
+  fi
+  sleep "$WAIT"
 done
 
 # --- Per-state processing ---
@@ -173,21 +241,13 @@ for state in "${STATES[@]}"; do
     fi
   done
 
-  # County-level tables — parse Census directory listing for this state's files
+  # County-level tables — filter from pre-fetched directory listing
   for table in "${COUNTY_TABLES[@]}"; do
     dir="${OUTPUT_DIR}/${table}"
     mkdir -p "$dir"
     table_lower=$(echo "$table" | tr '[:upper:]' '[:lower:]')
-    echo "  [${table}] Fetching file list for FIPS ${fips}..."
 
-    # Get list of county files for this state from directory listing
-    listing=$(wget -q -O - "${BASE_URL}/${table}/" 2>/dev/null || true)
-    if [[ -z "$listing" ]]; then
-      echo "  [${table}] Warning: could not fetch directory listing (rate limited?). Retrying in 60s..."
-      sleep 60
-      listing=$(wget -q -O - "${BASE_URL}/${table}/" 2>/dev/null || true)
-    fi
-
+    listing="${COUNTY_LISTINGS[$table]}"
     files=$(echo "$listing" | grep -oP "tl_${TIGER_YEAR}_${fips}\\d+_${table_lower}\\.zip" | sort -u)
     count=$(echo "$files" | grep -c . || true)
 
