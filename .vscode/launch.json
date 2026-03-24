@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "Attach to Docker (debugpy)",
-      "type": "debugpy",
+      "type": "python",
       "request": "attach",
       "connect": { "host": "localhost", "port": 5680 },
       "pathMappings": [
