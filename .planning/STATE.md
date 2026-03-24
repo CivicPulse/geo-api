@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
-status: unknown
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-24T09:02:34.000Z"
+status: executing
+stopped_at: "Completed 10-01-PLAN.md"
+last_updated: "2026-03-24T09:27:50Z"
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
+  total_plans: 8
+  completed_plans: 7
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 09 — tiger-provider (COMPLETE; ready for Phase 10 NAD provider)
+**Current focus:** Phase 10 — NAD Provider
 
 ## Current Position
 
-Phase: 09 (tiger-provider) — COMPLETE
-Plan: 2 of 2 (all complete)
+Phase: 10 (NAD Provider) — EXECUTING
+Plan: 2 of 2 (Plan 01 complete)
 
 ## Accumulated Context
 
@@ -53,6 +53,10 @@ Recent decisions affecting current work:
 - [09-01]: _tiger_extension_available uses bare except to ensure startup never crashes when Tiger is absent
 - [09-01]: Provider count log lines moved after Tiger registration block to report final inclusive count
 - [Phase 09]: setup-tiger installs extensions only in Docker init script — data download deferred to manual CLI invocation
+- [10-01]: _parse_input_address reused from openaddresses module — no address parsing duplication across OA and NAD providers
+- [10-01]: PLACEMENT_MAP has exactly 7 keys covering all known NAD Placement values; DEFAULT_PLACEMENT ('APPROXIMATE', 0.1) handles None/empty/unknown/garbage
+- [10-01]: NAD providers use nad_row.state (not .region) and nad_row.zip_code (not .postcode) — column names differ from OA
+- [10-01]: _nad_data_available uses bare except to ensure startup never crashes even if nad_points table doesn't exist yet
 
 ### Pending Todos
 
@@ -66,6 +70,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T09:02:33.993Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-nad-provider/10-CONTEXT.md
+Last session: 2026-03-24T09:27:50Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: .planning/phases/10-nad-provider/10-02-PLAN.md

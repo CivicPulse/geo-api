@@ -25,10 +25,10 @@ Requirements for local data source providers. Each maps to roadmap phases.
 
 ### NAD
 
-- [ ] **NAD-01**: User can geocode an address against loaded NAD data
-- [ ] **NAD-02**: User can validate an address against NAD records
+- [x] **NAD-01**: User can geocode an address against loaded NAD data
+- [x] **NAD-02**: User can validate an address against NAD records
 - [ ] **NAD-03**: NAD import handles 80M+ rows via PostgreSQL COPY (not row-by-row INSERT)
-- [ ] **NAD-04**: NAD provider registered automatically when staging table has data
+- [x] **NAD-04**: NAD provider registered automatically when staging table has data
 
 ### Tiger
 
@@ -77,10 +77,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OA-02 | Phase 8 | Complete |
 | OA-03 | Phase 8 | Complete |
 | OA-04 | Phase 8 | Complete |
-| NAD-01 | Phase 10 | Pending |
-| NAD-02 | Phase 10 | Pending |
+| NAD-01 | Phase 10 | Complete |
+| NAD-02 | Phase 10 | Complete |
 | NAD-03 | Phase 10 | Pending |
-| NAD-04 | Phase 10 | Pending |
+| NAD-04 | Phase 10 | Complete |
 | TIGR-01 | Phase 9 | Complete |
 | TIGR-02 | Phase 9 | Complete |
 | TIGR-03 | Phase 9 | Complete |
