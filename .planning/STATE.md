@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
-status: unknown
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-03-24T09:39:21.154Z"
+status: complete
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-24T15:00:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 8
-  completed_plans: 8
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 9
+  completed_plans: 9
 ---
 
 # Project State
@@ -19,12 +19,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching and giving admins authority over the official answer
-**Current focus:** Phase 10 — NAD Provider
+**Current focus:** v1.1 milestone complete — all phases delivered
 
 ## Current Position
 
-Phase: 10 (NAD Provider) — EXECUTING
-Plan: 2 of 2 (Plan 01 complete)
+Phase: 11 (Fix Batch Local Serialization) — COMPLETE
+Plan: 1 of 1 (complete)
 
 ## Accumulated Context
 
@@ -59,6 +59,7 @@ Recent decisions affecting current work:
 - [10-01]: _nad_data_available uses bare except to ensure startup never crashes even if nad_points table doesn't exist yet
 - [Phase 10-nad-provider]: load-nad: COPY targets nad_temp (TEXT) then ST_GeogFromText in upsert SQL — avoids geography type complications in psycopg2 COPY streams
 - [Phase 10-nad-provider]: load-nad city fallback is case-insensitive 'not stated' check — handles both 'Not stated' and 'Not Stated' variants in NAD source data
+- [Phase 11]: GAP-INT-01 closed — batch endpoints now serialize local_results/local_candidates identically to single-address endpoints (fix applied in f6f904d)
 
 ### Pending Todos
 
@@ -72,6 +73,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T09:34:59.751Z
-Stopped at: Completed 10-02-PLAN.md
+Last session: 2026-03-24T15:00:00.000Z
+Stopped at: Completed 11-01-PLAN.md
 Resume file: None

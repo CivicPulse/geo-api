@@ -29,7 +29,7 @@ Full details archived in `milestones/v1.0-ROADMAP.md`.
 - [x] **Phase 8: OpenAddresses Provider** — OA geocoding and validation from .geojson.gz files via PostGIS staging table (completed 2026-03-22)
 - [x] **Phase 9: Tiger Provider** — Tiger geocoding and validation via PostGIS geocode() and normalize_address() SQL functions (completed 2026-03-24)
 - [x] **Phase 10: NAD Provider** — NAD geocoding and validation from 80M-row staging table with bulk COPY import (completed 2026-03-24)
-- [ ] **Phase 11: Fix Batch Endpoint Local Provider Serialization** — Batch endpoints include local provider results in every response item (closes GAP-INT-01)
+- [x] **Phase 11: Fix Batch Endpoint Local Provider Serialization** — Batch endpoints include local provider results in every response item (completed 2026-03-24)
 
 ## Phase Details
 
@@ -103,11 +103,11 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md — Add local_results/local_candidates serialization to _geocode_one() and _validate_one()
+- [x] 11-01-PLAN.md — Verify GAP-INT-01 fix and close phase documentation
 
 ## Progress
 
-**Execution Order:** Phases execute in numeric order: 7 → 8 → 9 → 10
+**Execution Order:** Phases execute in numeric order: 7 → 8 → 9 → 10 → 11
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
@@ -121,3 +121,4 @@ Plans:
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
 | 9. Tiger Provider | 2/2 | Complete   | 2026-03-24 | - |
 | 10. NAD Provider | 2/2 | Complete    | 2026-03-24 | - |
+| 11. Fix Batch Local Serialization | 1/1 | Complete | 2026-03-24 | - |
