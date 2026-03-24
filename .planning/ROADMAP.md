@@ -73,10 +73,11 @@ Plans:
   3. When Tiger extension is installed but data is not loaded, the provider returns a NO_MATCH result without raising an exception
   4. When Tiger extension is not installed, the Tiger provider is not registered at startup and a clear warning is logged
   5. Running setup-tiger installs the required PostGIS extensions and loads Tiger/LINE data for the specified state(s)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 09-01: TBD
+- [ ] 09-01-PLAN.md — Tiger geocoding and validation providers with rating-to-confidence mapping and conditional lifespan registration
+- [ ] 09-02-PLAN.md — setup-tiger CLI command with FIPS conversion and Docker init script for Tiger extensions
 
 ### Phase 10: NAD Provider
 **Goal**: Users can geocode and validate addresses against the National Address Database, which is loaded via a bulk COPY import capable of handling the full 80M-row dataset
@@ -106,5 +107,5 @@ Plans:
 | 6. Documentation & Traceability Cleanup | v1.0 | 1/1 | Complete | 2026-03-19 |
 | 7. Pipeline Infrastructure | 2/2 | Complete   | 2026-03-22 | - |
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
-| 9. Tiger Provider | v1.1 | 0/? | Not started | - |
+| 9. Tiger Provider | v1.1 | 0/2 | Not started | - |
 | 10. NAD Provider | v1.1 | 0/? | Not started | - |
