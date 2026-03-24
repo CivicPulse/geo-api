@@ -400,14 +400,14 @@ class TestTigerExtensionCheck:
 
     @pytest.mark.asyncio
     async def test_returns_true_when_extension_present(self):
-        """Returns True when pg_available_extensions query finds the row."""
+        """Returns True when pg_extension query finds the row."""
         factory = _make_session_factory(execute_return_value=MagicMock())
         result = await _tiger_extension_available(factory)
         assert result is True
 
     @pytest.mark.asyncio
     async def test_returns_false_when_query_returns_none(self):
-        """Returns False when pg_available_extensions query returns no row."""
+        """Returns False when pg_extension query returns no row."""
         factory = _make_session_factory(execute_return_value=None)
         result = await _tiger_extension_available(factory)
         assert result is False

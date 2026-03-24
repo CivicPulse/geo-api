@@ -13,7 +13,7 @@ Key design decisions:
 - Confidence = max(0.0, min(1.0, (100 - rating) / 100)) — Tiger rating 0 is a
   perfect match (1.0 confidence), rating 100 is complete miss (0.0), and ratings
   above 100 are clamped to 0.0 (never negative).
-- _tiger_extension_available() is a startup guard that checks pg_available_extensions;
+- _tiger_extension_available() is a startup guard that checks pg_extension (installed extensions);
   it returns False on any exception so startup never crashes if Tiger is absent.
 - geocode() accepts **kwargs so the service layer can pass http_client= without TypeError.
 """
@@ -72,8 +72,8 @@ NORMALIZE_SQL = text("""
 """)
 
 CHECK_EXTENSION_SQL = text("""
-    SELECT 1 FROM pg_available_extensions
-    WHERE name = 'postgis_tiger_geocoder'
+    SELECT 1 FROM pg_extension
+    WHERE extname = 'postgis_tiger_geocoder'
 """)
 
 
@@ -82,16 +82,16 @@ CHECK_EXTENSION_SQL = text("""
 # ---------------------------------------------------------------------------
 
 async def _tiger_extension_available(session_factory: async_sessionmaker) -> bool:
-    """Check whether the postgis_tiger_geocoder extension is available in PostgreSQL.
+    """Check whether the postgis_tiger_geocoder extension is installed in the current database.
 
-    Queries pg_available_extensions (not pg_extension) so it reports availability
-    even if the extension is not currently installed in this database.
+    Queries pg_extension (installed extensions) so it only returns True when the
+    extension has been activated with CREATE EXTENSION in the current database.
 
     Args:
         session_factory: async_sessionmaker used to open a short-lived session.
 
     Returns:
-        True if the extension is available, False if absent or on any error.
+        True if the extension is installed, False if absent or on any error.
     """
     try:
         async with session_factory() as session:
