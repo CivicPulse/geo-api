@@ -28,7 +28,7 @@ Full details archived in `milestones/v1.0-ROADMAP.md`.
 - [x] **Phase 7: Pipeline Infrastructure** — Direct-return pipeline bypass, provider ABC extension, and staging table migrations (completed 2026-03-22)
 - [x] **Phase 8: OpenAddresses Provider** — OA geocoding and validation from .geojson.gz files via PostGIS staging table (completed 2026-03-22)
 - [x] **Phase 9: Tiger Provider** — Tiger geocoding and validation via PostGIS geocode() and normalize_address() SQL functions (completed 2026-03-24)
-- [ ] **Phase 10: NAD Provider** — NAD geocoding and validation from 80M-row staging table with bulk COPY import
+- [x] **Phase 10: NAD Provider** — NAD geocoding and validation from 80M-row staging table with bulk COPY import (completed 2026-03-24)
 
 ## Phase Details
 
@@ -109,4 +109,4 @@ Plans:
 | 7. Pipeline Infrastructure | 2/2 | Complete   | 2026-03-22 | - |
 | 8. OpenAddresses Provider | 2/2 | Complete   | 2026-03-22 | - |
 | 9. Tiger Provider | 2/2 | Complete   | 2026-03-24 | - |
-| 10. NAD Provider | 1/2 | In Progress|  | - |
+| 10. NAD Provider | 2/2 | Complete   | 2026-03-24 | - |

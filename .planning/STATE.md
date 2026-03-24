@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Local Data Sources
-status: executing
-stopped_at: "Completed 10-01-PLAN.md"
-last_updated: "2026-03-24T09:27:50Z"
+status: unknown
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-03-24T09:34:59.756Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # Project State
@@ -57,6 +57,8 @@ Recent decisions affecting current work:
 - [10-01]: PLACEMENT_MAP has exactly 7 keys covering all known NAD Placement values; DEFAULT_PLACEMENT ('APPROXIMATE', 0.1) handles None/empty/unknown/garbage
 - [10-01]: NAD providers use nad_row.state (not .region) and nad_row.zip_code (not .postcode) — column names differ from OA
 - [10-01]: _nad_data_available uses bare except to ensure startup never crashes even if nad_points table doesn't exist yet
+- [Phase 10-nad-provider]: load-nad: COPY targets nad_temp (TEXT) then ST_GeogFromText in upsert SQL — avoids geography type complications in psycopg2 COPY streams
+- [Phase 10-nad-provider]: load-nad city fallback is case-insensitive 'not stated' check — handles both 'Not stated' and 'Not Stated' variants in NAD source data
 
 ### Pending Todos
 
@@ -70,6 +72,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-03-24T09:27:50Z
-Stopped at: Completed 10-01-PLAN.md
-Resume file: .planning/phases/10-nad-provider/10-02-PLAN.md
+Last session: 2026-03-24T09:34:59.751Z
+Stopped at: Completed 10-02-PLAN.md
+Resume file: None
