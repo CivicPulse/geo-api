@@ -10,6 +10,11 @@ from civpulse_geo.providers.registry import load_providers
 from civpulse_geo.providers.census import CensusGeocodingProvider
 from civpulse_geo.providers.scourgify import ScourgifyValidationProvider
 from civpulse_geo.providers.openaddresses import OAGeocodingProvider, OAValidationProvider
+from civpulse_geo.providers.tiger import (
+    TigerGeocodingProvider,
+    TigerValidationProvider,
+    _tiger_extension_available,
+)
 
 
 @asynccontextmanager
@@ -19,9 +24,18 @@ async def lifespan(app: FastAPI):
     app.state.providers = load_providers({"census": CensusGeocodingProvider})
     # Local providers (require async_sessionmaker, instantiated directly)
     app.state.providers["openaddresses"] = OAGeocodingProvider(AsyncSessionLocal)
-    logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     app.state.validation_providers = load_providers({"scourgify": ScourgifyValidationProvider})
     app.state.validation_providers["openaddresses"] = OAValidationProvider(AsyncSessionLocal)
+    # Tiger providers (conditional on PostGIS Tiger extension availability)
+    if await _tiger_extension_available(AsyncSessionLocal):
+        app.state.providers["postgis_tiger"] = TigerGeocodingProvider(AsyncSessionLocal)
+        app.state.validation_providers["postgis_tiger"] = TigerValidationProvider(AsyncSessionLocal)
+        logger.info("Tiger geocoder provider registered")
+    else:
+        logger.warning(
+            "postgis_tiger_geocoder extension not available — Tiger provider not registered"
+        )
+    logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     logger.info(f"Loaded {len(app.state.validation_providers)} validation provider(s)")
     yield
     await app.state.http_client.aclose()
