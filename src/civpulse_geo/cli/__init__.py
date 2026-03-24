@@ -5,10 +5,13 @@ as provider geocoding results and auto-setting OfficialGeocoding records.
 """
 from __future__ import annotations
 
+import csv
 import gzip
+import io
 import json
 import subprocess
 import time
+import zipfile
 from pathlib import Path
 
 import typer
@@ -24,6 +27,54 @@ from civpulse_geo.normalization import canonical_key, parse_address_components
 app = typer.Typer(help="CivPulse Geo CLI -- GIS data import tools.")
 
 OA_BATCH_SIZE = 1000
+NAD_BATCH_SIZE = 50_000  # Rows per COPY+upsert cycle
+
+NAD_COPY_SQL = """
+    COPY nad_temp (
+        source_hash, street_number, street_name, street_suffix,
+        unit, city, state, zip_code, location, placement
+    ) FROM STDIN WITH (FORMAT CSV, NULL '')
+"""
+
+NAD_UPSERT_SQL = """
+    INSERT INTO nad_points (
+        source_hash, street_number, street_name, street_suffix,
+        unit, city, state, zip_code, location, placement
+    )
+    SELECT
+        source_hash, street_number, street_name, street_suffix,
+        unit, city, state, zip_code,
+        ST_GeogFromText(location),
+        placement
+    FROM nad_temp
+    ON CONFLICT ON CONSTRAINT uq_nad_source_hash DO UPDATE
+        SET street_number = EXCLUDED.street_number,
+            street_name   = EXCLUDED.street_name,
+            street_suffix = EXCLUDED.street_suffix,
+            unit          = EXCLUDED.unit,
+            city          = EXCLUDED.city,
+            state         = EXCLUDED.state,
+            zip_code      = EXCLUDED.zip_code,
+            location      = EXCLUDED.location,
+            placement     = EXCLUDED.placement
+"""
+
+CREATE_NAD_TEMP_TABLE = """
+    CREATE TEMP TABLE IF NOT EXISTS nad_temp (
+        source_hash TEXT,
+        street_number TEXT,
+        street_name TEXT,
+        street_suffix TEXT,
+        unit TEXT,
+        city TEXT,
+        state TEXT,
+        zip_code TEXT,
+        location TEXT,
+        placement TEXT
+    )
+"""
+
+TRUNCATE_NAD_TEMP = "TRUNCATE nad_temp"
 
 # ---------------------------------------------------------------------------
 # Tiger geocoder — FIPS / abbreviation conversion
@@ -546,18 +597,187 @@ def load_openaddresses(
     typer.echo(f"  Skipped:   {stats['skipped']}")
 
 
+def _resolve_city(post_city: str, inc_muni: str, county: str) -> str | None:
+    """Apply NAD city fallback chain: Post_City -> Inc_Muni -> County.
+
+    Skips values that are empty or case-insensitive "not stated".
+    """
+    for raw in [post_city, inc_muni, county]:
+        val = (raw or "").strip()
+        if val and val.lower() != "not stated":
+            return val
+    return None
+
+
+def _parse_nad_row(row: dict, stats: dict) -> list[str] | None:
+    """Parse a NAD CSV row dict into a list of 10 values for COPY CSV format.
+
+    Returns None and increments stats["skipped"] if the row has invalid coordinates.
+    Column order matches NAD_COPY_SQL: source_hash, street_number, street_name,
+    street_suffix, unit, city, state, zip_code, location, placement.
+    """
+    lng_str = (row.get("Longitude") or "").strip()
+    lat_str = (row.get("Latitude") or "").strip()
+    if not lng_str or not lat_str:
+        stats["skipped"] += 1
+        return None
+    try:
+        float(lng_str)
+        float(lat_str)
+    except ValueError:
+        stats["skipped"] += 1
+        return None
+
+    uuid_raw = row.get("UUID", "")
+    source_hash = uuid_raw.strip().strip("{}")
+
+    if not source_hash:
+        stats["skipped"] += 1
+        return None
+
+    city = _resolve_city(
+        row.get("Post_City", ""),
+        row.get("Inc_Muni", ""),
+        row.get("County", ""),
+    )
+
+    return [
+        source_hash,
+        (row.get("Add_Number") or "").strip() or "",
+        (row.get("St_Name") or "").strip() or "",
+        (row.get("St_PosTyp") or "").strip() or "",
+        (row.get("Unit") or "").strip() or "",
+        city or "",
+        (row.get("State") or "").strip() or "",
+        (row.get("Zip_Code") or "").strip() or "",
+        f"SRID=4326;POINT({lng_str} {lat_str})",
+        (row.get("Placement") or "").strip() or "",
+    ]
+
+
+def _flush_nad_batch(conn, buf: io.StringIO, stats: dict) -> None:
+    """COPY a batch from StringIO buffer into nad_temp, then upsert into nad_points."""
+    buf.seek(0)
+    raw_conn = conn.connection
+    with raw_conn.cursor() as cur:
+        cur.execute(TRUNCATE_NAD_TEMP)
+        cur.copy_expert(NAD_COPY_SQL, buf)
+        cur.execute(NAD_UPSERT_SQL)
+        upserted = cur.rowcount
+        stats["upserted"] += upserted
+    raw_conn.commit()
+
+
 @app.command("load-nad")
 def load_nad(
-    file: Path = typer.Argument(..., help="Path to NAD r21 TXT (pipe-delimited) file"),
+    file: Path = typer.Argument(..., help="Path to NAD r21 CSV ZIP file"),
+    states: list[str] = typer.Option(
+        ..., "--state", "-s",
+        help="State abbreviation(s) or FIPS code(s) to import (required). E.g. --state GA --state FL",
+    ),
     database_url: str | None = typer.Option(
         None, "--database-url", envvar="DATABASE_URL_SYNC",
         help="Synchronous PostgreSQL URL (psycopg2).",
     ),
 ) -> None:
-    """Import a NAD r21 TXT file into the nad_points staging table via PostgreSQL COPY."""
+    """Import NAD r21 CSV data from ZIP into nad_points via PostgreSQL COPY.
+
+    Accepts the NAD_r21_TXT.zip file directly. Streams the CSV from inside the ZIP
+    without extracting to disk. Filters rows by the required --state argument(s).
+    Uses COPY to a temp table then INSERT...ON CONFLICT for idempotent upsert.
+    """
     if not file.exists():
         typer.echo(f"Error: file not found: {file}", err=True)
         raise typer.Exit(1)
-    # Phase 10 implements data loading; this stub confirms wiring
-    typer.echo(f"load-nad: {file} (data loading implemented in Phase 10)")
-    raise typer.Exit(0)
+
+    # Resolve state arguments
+    state_abbrevs: set[str] = set()
+    for s in states:
+        abbrev = _resolve_state(s)
+        if abbrev is None:
+            typer.echo(f"Error: unknown state identifier: {s}", err=True)
+            raise typer.Exit(1)
+        state_abbrevs.add(abbrev.upper())
+
+    db_url = database_url or settings.database_url_sync
+    engine = create_engine(db_url)
+    start_time = time.time()
+    stats = {"processed": 0, "imported": 0, "skipped": 0, "upserted": 0}
+
+    # Find the TXT file inside the ZIP
+    with zipfile.ZipFile(file, "r") as zf:
+        txt_files = [n for n in zf.namelist() if n.lower().endswith(".txt") and "schema" not in n.lower()]
+        if not txt_files:
+            typer.echo("Error: no TXT data file found in ZIP", err=True)
+            raise typer.Exit(1)
+        txt_name = txt_files[0]
+        logger.info(f"Reading {txt_name} from {file}")
+
+        # Count rows for progress bar (state-filtered)
+        typer.echo(f"Counting rows for state(s): {', '.join(sorted(state_abbrevs))}...")
+        total_rows = 0
+        with zf.open(txt_name) as raw_f:
+            text_f = io.TextIOWrapper(raw_f, encoding="utf-8-sig")
+            reader = csv.DictReader(text_f)
+            for row in reader:
+                if (row.get("State") or "").strip().upper() in state_abbrevs:
+                    total_rows += 1
+        typer.echo(f"Found {total_rows} rows for {', '.join(sorted(state_abbrevs))}")
+
+        if total_rows == 0:
+            typer.echo("No matching rows found. Nothing to import.")
+            raise typer.Exit(0)
+
+        # Import pass
+        with engine.connect() as conn:
+            raw_conn = conn.connection
+            with raw_conn.cursor() as cur:
+                cur.execute(CREATE_NAD_TEMP_TABLE)
+            raw_conn.commit()
+
+            with Progress(
+                TextColumn("[bold blue]{task.description}"),
+                BarColumn(),
+                MofNCompleteColumn(),
+                TimeElapsedColumn(),
+            ) as progress:
+                task = progress.add_task("Importing NAD data...", total=total_rows)
+
+                with zf.open(txt_name) as raw_f:
+                    text_f = io.TextIOWrapper(raw_f, encoding="utf-8-sig")
+                    reader = csv.DictReader(text_f)
+                    batch_buf = io.StringIO()
+                    batch_writer = csv.writer(batch_buf)
+                    batch_count = 0
+
+                    for row in reader:
+                        row_state = (row.get("State") or "").strip().upper()
+                        if row_state not in state_abbrevs:
+                            continue
+
+                        stats["processed"] += 1
+                        parsed = _parse_nad_row(row, stats)
+                        if parsed is None:
+                            progress.advance(task)
+                            continue
+
+                        batch_writer.writerow(parsed)
+                        batch_count += 1
+
+                        if batch_count >= NAD_BATCH_SIZE:
+                            _flush_nad_batch(conn, batch_buf, stats)
+                            batch_buf = io.StringIO()
+                            batch_writer = csv.writer(batch_buf)
+                            batch_count = 0
+
+                        progress.advance(task)
+
+                    # Flush remaining
+                    if batch_count > 0:
+                        _flush_nad_batch(conn, batch_buf, stats)
+
+    elapsed = time.time() - start_time
+    typer.echo(f"\nImport complete in {elapsed:.1f}s")
+    typer.echo(f"  Processed: {stats['processed']}")
+    typer.echo(f"  Upserted:  {stats['upserted']}")
+    typer.echo(f"  Skipped:   {stats['skipped']}")
