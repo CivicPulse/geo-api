@@ -1,0 +1,24 @@
+# Large data files — mounted as a volume at runtime via docker-compose
+data/
+
+# Planning and docs — not needed in image
+.planning/
+docs/
+
+# Dev/test artifacts
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Git
+.git/
+.gitignore
+
+# Editor
+.vscode/
+.idea/

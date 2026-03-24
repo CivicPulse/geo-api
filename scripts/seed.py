@@ -215,19 +215,18 @@ def main(
     """Seed the CivPulse Geo database with Bibb County GIS data and synthetic addresses."""
     geojson_path = geojson or DEFAULT_GEOJSON
 
-    if not geojson_path.exists():
-        typer.echo(f"GeoJSON file not found: {geojson_path}", err=True)
-        raise typer.Exit(code=1)
-
     db_url = database_url or settings.database_url_sync
     typer.echo(f"Connecting to database: {db_url.split('@')[-1]}")  # hide credentials
 
     engine = create_engine(db_url)
 
     with engine.connect() as conn:
-        # Load GeoJSON addresses
-        addr_count, geo_count = load_geojson_addresses(geojson_path, conn)
-        typer.echo(f"GeoJSON: {addr_count} address rows processed, {geo_count} geocoding results inserted")
+        # Load GeoJSON addresses (optional — skip with warning if file absent)
+        if geojson_path.exists():
+            addr_count, geo_count = load_geojson_addresses(geojson_path, conn)
+            typer.echo(f"GeoJSON: {addr_count} address rows processed, {geo_count} geocoding results inserted")
+        else:
+            typer.echo(f"GeoJSON file not found: {geojson_path} — skipping GeoJSON import", err=True)
 
         # Load synthetic edge cases
         synthetic_count = load_synthetic_addresses(conn)
