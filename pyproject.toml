@@ -35,6 +35,9 @@ build-backend = "uv_build"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "tiger: marks tests that require Tiger/Line data loaded (skipped otherwise)",
+]
 
 [dependency-groups]
 dev = [
