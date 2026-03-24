@@ -258,3 +258,57 @@ async def test_batch_geocode_provider_network_error(patched_app_state):
     assert fail_item["status"] == "provider_error"
     assert fail_item["error"] is not None
     assert "timeout" in fail_item["error"]["message"]
+
+
+def _make_geocode_success_return_with_local(
+    address_hash=None, normalized_address="123 MAIN ST MACON GA 31201"
+):
+    """Build a service result dict that includes a local provider result."""
+    from civpulse_geo.providers.schemas import GeocodingResult
+
+    if address_hash is None:
+        address_hash = "b" * 64
+    local = GeocodingResult(
+        lat=32.84,
+        lng=-83.63,
+        location_type="ROOFTOP",
+        confidence=0.95,
+        raw_response={},
+        provider_name="test-local",
+    )
+    return {
+        "address_hash": address_hash,
+        "normalized_address": normalized_address,
+        "cache_hit": False,
+        "results": [],
+        "local_results": [local],
+        "official": None,
+    }
+
+
+@pytest.mark.asyncio
+async def test_batch_geocode_local_results_included(patched_app_state):
+    """POST /geocode/batch passes local_results through to each response item (closes GAP-INT-01)."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=_make_geocode_success_return_with_local(),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/geocode/batch",
+                json={"addresses": ["123 Main St, Macon GA 31201"]},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    item = data["results"][0]
+    assert item["status"] == "success"
+    local_results = item["data"]["local_results"]
+    assert len(local_results) == 1
+    assert local_results[0]["provider_name"] == "test-local"
+    assert local_results[0]["latitude"] == pytest.approx(32.84)
+    assert local_results[0]["longitude"] == pytest.approx(-83.63)
+    assert local_results[0]["location_type"] == "ROOFTOP"
+    assert local_results[0]["confidence"] == pytest.approx(0.95)

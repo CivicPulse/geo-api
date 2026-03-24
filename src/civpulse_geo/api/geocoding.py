@@ -242,6 +242,16 @@ async def _geocode_one(
             )
             for r in result["results"]
         ]
+        local_provider_results = [
+            GeocodeProviderResult(
+                provider_name=r.provider_name,
+                latitude=r.lat,
+                longitude=r.lng,
+                location_type=r.location_type,
+                confidence=r.confidence,
+            )
+            for r in result.get("local_results", [])
+        ]
         official = None
         if result.get("official"):
             o = result["official"]
@@ -257,6 +267,7 @@ async def _geocode_one(
             normalized_address=result["normalized_address"],
             cache_hit=result["cache_hit"],
             results=provider_results,
+            local_results=local_provider_results,
             official=official,
         )
         return BatchGeocodeResultItem(

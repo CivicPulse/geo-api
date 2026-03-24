@@ -263,3 +263,61 @@ async def test_batch_validate_provider_network_error(patched_app_state):
     assert fail_item["status"] == "provider_error"
     assert fail_item["error"] is not None
     assert "timeout" in fail_item["error"]["message"]
+
+
+def _make_validate_success_return_with_local(
+    address_hash=None, original_input="123 Main St, Macon, GA 31201"
+):
+    """Build a service result dict that includes a local validation candidate."""
+    from civpulse_geo.providers.schemas import ValidationResult
+
+    if address_hash is None:
+        address_hash = "b" * 64
+    local = ValidationResult(
+        normalized_address="123 MAIN ST MACON GA 31201",
+        address_line_1="123 MAIN ST",
+        address_line_2=None,
+        city="MACON",
+        state="GA",
+        postal_code="31201",
+        confidence=1.0,
+        delivery_point_verified=False,
+        provider_name="test-local-validator",
+        original_input=original_input,
+    )
+    return {
+        "address_hash": address_hash,
+        "original_input": original_input,
+        "cache_hit": False,
+        "candidates": [],
+        "local_candidates": [local],
+    }
+
+
+@pytest.mark.asyncio
+async def test_batch_validate_local_candidates_included(patched_app_state):
+    """POST /validate/batch passes local_candidates through to each response item (closes GAP-INT-01)."""
+    with patch(
+        "civpulse_geo.services.validation.ValidationService.validate",
+        new_callable=AsyncMock,
+        return_value=_make_validate_success_return_with_local(),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/validate/batch",
+                json={"addresses": ["123 Main St, Macon GA 31201"]},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    item = data["results"][0]
+    assert item["status"] == "success"
+    local_candidates = item["data"]["local_candidates"]
+    assert len(local_candidates) == 1
+    assert local_candidates[0]["provider_name"] == "test-local-validator"
+    assert local_candidates[0]["normalized_address"] == "123 MAIN ST MACON GA 31201"
+    assert local_candidates[0]["address_line_1"] == "123 MAIN ST"
+    assert local_candidates[0]["city"] == "MACON"
+    assert local_candidates[0]["state"] == "GA"
+    assert local_candidates[0]["confidence"] == pytest.approx(1.0)
