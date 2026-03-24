@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "civpulse-geo-api-collection",
     "name": "CivPulse Geo API",
-    "description": "CivPulse Geo API -- geocoding and address validation endpoints. Run 'POST /geocode' first to populate the address_hash variable used by subsequent geocoding requests.",
+    "description": "CivPulse Geo API -- geocoding and address validation endpoints using Georgia (GA) addresses. Includes real, fake, and malformed addresses for testing. Run 'POST /geocode' first to populate the address_hash variable used by subsequent requests.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -41,126 +41,483 @@
       "name": "Geocoding",
       "item": [
         {
-          "name": "POST /geocode",
-          "event": [
+          "name": "Real Addresses",
+          "item": [
             {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "if (pm.response.code === 200) {",
-                  "    var json = pm.response.json();",
-                  "    if (json.address_hash) {",
-                  "        pm.collectionVariables.set(\"address_hash\", json.address_hash);",
-                  "    }",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
+              "name": "POST /geocode — Macon City Hall",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "if (pm.response.code === 200) {",
+                      "    var json = pm.response.json();",
+                      "    pm.test('Has address_hash', function () {",
+                      "        pm.expect(json.address_hash).to.be.a('string').and.not.empty;",
+                      "    });",
+                      "    pm.test('Has provider results', function () {",
+                      "        pm.expect(json.results.length).to.be.greaterThan(0);",
+                      "    });",
+                      "    pm.collectionVariables.set('address_hash', json.address_hash);",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"700 Poplar St, Macon, GA 31201\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Geocode Macon City Hall. Sets address_hash for subsequent requests."
+              },
+              "response": []
+            },
+            {
+              "name": "POST /geocode — Mercer University",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "if (pm.response.code === 200) {",
+                      "    var json = pm.response.json();",
+                      "    pm.test('Has coordinates', function () {",
+                      "        var r = json.results[0];",
+                      "        pm.expect(r.latitude).to.be.a('number');",
+                      "        pm.expect(r.longitude).to.be.a('number');",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"1501 Mercer University Dr, Macon, GA 31207\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Geocode Mercer University main campus."
+              },
+              "response": []
+            },
+            {
+              "name": "POST /geocode — Bibb County Courthouse",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"601 Mulberry St, Macon, GA 31201\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Geocode Bibb County Courthouse."
+              },
+              "response": []
+            },
+            {
+              "name": "POST /geocode — GA State Capitol",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"206 Washington St SW, Atlanta, GA 30334\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Geocode Georgia State Capitol building in Atlanta."
+              },
+              "response": []
             }
-          ],
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"1600 Pennsylvania Ave NW, Washington, DC 20500\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/geocode",
-              "host": ["{{baseUrl}}"],
-              "path": ["geocode"]
-            },
-            "description": "Geocode a freeform US address. Returns cached results if available. The address_hash variable is automatically set by the test script for use in subsequent requests."
-          },
-          "response": []
+          ]
         },
         {
-          "name": "POST /geocode/batch",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"addresses\": [\n    \"1600 Pennsylvania Ave NW, Washington, DC 20500\",\n    \"350 Fifth Avenue, New York, NY 10118\"\n  ]\n}"
+          "name": "Fake Addresses",
+          "item": [
+            {
+              "name": "POST /geocode — nonexistent street",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});",
+                      "if (pm.response.code === 200) {",
+                      "    var json = pm.response.json();",
+                      "    pm.test('Results empty or low confidence', function () {",
+                      "        if (json.results.length > 0) {",
+                      "            pm.expect(json.results[0].confidence).to.be.below(0.8);",
+                      "        }",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"99999 Imaginary Blvd, Macon, GA 31201\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Fake street number and name in a real city/zip. Should return no results or low confidence."
+              },
+              "response": []
             },
-            "url": {
-              "raw": "{{baseUrl}}/geocode/batch",
-              "host": ["{{baseUrl}}"],
-              "path": ["geocode", "batch"]
+            {
+              "name": "POST /geocode — real street, wrong zip",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"700 Poplar St, Macon, GA 99999\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Real Macon street with impossible zip code."
+              },
+              "response": []
             },
-            "description": "Batch geocode multiple addresses concurrently. Returns per-item results with individual status codes. Returns outer 422 only when ALL items fail."
-          },
-          "response": []
+            {
+              "name": "POST /geocode — fake city in GA",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"123 Main St, Faketown, GA 30000\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Plausible address with a nonexistent GA city."
+              },
+              "response": []
+            }
+          ]
         },
         {
-          "name": "PUT /geocode/{address_hash}/official",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"latitude\": 38.8977,\n  \"longitude\": -77.0365,\n  \"reason\": \"Manual override test\"\n}"
+          "name": "Malformed Addresses",
+          "item": [
+            {
+              "name": "POST /geocode — empty string",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 422', function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Empty address string. Should return 422."
+              },
+              "response": []
             },
-            "url": {
-              "raw": "{{baseUrl}}/geocode/{{address_hash}}/official",
-              "host": ["{{baseUrl}}"],
-              "path": ["geocode", "{{address_hash}}", "official"]
+            {
+              "name": "POST /geocode — missing field",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 422', function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Missing address field entirely. Should return 422."
+              },
+              "response": []
             },
-            "description": "Set the official geocoding result for an address. Pass geocoding_result_id to point at an existing provider result, or pass latitude+longitude to create a custom admin_override coordinate. Returns 404 if the address_hash is not found."
-          },
-          "response": []
+            {
+              "name": "POST /geocode — just a zip code",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"31201\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Just a Macon zip code, no street or city. Tests partial input handling."
+              },
+              "response": []
+            },
+            {
+              "name": "POST /geocode — gibberish",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"asdf jkl;  !@#$%\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode"]
+                },
+                "description": "Complete gibberish input. Tests graceful error handling."
+              },
+              "response": []
+            }
+          ]
         },
         {
-          "name": "POST /geocode/{address_hash}/refresh",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": ""
-            },
-            "url": {
-              "raw": "{{baseUrl}}/geocode/{{address_hash}}/refresh",
-              "host": ["{{baseUrl}}"],
-              "path": ["geocode", "{{address_hash}}", "refresh"]
-            },
-            "description": "Force re-query of all providers for an address, bypassing the cache. Results are upserted. Returns 404 if the address_hash is not found."
-          },
-          "response": []
+          "name": "Batch",
+          "item": [
+            {
+              "name": "POST /geocode/batch — mixed GA addresses",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "if (pm.response.code === 200) {",
+                      "    var json = pm.response.json();",
+                      "    pm.test('Returns results for all items', function () {",
+                      "        pm.expect(json.results.length).to.eql(3);",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"addresses\": [\n    \"700 Poplar St, Macon, GA 31201\",\n    \"1501 Mercer University Dr, Macon, GA 31207\",\n    \"99999 Imaginary Blvd, Macon, GA 31201\"\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode/batch",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode", "batch"]
+                },
+                "description": "Batch geocode with two real GA addresses and one fake. Tests mixed-result handling."
+              },
+              "response": []
+            }
+          ]
         },
         {
-          "name": "GET /geocode/{address_hash}/providers/{provider_name}",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/geocode/{{address_hash}}/providers/{{provider_name}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["geocode", "{{address_hash}}", "providers", "{{provider_name}}"]
+          "name": "Address Hash Operations",
+          "item": [
+            {
+              "name": "PUT /geocode/{address_hash}/official",
+              "request": {
+                "method": "PUT",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"latitude\": 32.8407,\n  \"longitude\": -83.6324,\n  \"reason\": \"Manual override test — Macon City Hall coordinates\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode/{{address_hash}}/official",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode", "{{address_hash}}", "official"]
+                },
+                "description": "Set the official geocoding result for the address. Uses Macon City Hall coordinates. Requires address_hash from a prior geocode request."
+              },
+              "response": []
             },
-            "description": "Fetch the result from a specific provider for an address. Returns 404 if the address_hash or provider_name is not found. The provider_name variable defaults to 'census'."
-          },
-          "response": []
+            {
+              "name": "POST /geocode/{address_hash}/refresh",
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": ""
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/geocode/{{address_hash}}/refresh",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode", "{{address_hash}}", "refresh"]
+                },
+                "description": "Force re-query of all providers for the address, bypassing cache. Requires address_hash from a prior geocode request."
+              },
+              "response": []
+            },
+            {
+              "name": "GET /geocode/{address_hash}/providers/{provider_name}",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{baseUrl}}/geocode/{{address_hash}}/providers/{{provider_name}}",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["geocode", "{{address_hash}}", "providers", "{{provider_name}}"]
+                },
+                "description": "Fetch the result from a specific provider for an address. The provider_name variable defaults to 'census'."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     },
@@ -168,78 +525,217 @@
       "name": "Validation",
       "item": [
         {
-          "name": "POST /validate (freeform)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"address\": \"1600 Pennsylvania Ave NW, Washington, DC 20500\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/validate",
-              "host": ["{{baseUrl}}"],
-              "path": ["validate"]
-            },
-            "description": "Validate and USPS-standardize a US address using a freeform string. Returns candidates array with confidence scores. Returns 422 if the address is unparseable."
-          },
-          "response": [
+          "name": "Real Addresses",
+          "item": [
             {
-              "name": "Structured input example",
-              "originalRequest": {
-                "method": "POST",
-                "header": [
-                  {
-                    "key": "Content-Type",
-                    "value": "application/json"
+              "name": "POST /validate — Macon City Hall (freeform)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "if (pm.response.code === 200) {",
+                      "    var json = pm.response.json();",
+                      "    pm.test('Has candidates', function () {",
+                      "        pm.expect(json.candidates.length).to.be.greaterThan(0);",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
                   }
-                ],
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"street\": \"1600 Pennsylvania Ave NW\",\n  \"city\": \"Washington\",\n  \"state\": \"DC\",\n  \"zip_code\": \"20500\"\n}"
+                  "raw": "{\n  \"address\": \"700 Poplar St, Macon, GA 31201\"\n}"
                 },
                 "url": {
                   "raw": "{{baseUrl}}/validate",
                   "host": ["{{baseUrl}}"],
                   "path": ["validate"]
-                }
+                },
+                "description": "Validate Macon City Hall address as freeform string."
               },
-              "status": "OK",
-              "code": 200,
-              "_postman_previewlanguage": "json",
-              "header": [],
-              "cookie": [],
-              "body": ""
+              "response": []
+            },
+            {
+              "name": "POST /validate — structured input",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"street\": \"1501 Mercer University Dr\",\n  \"city\": \"Macon\",\n  \"state\": \"GA\",\n  \"zip_code\": \"31207\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/validate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["validate"]
+                },
+                "description": "Validate Mercer University address using structured fields."
+              },
+              "response": []
             }
           ]
         },
         {
-          "name": "POST /validate/batch",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"addresses\": [\n    \"1600 Pennsylvania Ave NW, Washington, DC 20500\",\n    \"350 Fifth Avenue, New York, NY 10118\"\n  ]\n}"
+          "name": "Fake & Malformed",
+          "item": [
+            {
+              "name": "POST /validate — fake GA address",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"99999 Imaginary Blvd, Macon, GA 31201\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/validate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["validate"]
+                },
+                "description": "Validate a fake street in a real GA city."
+              },
+              "response": []
             },
-            "url": {
-              "raw": "{{baseUrl}}/validate/batch",
-              "host": ["{{baseUrl}}"],
-              "path": ["validate", "batch"]
+            {
+              "name": "POST /validate — empty string",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 422', function () {",
+                      "    pm.response.to.have.status(422);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/validate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["validate"]
+                },
+                "description": "Empty address string. Should return 422."
+              },
+              "response": []
             },
-            "description": "Batch validate multiple addresses concurrently. Returns per-item results with individual status codes. Returns outer 422 only when ALL items fail."
-          },
-          "response": []
+            {
+              "name": "POST /validate — gibberish",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200 or 422', function () {",
+                      "    pm.expect(pm.response.code).to.be.oneOf([200, 422]);",
+                      "});"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"address\": \"xyzzy plugh !@#\"\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/validate",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["validate"]
+                },
+                "description": "Gibberish input for validation. Tests graceful error handling."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Batch",
+          "item": [
+            {
+              "name": "POST /validate/batch — mixed GA addresses",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "pm.test('Status is 200', function () {",
+                      "    pm.response.to.have.status(200);",
+                      "});",
+                      "if (pm.response.code === 200) {",
+                      "    var json = pm.response.json();",
+                      "    pm.test('Returns results for all items', function () {",
+                      "        pm.expect(json.results.length).to.eql(3);",
+                      "    });",
+                      "}"
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [{"key": "Content-Type", "value": "application/json"}],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"addresses\": [\n    \"700 Poplar St, Macon, GA 31201\",\n    \"601 Mulberry St, Macon, GA 31201\",\n    \"asdf jkl; !@#$%\"\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/validate/batch",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["validate", "batch"]
+                },
+                "description": "Batch validate with two real Bibb County addresses and one gibberish. Tests mixed-result handling."
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }

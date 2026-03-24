@@ -15,12 +15,14 @@ at most once per provider, minimizing external API calls.
 from __future__ import annotations
 
 import httpx
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from civpulse_geo.normalization import canonical_key, parse_address_components
+from civpulse_geo.providers.openaddresses import _parse_input_address
 from civpulse_geo.models.address import Address
 from civpulse_geo.models.geocoding import (
     GeocodingResult as GeocodingResultORM,
@@ -109,6 +111,17 @@ class GeocodingService:
                 normalized, http_client=http_client
             )
             local_results.append(provider_result)
+
+        # Warn when all local providers return NO_MATCH (aids debugging data gaps)
+        if local_results and all(r.confidence == 0.0 for r in local_results):
+            street_number, street_name, postal_code = _parse_input_address(normalized)
+            logger.warning(
+                "All local providers returned NO_MATCH for address: {} "
+                "(parsed: street_number={}, street_name={}, zip={}). "
+                "Registered local providers: {}",
+                normalized, street_number, street_name, postal_code,
+                list(local_providers.keys()),
+            )
 
         # Step 3b: Cache check for remote providers (local results already computed above)
         if not force_refresh and address.geocoding_results:

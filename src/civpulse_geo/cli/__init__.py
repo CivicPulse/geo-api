@@ -103,6 +103,11 @@ TIGER_EXTENSIONS = [
     "postgis_tiger_geocoder",
 ]
 
+# County-level Tiger tables that must be downloaded before the loader script.
+# Loader_Generate_Script assumes these files already exist at /gisdata/ but
+# does NOT include wget commands for them (only state-level files get wget).
+TIGER_COUNTY_TABLES = ["ADDR", "EDGES", "FACES", "FEATNAMES"]
+
 
 def _resolve_state(value: str) -> str | None:
     """Convert a FIPS code or state abbreviation to a 2-letter state abbreviation.
@@ -135,8 +140,8 @@ def setup_tiger(
     Accepts state FIPS codes (e.g., 13 for Georgia) or 2-letter abbreviations (e.g., GA).
     Fully idempotent: safe to re-run for already-installed extensions and loaded states.
 
-    This command must run inside the Docker container where shp2pgsql and wget are available:
-        docker compose exec db geo-import setup-tiger 13
+    Run from the api container:
+        docker compose exec api geo-import setup-tiger GA
     """
     # Step 1: Resolve FIPS codes to abbreviations
     abbrevs: list[str] = []
@@ -158,7 +163,60 @@ def setup_tiger(
         conn.commit()
     typer.echo("Tiger extensions installed.")
 
-    # Step 3: Generate and execute loader script per state
+    # Parse connection info from SQLAlchemy URL for the loader script
+    from sqlalchemy.engine.url import make_url
+    parsed = make_url(db_url)
+
+    # Step 3: Fetch Tiger year and website root from loader_variables
+    with engine.connect() as conn:
+        lv = conn.execute(text("SELECT tiger_year, website_root, staging_fold FROM tiger.loader_variables")).first()
+    tiger_year = lv.tiger_year if lv else "2024"
+    website_root = lv.website_root if lv else "https://www2.census.gov/geo/tiger/TIGER2024"
+    staging_fold = lv.staging_fold if lv else "/gisdata"
+
+    # Step 4: Download county-level shapefiles that Loader_Generate_Script
+    # expects but does not download (it only includes wget for state-level files).
+    # Uses wget --mirror with --accept to download only files matching the state's
+    # FIPS code. --wait/--random-wait prevent Census 429 rate limiting.
+    # Retries with exponential backoff on 429 responses.
+    for abbrev in abbrevs:
+        fips = ABBREV_TO_FIPS.get(abbrev)
+        if not fips:
+            continue
+        for table_name in TIGER_COUNTY_TABLES:
+            dir_url = f"{website_root}/{table_name}/"
+            dest_dir = f"{staging_fold}/www2.census.gov/geo/tiger/TIGER{tiger_year}/{table_name}"
+            typer.echo(f"Downloading {table_name} shapefiles for {abbrev} (FIPS {fips})...")
+
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                dl_cmd = (
+                    f"cd {staging_fold} && "
+                    f"wget --mirror --reject=html --no-verbose "
+                    f"--wait=0.5 --random-wait "
+                    f"--accept='tl_{tiger_year}_{fips}*_{table_name.lower()}.zip' "
+                    f"{dir_url}"
+                )
+                proc = subprocess.run(
+                    ["bash", "-c", dl_cmd], capture_output=True, text=True,
+                )
+                # Check if we hit a 429
+                if "429" in (proc.stderr or "") and attempt < max_retries:
+                    wait_secs = 30 * attempt
+                    typer.echo(f"  Rate limited (429). Waiting {wait_secs}s before retry {attempt + 1}/{max_retries}...")
+                    time.sleep(wait_secs)
+                    continue
+                break
+
+            # Count downloaded files
+            count_proc = subprocess.run(
+                ["bash", "-c", f"ls {dest_dir}/tl_{tiger_year}_{fips}*_{table_name.lower()}.zip 2>/dev/null | wc -l"],
+                capture_output=True, text=True,
+            )
+            file_count = count_proc.stdout.strip()
+            typer.echo(f"  {file_count} {table_name} file(s) downloaded for {abbrev}.")
+
+    # Step 5: Generate and execute loader script per state
     for abbrev in abbrevs:
         typer.echo(f"Generating loader script for {abbrev}...")
         with engine.connect() as conn:
@@ -172,14 +230,36 @@ def setup_tiger(
             typer.echo(f"Warning: Loader_Generate_Script returned empty for {abbrev}", err=True)
             continue
 
+        # Patch the generated script to work from the api container:
+        # - Fix PGBIN path (psql is at /usr/bin in Debian)
+        # - Fix connection variables to match our docker-compose setup
+        script_text = script_text.replace(
+            'export PGBIN=/usr/lib/postgresql/17/bin', 'export PGBIN=/usr/bin'
+        )
+        script_text = script_text.replace(
+            'export PGHOST=localhost', f'export PGHOST={parsed.host or "db"}'
+        )
+        script_text = script_text.replace(
+            'export PGPORT=5432', f'export PGPORT={parsed.port or 5432}'
+        )
+        script_text = script_text.replace(
+            'export PGUSER=postgres', f'export PGUSER={parsed.username or "civpulse"}'
+        )
+        script_text = script_text.replace(
+            'export PGPASSWORD=yourpasswordhere', f'export PGPASSWORD={parsed.password or "civpulse"}'
+        )
+        script_text = script_text.replace(
+            'export PGDATABASE=geocoder', f'export PGDATABASE={parsed.database or "civpulse_geo"}'
+        )
+
         typer.echo(f"Executing loader script for {abbrev}...")
         proc = subprocess.run(
             ["bash", "-c", script_text],
-            capture_output=True,
+            capture_output=False,
             text=True,
         )
         if proc.returncode != 0:
-            typer.echo(f"Error loading {abbrev}: {proc.stderr}", err=True)
+            typer.echo(f"Error loading {abbrev}.", err=True)
             raise typer.Exit(1)
         typer.echo(f"Tiger data loaded for {abbrev}.")
 
@@ -445,7 +525,7 @@ def _parse_street_components(street: str) -> tuple[str, str | None]:
     return street_name, street_suffix
 
 
-def _parse_oa_feature(feat: dict, stats: dict) -> dict | None:
+def _parse_oa_feature(feat: dict, stats: dict, default_region: str | None = None) -> dict | None:
     """Parse an OA GeoJSON feature into a dict suitable for DB insert.
 
     Returns None and increments stats["skipped"] if the feature is invalid.
@@ -484,10 +564,10 @@ def _parse_oa_feature(feat: dict, stats: dict) -> dict | None:
         "unit": props.get("unit") or None,
         "city": props.get("city") or None,
         "district": props.get("district") or None,
-        "region": props.get("region") or None,
+        "region": props.get("region") or default_region,
         "postcode": props.get("postcode") or None,
         "location": f"SRID=4326;POINT({lng} {lat})",
-        "accuracy": props.get("accuracy") or None,
+        "accuracy": props.get("accuracy") or "parcel",
     }
 
 
@@ -543,6 +623,12 @@ def load_openaddresses(
         typer.echo(f"Error: expected .geojson.gz file, got: {file.suffix}", err=True)
         raise typer.Exit(1)
 
+    # Infer state from OA filename pattern: US_{state}_{county}_Addresses_...
+    filename_parts = file.stem.replace(".geojson", "").split("_")
+    default_region = filename_parts[1] if len(filename_parts) >= 3 and filename_parts[0] == "US" else None
+    if default_region:
+        logger.info(f"Inferred region from filename: {default_region}")
+
     db_url = database_url or settings.database_url_sync
     engine = create_engine(db_url)
     start_time = time.time()
@@ -575,7 +661,7 @@ def load_openaddresses(
                         progress.advance(task)
                         continue
 
-                    row = _parse_oa_feature(feat, stats)
+                    row = _parse_oa_feature(feat, stats, default_region=default_region)
                     if row:
                         batch.append(row)
 

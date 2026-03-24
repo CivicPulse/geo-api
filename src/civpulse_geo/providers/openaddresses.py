@@ -20,6 +20,7 @@ from typing import Any
 import usaddress
 from geoalchemy2.types import Geometry
 from scourgify import normalize_address_record
+import sqlalchemy
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -97,6 +98,9 @@ def _parse_input_address(address: str) -> tuple[str | None, str | None, str | No
     return (street_number, street_name, postal_code)
 
 
+FUZZY_MAX_DISTANCE = 10  # Maximum address-number distance for fuzzy match
+
+
 async def _find_oa_match(
     session: AsyncSession,
     street_number: str,
@@ -125,6 +129,61 @@ async def _find_oa_match(
     )
     result = await session.execute(stmt)
     return result.first()  # Returns (OpenAddressesPoint, lat, lng) or None
+
+
+async def _find_oa_fuzzy_match(
+    session: AsyncSession,
+    street_number: str,
+    street_name: str,
+    postcode: str,
+) -> tuple[OpenAddressesPoint, float, float] | None:
+    """Fuzzy fallback: find the nearest address on the same street and ZIP.
+
+    Drops the exact street_number match and instead orders by numeric distance
+    from the target address number. Only returns a match if the nearest row is
+    within FUZZY_MAX_DISTANCE address numbers.
+
+    Returns (OpenAddressesPoint, lat, lng) or None.
+    """
+    try:
+        target_num = int(street_number)
+    except (ValueError, TypeError):
+        return None
+
+    stmt = (
+        select(
+            OpenAddressesPoint,
+            func.ST_Y(OpenAddressesPoint.location.cast(Geometry)).label("lat"),
+            func.ST_X(OpenAddressesPoint.location.cast(Geometry)).label("lng"),
+        )
+        .where(
+            func.upper(OpenAddressesPoint.street_name) == street_name.upper(),
+            OpenAddressesPoint.postcode == postcode,
+            OpenAddressesPoint.street_number.op("~")(r"^\d+$"),
+        )
+        .order_by(
+            func.abs(
+                func.cast(OpenAddressesPoint.street_number, sqlalchemy.Integer) - target_num
+            )
+        )
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    row_tuple = result.first()
+
+    if row_tuple is None:
+        return None
+
+    oa_row = row_tuple[0]
+    try:
+        matched_num = int(oa_row.street_number)
+    except (ValueError, TypeError):
+        return None
+
+    if abs(matched_num - target_num) > FUZZY_MAX_DISTANCE:
+        return None
+
+    return row_tuple
 
 
 # ---------------------------------------------------------------------------
@@ -184,6 +243,10 @@ class OAGeocodingProvider(GeocodingProvider):
         try:
             async with self._session_factory() as session:
                 row_tuple = await _find_oa_match(session, street_number, street_name, postal_code)
+                fuzzy = False
+                if row_tuple is None:
+                    row_tuple = await _find_oa_fuzzy_match(session, street_number, street_name, postal_code)
+                    fuzzy = True
         except SQLAlchemyError as e:
             raise ProviderError(f"OpenAddresses query failed: {e}") from e
 
@@ -202,6 +265,10 @@ class OAGeocodingProvider(GeocodingProvider):
             oa_row.accuracy or "", DEFAULT_ACCURACY
         )
 
+        # Halve confidence for fuzzy matches to signal approximate result
+        if fuzzy:
+            confidence *= 0.5
+
         raw_response: dict[str, Any] = {
             "source_hash": oa_row.source_hash,
             "street_number": oa_row.street_number,
@@ -213,6 +280,7 @@ class OAGeocodingProvider(GeocodingProvider):
             "accuracy": oa_row.accuracy,
             "lat": lat,
             "lng": lng,
+            "fuzzy_match": fuzzy,
         }
 
         return GeocodingResult(

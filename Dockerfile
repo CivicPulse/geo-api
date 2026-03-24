@@ -3,6 +3,13 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
+# System libs required by fiona/GDAL and Tiger loader (shp2pgsql, wget, psql, unzip)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libexpat1 libgdal-dev postgis postgresql-client unzip wget && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /gisdata/temp
+
 # Install dependencies first (cached layer — only rebuilds when lock file changes)
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
