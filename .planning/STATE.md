@@ -76,9 +76,10 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260324-lqg | fix Tiger extension check predicate | 2026-03-24 | 86ef71b | [260324-lqg-fix-tiger-extension-check-predicate](./quick/260324-lqg-fix-tiger-extension-check-predicate/) |
+| 260324-m7o | add debugpy support to Docker dev setup | 2026-03-24 | a437ca3 | [260324-m7o-modify-the-entrypoint-to-optionally-star](./quick/260324-m7o-modify-the-entrypoint-to-optionally-star/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-24 - Completed quick task 260324-lqg: fix Tiger extension check predicate
-Stopped at: Completed quick task 260324-lqg
+Last activity: 2026-03-24 - Completed quick task 260324-m7o: add debugpy support to Docker dev setup
+Stopped at: Completed quick task 260324-m7o
 Resume file: None
