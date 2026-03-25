@@ -6,6 +6,7 @@ from civpulse_geo.models.validation import ValidationResult as ValidationResultO
 from civpulse_geo.models.openaddresses import OpenAddressesPoint
 from civpulse_geo.models.nad import NADPoint
 from civpulse_geo.models.parcels import OpenAddressesParcel
+from civpulse_geo.models.macon_bibb import MaconBibbPoint
 
 __all__ = [
     "Base",
@@ -19,4 +20,5 @@ __all__ = [
     "OpenAddressesPoint",
     "NADPoint",
     "OpenAddressesParcel",
+    "MaconBibbPoint",
 ]

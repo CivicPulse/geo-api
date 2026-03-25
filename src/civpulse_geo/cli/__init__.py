@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import hashlib
 import io
 import json
 import subprocess
@@ -1013,6 +1014,152 @@ def load_oa_parcels(
                 # Flush remaining batch
                 if batch:
                     _upsert_oa_parcel_batch(conn, batch, stats)
+
+    elapsed = time.time() - start_time
+    typer.echo(f"\nImport complete in {elapsed:.1f}s")
+    typer.echo(f"  Processed: {stats['processed']}")
+    typer.echo(f"  Inserted:  {stats['inserted']}")
+    typer.echo(f"  Updated:   {stats['updated']}")
+    typer.echo(f"  Skipped:   {stats['skipped']}")
+
+
+def _parse_macon_bibb_feature(feat: dict, stats: dict) -> dict | None:
+    """Parse a Macon-Bibb County GeoJSON feature into a dict for DB insert.
+
+    Computes source_hash as SHA-256 of "{OBJECTID}:{FULLADDR}:{lon}:{lat}".
+    Strips whitespace from all string fields; treats whitespace-only as None.
+    Returns None and increments stats["skipped"] if geometry is missing/invalid.
+    """
+    props = feat.get("properties", {})
+    geom = feat.get("geometry")
+
+    if not geom or not geom.get("coordinates") or len(geom["coordinates"]) < 2:
+        stats["skipped"] += 1
+        return None
+
+    try:
+        lon = float(geom["coordinates"][0])
+        lat = float(geom["coordinates"][1])
+    except (TypeError, ValueError):
+        stats["skipped"] += 1
+        return None
+
+    object_id = props.get("OBJECTID", "")
+    full_addr = (props.get("FULLADDR") or "").strip()
+    hash_input = f"{object_id}:{full_addr}:{lon}:{lat}"
+    source_hash = hashlib.sha256(hash_input.encode()).hexdigest()
+
+    def clean(val) -> str | None:
+        s = (val or "").strip()
+        return s if s else None
+
+    return {
+        "source_hash": source_hash,
+        "street_number": clean(props.get("ADDR_HN")),
+        "street_name": clean(props.get("ADDR_SN")),
+        "street_suffix": clean(props.get("ADDR_ST")),
+        "unit": clean(props.get("UNIT")),
+        "city": clean(props.get("City_1")),
+        "state": "GA",
+        "zip_code": clean(props.get("ZIP_1")),
+        "location": f"SRID=4326;POINT({lon} {lat})",
+        "address_type": clean(props.get("ADDType")),
+    }
+
+
+def _upsert_macon_bibb_batch(conn, batch: list[dict], stats: dict) -> None:
+    """Upsert a batch of Macon-Bibb rows into macon_bibb_points using ON CONFLICT."""
+    for row in batch:
+        result = conn.execute(
+            text("""
+                INSERT INTO macon_bibb_points (
+                    source_hash, street_number, street_name, street_suffix,
+                    unit, city, state, zip_code, location, address_type
+                ) VALUES (
+                    :source_hash, :street_number, :street_name, :street_suffix,
+                    :unit, :city, :state, :zip_code,
+                    ST_GeogFromText(:location), :address_type
+                )
+                ON CONFLICT ON CONSTRAINT uq_macon_bibb_source_hash DO UPDATE
+                    SET street_number = EXCLUDED.street_number,
+                        street_name   = EXCLUDED.street_name,
+                        street_suffix = EXCLUDED.street_suffix,
+                        unit          = EXCLUDED.unit,
+                        city          = EXCLUDED.city,
+                        state         = EXCLUDED.state,
+                        zip_code      = EXCLUDED.zip_code,
+                        location      = EXCLUDED.location,
+                        address_type  = EXCLUDED.address_type
+                RETURNING (xmax = 0) AS was_inserted
+            """),
+            row,
+        )
+        was_inserted = result.scalar()
+        if was_inserted:
+            stats["inserted"] += 1
+        else:
+            stats["updated"] += 1
+    conn.commit()
+
+
+@app.command("load-macon-bibb")
+def load_macon_bibb(
+    file: Path = typer.Argument(..., help="Path to Macon-Bibb County Address Points .geojson file"),
+    database_url: str | None = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL_SYNC",
+        help="Synchronous PostgreSQL URL (psycopg2).",
+    ),
+) -> None:
+    """Import Macon-Bibb County GIS Address Points from a .geojson file into macon_bibb_points.
+
+    Accepts an uncompressed FeatureCollection GeoJSON file (data/Address_Points.geojson).
+    Deduplicates using SHA-256 of OBJECTID+FULLADDR+coordinates via ON CONFLICT upsert.
+    State is hardcoded to GA for all records.
+    """
+    if not file.exists():
+        typer.echo(f"Error: file not found: {file}", err=True)
+        raise typer.Exit(1)
+    if file.suffix.lower() != ".geojson":
+        typer.echo(f"Error: expected .geojson file, got: {file.suffix}", err=True)
+        raise typer.Exit(1)
+
+    db_url = database_url or settings.database_url_sync
+    engine = create_engine(db_url)
+    start_time = time.time()
+    stats = {"processed": 0, "inserted": 0, "updated": 0, "skipped": 0}
+
+    logger.info(f"Loading {file} into memory...")
+    with open(file) as f:
+        geojson_data = json.load(f)
+
+    features = geojson_data.get("features", [])
+    total = len(features)
+    logger.info(f"Found {total} features")
+
+    with engine.connect() as conn:
+        batch: list[dict] = []
+        with Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+            task = progress.add_task("Importing Macon-Bibb data...", total=total)
+            for feat in features:
+                stats["processed"] += 1
+                row = _parse_macon_bibb_feature(feat, stats)
+                if row:
+                    batch.append(row)
+
+                if len(batch) >= OA_BATCH_SIZE:
+                    _upsert_macon_bibb_batch(conn, batch, stats)
+                    batch.clear()
+
+                progress.advance(task)
+
+            # Flush remaining batch
+            if batch:
+                _upsert_macon_bibb_batch(conn, batch, stats)
 
     elapsed = time.time() - start_time
     typer.echo(f"\nImport complete in {elapsed:.1f}s")
