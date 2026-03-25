@@ -24,6 +24,11 @@ from civpulse_geo.providers.nad import (
     NADValidationProvider,
     _nad_data_available,
 )
+from civpulse_geo.providers.macon_bibb import (
+    MaconBibbGeocodingProvider,
+    MaconBibbValidationProvider,
+    _macon_bibb_data_available,
+)
 
 
 @asynccontextmanager
@@ -58,6 +63,15 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning(
             "nad_points table is empty — NAD provider not registered"
+        )
+    # Macon-Bibb providers (conditional on data presence in macon_bibb_points table)
+    if await _macon_bibb_data_available(AsyncSessionLocal):
+        app.state.providers["macon_bibb"] = MaconBibbGeocodingProvider(AsyncSessionLocal)
+        app.state.validation_providers["macon_bibb"] = MaconBibbValidationProvider(AsyncSessionLocal)
+        logger.info("Macon-Bibb provider registered")
+    else:
+        logger.warning(
+            "macon_bibb_points table is empty — Macon-Bibb provider not registered"
         )
     logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     logger.info(f"Loaded {len(app.state.validation_providers)} validation provider(s)")
