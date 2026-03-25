@@ -79,9 +79,10 @@ None.
 | 260324-m7o | add debugpy support to Docker dev setup | 2026-03-24 | a437ca3 | [260324-m7o-modify-the-entrypoint-to-optionally-star](./quick/260324-m7o-modify-the-entrypoint-to-optionally-star/) |
 | 260324-n1e | write comprehensive README.md | 2026-03-24 | d07da6b | [260324-n1e-create-a-well-formatted-and-visually-ple](./quick/260324-n1e-create-a-well-formatted-and-visually-ple/) |
 | 260324-n3c | create Postman collection for all 8 API endpoints | 2026-03-24 | e464ddb | [260324-n3c-create-a-postman-config-that-can-test-al](./quick/260324-n3c-create-a-postman-config-that-can-test-al/) |
+| 260325-0pw | add OpenAddresses parcel boundary staging table and CLI command | 2026-03-25 | fcc0de9 | [260325-0pw-add-openaddresses-parcel-boundary-stagin](./quick/260325-0pw-add-openaddresses-parcel-boundary-stagin/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-24 - Completed quick task 260324-n3c: create Postman collection for all 8 API endpoints
-Stopped at: Completed quick task 260324-n3c
+Last activity: 2026-03-25 - Completed quick task 260325-0pw: add OpenAddresses parcel boundary staging table and CLI command
+Stopped at: Completed quick task 260325-0pw
 Resume file: None
