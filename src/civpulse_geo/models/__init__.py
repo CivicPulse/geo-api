@@ -5,6 +5,7 @@ from civpulse_geo.models.geocoding import GeocodingResult, OfficialGeocoding, Ad
 from civpulse_geo.models.validation import ValidationResult as ValidationResultORM
 from civpulse_geo.models.openaddresses import OpenAddressesPoint
 from civpulse_geo.models.nad import NADPoint
+from civpulse_geo.models.parcels import OpenAddressesParcel
 
 __all__ = [
     "Base",
@@ -17,4 +18,5 @@ __all__ = [
     "ValidationResultORM",
     "OpenAddressesPoint",
     "NADPoint",
+    "OpenAddressesParcel",
 ]

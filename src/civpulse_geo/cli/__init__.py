@@ -867,3 +867,156 @@ def load_nad(
     typer.echo(f"  Processed: {stats['processed']}")
     typer.echo(f"  Upserted:  {stats['upserted']}")
     typer.echo(f"  Skipped:   {stats['skipped']}")
+
+
+def _polygon_geojson_to_ewkt(geom: dict) -> str:
+    """Convert a GeoJSON Polygon geometry dict to an EWKT string (SRID=4326;POLYGON ...).
+
+    Pure Python — no external dependencies. Handles outer ring and optional interior rings.
+    Coordinates are [lon, lat] pairs per GeoJSON spec.
+    """
+    rings = geom["coordinates"]  # list of rings; first is exterior, rest are holes
+
+    def ring_to_wkt(coords: list) -> str:
+        return "(" + ", ".join(f"{lon} {lat}" for lon, lat in coords) + ")"
+
+    wkt_rings = ", ".join(ring_to_wkt(r) for r in rings)
+    return f"SRID=4326;POLYGON ({wkt_rings})"
+
+
+def _parse_oa_parcel_feature(
+    feat: dict, stats: dict, state: str, county: str,
+) -> dict | None:
+    """Parse an OA parcel GeoJSON feature into a dict suitable for DB insert.
+
+    Returns None and increments stats["skipped"] if the feature is invalid.
+    """
+    props = feat.get("properties", {})
+    geom = feat.get("geometry")
+
+    # Require source_hash for deduplication
+    source_hash = props.get("hash", "")
+    if not source_hash:
+        stats["skipped"] += 1
+        return None
+
+    # Validate polygon geometry
+    if not geom or geom.get("type") != "Polygon":
+        stats["skipped"] += 1
+        logger.warning(f"Feature skipped (not a Polygon): hash={source_hash}")
+        return None
+
+    try:
+        wkt = _polygon_geojson_to_ewkt(geom)
+    except Exception:
+        stats["skipped"] += 1
+        logger.warning(f"Feature skipped (invalid geometry): hash={source_hash}")
+        return None
+
+    return {
+        "source_hash": source_hash,
+        "pid": props.get("pid") or None,
+        "county": county,
+        "state": state,
+        "boundary": wkt,
+    }
+
+
+def _upsert_oa_parcel_batch(conn, batch: list[dict], stats: dict) -> None:
+    """Upsert a batch of OA parcel rows into openaddresses_parcels using ON CONFLICT."""
+    for row in batch:
+        result = conn.execute(
+            text("""
+                INSERT INTO openaddresses_parcels (
+                    source_hash, pid, county, state, boundary
+                ) VALUES (
+                    :source_hash, :pid, :county, :state,
+                    ST_GeogFromText(:boundary)
+                )
+                ON CONFLICT ON CONSTRAINT uq_oa_parcel_source_hash DO UPDATE
+                    SET pid      = EXCLUDED.pid,
+                        county   = EXCLUDED.county,
+                        state    = EXCLUDED.state,
+                        boundary = EXCLUDED.boundary
+                RETURNING (xmax = 0) AS was_inserted
+            """),
+            row,
+        )
+        was_inserted = result.scalar()
+        if was_inserted:
+            stats["inserted"] += 1
+        else:
+            stats["updated"] += 1
+    conn.commit()
+
+
+@app.command("load-oa-parcels")
+def load_oa_parcels(
+    file: Path = typer.Argument(..., help="Path to OA parcels .geojson.gz file"),
+    state: str = typer.Option(..., "--state", "-s", help="State abbreviation (e.g. GA)"),
+    county: str = typer.Option(..., "--county", "-c", help="County name (e.g. Bibb)"),
+    database_url: str | None = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL_SYNC",
+        help="Synchronous PostgreSQL URL (psycopg2).",
+    ),
+) -> None:
+    """Import OA parcel boundary data from .geojson.gz into openaddresses_parcels."""
+    if not file.exists():
+        typer.echo(f"Error: file not found: {file}", err=True)
+        raise typer.Exit(1)
+    if not str(file).endswith(".geojson.gz"):
+        typer.echo(f"Error: expected .geojson.gz file, got: {file.suffix}", err=True)
+        raise typer.Exit(1)
+
+    db_url = database_url or settings.database_url_sync
+    engine = create_engine(db_url)
+    start_time = time.time()
+    stats = {"processed": 0, "inserted": 0, "updated": 0, "skipped": 0}
+
+    # Two-pass: count lines first for progress bar
+    logger.info(f"Counting records in {file}...")
+    total_lines = sum(1 for _ in gzip.open(file, "rt"))
+    logger.info(f"Found {total_lines} records")
+
+    with engine.connect() as conn:
+        batch: list[dict] = []
+        with Progress(
+            TextColumn("[bold blue]{task.description}"),
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+        ) as progress:
+            task = progress.add_task("Importing OA parcels...", total=total_lines)
+            with gzip.open(file, "rt") as f:
+                for line in f:
+                    stats["processed"] += 1
+                    try:
+                        feat = json.loads(line)
+                    except json.JSONDecodeError:
+                        stats["skipped"] += 1
+                        logger.warning(
+                            f"Malformed JSON line skipped at record {stats['processed']}"
+                        )
+                        progress.advance(task)
+                        continue
+
+                    row = _parse_oa_parcel_feature(feat, stats, state, county)
+                    if row:
+                        batch.append(row)
+
+                    if len(batch) >= OA_BATCH_SIZE:
+                        _upsert_oa_parcel_batch(conn, batch, stats)
+                        batch.clear()
+
+                    progress.advance(task)
+
+                # Flush remaining batch
+                if batch:
+                    _upsert_oa_parcel_batch(conn, batch, stats)
+
+    elapsed = time.time() - start_time
+    typer.echo(f"\nImport complete in {elapsed:.1f}s")
+    typer.echo(f"  Processed: {stats['processed']}")
+    typer.echo(f"  Inserted:  {stats['inserted']}")
+    typer.echo(f"  Updated:   {stats['updated']}")
+    typer.echo(f"  Skipped:   {stats['skipped']}")
