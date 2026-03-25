@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - [Phase 10-nad-provider]: load-nad: COPY targets nad_temp (TEXT) then ST_GeogFromText in upsert SQL — avoids geography type complications in psycopg2 COPY streams
 - [Phase 10-nad-provider]: load-nad city fallback is case-insensitive 'not stated' check — handles both 'Not stated' and 'Not Stated' variants in NAD source data
 - [Phase 11]: GAP-INT-01 closed — batch endpoints now serialize local_results/local_candidates identically to single-address endpoints (fix applied in f6f904d)
+- [260325-0th]: Macon-Bibb source_hash is SHA-256 of OBJECTID:FULLADDR:lon:lat — GeoJSON has no pre-existing hash field
+- [260325-0th]: ADDRESS_TYPE_MAP: PARCEL/SITE -> APPROXIMATE 0.8, STRUCTURE -> ROOFTOP 1.0; DEFAULT_ADDRESS_TYPE 0.1 for unknown
+- [260325-0th]: load-macon-bibb accepts .geojson (not .geojson.gz) — source file is uncompressed; json.load fits 67k features in RAM
 
 ### Pending Todos
 
@@ -80,9 +83,10 @@ None.
 | 260324-n1e | write comprehensive README.md | 2026-03-24 | d07da6b | [260324-n1e-create-a-well-formatted-and-visually-ple](./quick/260324-n1e-create-a-well-formatted-and-visually-ple/) |
 | 260324-n3c | create Postman collection for all 8 API endpoints | 2026-03-24 | e464ddb | [260324-n3c-create-a-postman-config-that-can-test-al](./quick/260324-n3c-create-a-postman-config-that-can-test-al/) |
 | 260325-0pw | add OpenAddresses parcel boundary staging table and CLI command | 2026-03-25 | fcc0de9 | [260325-0pw-add-openaddresses-parcel-boundary-stagin](./quick/260325-0pw-add-openaddresses-parcel-boundary-stagin/) |
+| 260325-0th | add 4th local geocoder using Macon-Bibb County GIS address points | 2026-03-25 | a99a45d | [260325-0th-add-4th-local-geocoder-using-macon-bibb-](./quick/260325-0th-add-4th-local-geocoder-using-macon-bibb-/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-25 - Completed quick task 260325-0pw: add OpenAddresses parcel boundary staging table and CLI command
-Stopped at: Completed quick task 260325-0pw
+Last activity: 2026-03-25 - Completed quick task 260325-0th: add 4th local geocoder using Macon-Bibb County GIS address points
+Stopped at: Completed quick task 260325-0th
 Resume file: None
