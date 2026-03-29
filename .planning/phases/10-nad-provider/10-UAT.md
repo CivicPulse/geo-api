@@ -1,14 +1,18 @@
 ---
-status: complete
+status: testing
 phase: 10-nad-provider
 source: [10-01-SUMMARY.md, 10-02-SUMMARY.md]
 started: 2026-03-24T10:06:00Z
-updated: 2026-03-24T10:35:00Z
+updated: 2026-03-29T00:00:00Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 6
+name: load-nad loads data from ZIP
+expected: |
+  Running `geo-import load-nad NAD_r21_TXT.zip --state GA` streams CSV from ZIP, shows Rich progress bar with row count, exits with success. nad_points table is populated.
+awaiting: user response
 
 ## Tests
 
@@ -34,31 +38,27 @@ result: pass
 
 ### 6. load-nad loads data from ZIP
 expected: Running `geo-import load-nad NAD_r21_TXT.zip --state GA` streams CSV from ZIP, shows Rich progress bar with row count, exits with success. nad_points table is populated.
-result: skipped
-reason: Cannot test — database not reachable due to cold-start blocker (test 1)
+result: [pending]
 
 ### 7. NAD providers register after data load
 expected: After loading NAD data, restart server. Startup log shows NAD geocoding and validation providers registered.
-result: skipped
-reason: Cannot test — service cannot start (test 1 blocker)
+result: [pending]
 
 ### 8. NAD geocoding returns result
 expected: POST /geocode with an address in loaded state returns a result from NAD with confidence score and location_type field.
-result: skipped
-reason: Cannot test — service cannot start (test 1 blocker)
+result: [pending]
 
 ### 9. NAD validation returns result
 expected: POST /validate with an address in loaded state returns normalized address from NAD provider with street, city, state, zip fields.
-result: skipped
-reason: Cannot test — service cannot start (test 1 blocker)
+result: [pending]
 
 ## Summary
 
 total: 9
 passed: 5
 issues: 0
-pending: 0
-skipped: 4
+pending: 4
+skipped: 0
 
 ## Gaps
 
