@@ -110,10 +110,11 @@ None.
 | 260325-0th | add 4th local geocoder using Macon-Bibb County GIS address points | 2026-03-25 | a99a45d | [260325-0th-add-4th-local-geocoder-using-macon-bibb-](./quick/260325-0th-add-4th-local-geocoder-using-macon-bibb-/) |
 | 260329-2zn | complete local dev env setup with all 5 providers registered | 2026-03-29 | c7ac438 | [260329-2zn-start-a-local-dev-env-ensure-all-5-provi](./quick/260329-2zn-start-a-local-dev-env-ensure-all-5-provi/) |
 | 260329-q2v | test cascade pipeline with 4 degraded addresses; fix VARCHAR(2) crash + fuzzy ST_Y cast | 2026-03-29 | 06dfe1e | [260329-q2v-test-geocoding-providers-and-ai-with-exa](./quick/260329-q2v-test-geocoding-providers-and-ai-with-exa/) |
+| 260329-qm8 | re-run cascade trace for 4 addresses; delta: Tiger now times out vs. prior wrong-county outliers | 2026-03-29 | 5d67294 | [260329-qm8-test-geocoding-providers-and-ai-with-exa](./quick/260329-qm8-test-geocoding-providers-and-ai-with-exa/) |
 
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Completed quick task 260329-q2v
+Stopped at: Completed quick task 260329-qm8
 Resume file: None
 Next action: `/gsd:plan-phase 12`
