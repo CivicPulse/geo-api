@@ -2,34 +2,35 @@
 
 ## What This Is
 
-An internal REST API providing GIS/geospatial services to other CivPulse systems (run-api, vote-api, etc.). It acts as a smart caching layer over multiple external geocoding and address validation services, storing results locally to reduce expensive third-party API calls. System admins can override the "official" geocoded location for any address when services disagree.
+An internal REST API providing GIS/geospatial services to other CivPulse systems (run-api, vote-api, etc.). It acts as a smart caching layer over multiple external geocoding and address validation services, storing results locally to reduce expensive third-party API calls. Local data source providers (OpenAddresses, NAD, Tiger, Macon-Bibb GIS) query PostGIS staging tables directly for zero-cost geocoding and validation. System admins can override the "official" geocoded location for any address when services disagree.
 
 ## Core Value
 
-Provide a single, reliable source of geocoded and validated address data across all CivPulse systems, minimizing cost by caching external service results and giving admins authority over the "official" answer.
+Provide a single, reliable source of geocoded and validated address data across all CivPulse systems, minimizing cost by caching external service results, querying local data sources directly, and giving admins authority over the "official" answer.
 
 ## Requirements
 
 ### Validated
 
-- [x] PostgreSQL + PostGIS data storage — v1.0
-- [x] Plugin-style architecture for geocoding/validation service providers — v1.0
-- [x] Geocoding with multi-service caching and admin-overridable official records — v1.0
-- [x] Address validation/verification with USPS-standard normalization — v1.0
-- [x] GIS data import with upsert and OfficialGeocoding auto-set — v1.0
-- [x] Batch support for both geocoding and validation endpoints — v1.0
-- [x] Admin override coordinates persist to admin_overrides table (upsert) — v1.0
-- [x] GIS-first import ordering constraint documented in CLI — v1.0
-- [x] Documentation traceability: all SUMMARY frontmatter and ROADMAP checkboxes consistent — v1.0
+- ✓ PostgreSQL + PostGIS data storage — v1.0
+- ✓ Plugin-style architecture for geocoding/validation service providers — v1.0
+- ✓ Geocoding with multi-service caching and admin-overridable official records — v1.0
+- ✓ Address validation/verification with USPS-standard normalization — v1.0
+- ✓ GIS data import with upsert and OfficialGeocoding auto-set — v1.0
+- ✓ Batch support for both geocoding and validation endpoints — v1.0
+- ✓ Admin override coordinates persist to admin_overrides table (upsert) — v1.0
+- ✓ GIS-first import ordering constraint documented in CLI — v1.0
+- ✓ Documentation traceability: all SUMMARY frontmatter and ROADMAP checkboxes consistent — v1.0
+- ✓ Local data source providers (OpenAddresses, NAD, PostGIS Tiger) — v1.1
+- ✓ Both geocoding and validation interfaces for each local provider — v1.1
+- ✓ Direct-return pipeline (no DB caching for local providers) — v1.1
+- ✓ PostGIS Tiger geocoder with optional setup scripts — v1.1
+- ✓ National Address Database provider with COPY-based bulk import — v1.1
+- ✓ Batch endpoints serialize local_results/local_candidates per item — v1.1
 
 ### Active
 
-- [x] Local data source providers (OpenAddresses, NAD, PostGIS Tiger/LINE) — Validated in Phase 8, 9, 10
-- [x] Both geocoding and validation interfaces for each local provider — Validated in Phase 8, 9, 10
-- [x] Direct-return pipeline (no DB caching for local providers) — Validated in Phase 7-8
-- [x] PostGIS Tiger geocoder with optional setup scripts — Validated in Phase 9
-- [x] National Address Database (NAD) provider with COPY-based bulk import — Validated in Phase 10
-- [x] Batch endpoints serialize local_results/local_candidates per item — Validated in Phase 11 (GAP-INT-01 closure)
+(None — next milestone not yet defined)
 
 ### Out of Scope
 
@@ -41,28 +42,23 @@ Provide a single, reliable source of geocoded and validated address data across 
 - Cache expiration / TTL — addresses rarely change; manual refresh available
 - Routing / directions / distance matrix — different problem domain
 - Autocomplete / typeahead — interactive UX feature; this is a batch/point-lookup API
-
-## Current Milestone: v1.1 Local Data Sources
-
-**Goal:** Add local data source providers (OpenAddresses, NAD, PostGIS Tiger/LINE geocoder) that implement the existing provider ABCs but query local data directly — no external API calls, no result caching.
-
-**Target features:**
-- OpenAddresses provider (geocoding + validation from `data/*.geojson.gz`)
-- National Address Database (NAD) provider (geocoding + validation from `NAD_r21` datasets)
-- PostGIS Tiger/LINE geocoder provider (geocoding + validation via PostgreSQL extension)
-- Direct-return pipeline that bypasses DB caching for local providers
-- Optional Tiger geocoder setup scripts (works with or without pre-installed extension)
+- Local provider result caching — local data is already local, no need to cache
+- Collection ZIP multi-state import — single county files sufficient for now
+- NAD FGDB import — TXT format preferred for bulk loading
+- Real-time Tiger data updates — census-cycle data; manual refresh sufficient
 
 ## Context
 
-Shipped v1.0 with 7,488 LOC Python, 179 tests passing.
-Tech stack: FastAPI, SQLAlchemy 2.0, GeoAlchemy2, asyncpg, httpx, Alembic, Pydantic, scourgify, fiona, Typer.
+Shipped v1.1 with ~10,000 LOC Python, 379 tests.
+Tech stack: FastAPI, SQLAlchemy 2.0, GeoAlchemy2, asyncpg, httpx, Alembic, Pydantic, scourgify, fiona, Typer, Rich.
 Database: PostgreSQL 17 + PostGIS 3.5.
-Dev environment: Docker Compose (API + PostGIS with seed data).
+Dev environment: Docker Compose (API + PostGIS with seed data and Tiger extensions).
+
+Active providers: Census Geocoder (external, cached), OpenAddresses (local), Tiger (local, PostGIS SQL), NAD (local, bulk COPY), Macon-Bibb GIS (local, county-specific).
 
 Part of the CivPulse ecosystem alongside run-api and vote-api. Internal API consumed by other CivPulse services, not directly by end users.
 
-Known target providers: US Census Geocoder (implemented), Google Geocoding API (deferred — ToS review), USPS, Amazon Location Service, Geoapify.
+Known future provider candidates: Google Geocoding API (deferred — ToS review), USPS (for real DPV), Amazon Location Service, Geoapify.
 
 ## Constraints
 
@@ -87,6 +83,12 @@ Known target providers: US Census Geocoder (implemented), Google Geocoding API (
 | Census Geocoder as first provider | Free, no API key, no ToS risk | ✓ Good — unblocked development |
 | scourgify for offline validation | No external API dependency for basic USPS normalization | ⚠️ Revisit — delivery_point_verified always False; real DPV needs paid USPS API |
 | ON CONFLICT DO NOTHING for OfficialGeocoding | First-writer-wins preserves existing official records | ⚠️ Revisit — requires GIS import before API geocoding; documented as operational constraint |
+| is_local property on provider ABCs | Concrete property (default False) — existing providers need zero changes | ✓ Good — clean pipeline split without breaking existing providers |
+| Local providers bypass DB cache | Local data is already local — no value in caching | ✓ Good — eliminates unnecessary writes and simplifies pipeline |
+| OA hash as source_hash | Trust OA deduplication, avoid SHA-256 overhead on 60k+ rows | ✓ Good — pragmatic trade-off |
+| Tiger via PostGIS SQL functions | No staging table needed — geocode()/normalize_address() called directly | ✓ Good — leverages existing PostGIS extension infrastructure |
+| NAD bulk COPY via temp table | COPY to nad_temp (TEXT), then upsert with ST_GeogFromText — avoids geography type in COPY stream | ✓ Good — handles 80M rows efficiently |
+| Conditional provider registration | _oa_data_available / _nad_data_available / _tiger_extension_available checks at startup | ✓ Good — API starts cleanly regardless of which data is loaded |
 
 ---
-*Last updated: 2026-03-24 after Phase 11 (Fix Batch Local Serialization) complete — v1.1 milestone fully delivered, GAP-INT-01 closed*
+*Last updated: 2026-03-29 after v1.1 milestone (Local Data Sources) complete*
