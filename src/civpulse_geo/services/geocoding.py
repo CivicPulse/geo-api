@@ -175,6 +175,14 @@ class GeocodingService:
 
         if address is None:
             components = parse_address_components(freeform)
+            # Guard component values against DB column width constraints.
+            # Malformed addresses (e.g., zero-for-O substitutions, missing
+            # commas) can cause the parser to misidentify city/state fields.
+            # Clamping prevents StringDataRightTruncationError on flush.
+            raw_state = components.get("state")
+            safe_state = raw_state if (raw_state and len(raw_state) <= 2) else None
+            raw_zip = components.get("zip_code")
+            safe_zip = raw_zip if (raw_zip and len(raw_zip) <= 5) else None
             address = Address(
                 original_input=freeform,
                 normalized_address=normalized,
@@ -187,8 +195,8 @@ class GeocodingService:
                 unit_type=components.get("unit_type"),
                 unit_number=components.get("unit_number"),
                 city=components.get("city"),
-                state=components.get("state"),
-                zip_code=components.get("zip_code"),
+                state=safe_state,
+                zip_code=safe_zip,
             )
             db.add(address)
             await db.flush()  # get address.id

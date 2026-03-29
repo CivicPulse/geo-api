@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from geoalchemy2.types import Geometry
 from loguru import logger
 from sqlalchemy import func, literal, select, text, union_all
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -168,8 +169,8 @@ class FuzzyMatcher:
                 OpenAddressesPoint.street_number,
                 OpenAddressesPoint.city,
                 OpenAddressesPoint.postcode.label("zip_code"),
-                func.ST_Y(OpenAddressesPoint.location).label("lat"),
-                func.ST_X(OpenAddressesPoint.location).label("lng"),
+                func.ST_Y(OpenAddressesPoint.location.cast(Geometry)).label("lat"),
+                func.ST_X(OpenAddressesPoint.location.cast(Geometry)).label("lng"),
                 func.word_similarity(input_upper, OpenAddressesPoint.street_name).label("score"),
                 literal("openaddresses").label("source"),
             )
@@ -189,8 +190,8 @@ class FuzzyMatcher:
                 NADPoint.street_number,
                 NADPoint.city,
                 NADPoint.zip_code,
-                func.ST_Y(NADPoint.location).label("lat"),
-                func.ST_X(NADPoint.location).label("lng"),
+                func.ST_Y(NADPoint.location.cast(Geometry)).label("lat"),
+                func.ST_X(NADPoint.location.cast(Geometry)).label("lng"),
                 func.word_similarity(input_upper, NADPoint.street_name).label("score"),
                 literal("nad").label("source"),
             )
@@ -210,8 +211,8 @@ class FuzzyMatcher:
                 MaconBibbPoint.street_number,
                 MaconBibbPoint.city,
                 MaconBibbPoint.zip_code,
-                func.ST_Y(MaconBibbPoint.location).label("lat"),
-                func.ST_X(MaconBibbPoint.location).label("lng"),
+                func.ST_Y(MaconBibbPoint.location.cast(Geometry)).label("lat"),
+                func.ST_X(MaconBibbPoint.location.cast(Geometry)).label("lng"),
                 func.word_similarity(input_upper, MaconBibbPoint.street_name).label("score"),
                 literal("macon_bibb").label("source"),
             )
