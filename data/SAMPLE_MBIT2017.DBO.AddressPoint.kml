@@ -1,0 +1,136 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<ns0:kml xmlns:ns0="http://www.opengis.net/kml/2.2">
+<ns0:Document id="root_doc">
+<ns0:Schema name="Address_Points" id="Address_Points">
+	<ns0:SimpleField name="OBJECTID" type="int" />
+	<ns0:SimpleField name="ADDR_HN" type="string" />
+	<ns0:SimpleField name="ADDR_PD" type="string" />
+	<ns0:SimpleField name="ADDR_PT" type="string" />
+	<ns0:SimpleField name="ADDR_SN" type="string" />
+	<ns0:SimpleField name="ADDR_ST" type="string" />
+	<ns0:SimpleField name="ADDR_SD" type="string" />
+	<ns0:SimpleField name="ZIP_1" type="string" />
+	<ns0:SimpleField name="City_1" type="string" />
+	<ns0:SimpleField name="ADDType" type="string" />
+	<ns0:SimpleField name="FULLNAME" type="string" />
+	<ns0:SimpleField name="FULLADDR" type="string" />
+	<ns0:SimpleField name="UNIT" type="string" />
+	<ns0:SimpleField name="PREDIR" type="string" />
+	<ns0:SimpleField name="SUFDIR" type="string" />
+	<ns0:SimpleField name="BusName" type="string" />
+	<ns0:SimpleField name="MSAG" type="string" />
+	<ns0:SimpleField name="JOIN_ID" type="string" />
+</ns0:Schema>
+<ns0:Folder><ns0:name>Address_Points</ns0:name>
+  <ns0:Placemark>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#Address_Points">
+		<ns0:SimpleData name="OBJECTID">1</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_HN">489</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_PD" />
+		<ns0:SimpleData name="ADDR_PT" />
+		<ns0:SimpleData name="ADDR_SN">NORTHMINSTER</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_ST">DR</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_SD" />
+		<ns0:SimpleData name="ZIP_1">31204</ns0:SimpleData>
+		<ns0:SimpleData name="City_1">MACON</ns0:SimpleData>
+		<ns0:SimpleData name="ADDType">PARCEL</ns0:SimpleData>
+		<ns0:SimpleData name="FULLNAME">NORTHMINISTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="FULLADDR">489 NORTHMINSTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="UNIT" />
+		<ns0:SimpleData name="PREDIR" />
+		<ns0:SimpleData name="SUFDIR" />
+		<ns0:SimpleData name="BusName" />
+		<ns0:SimpleData name="MSAG">MACON-BIBB COUNTY</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-83.6874440229731,32.8720832079171</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  <ns0:Placemark>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#Address_Points">
+		<ns0:SimpleData name="OBJECTID">2</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_HN">504</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_PD" />
+		<ns0:SimpleData name="ADDR_PT" />
+		<ns0:SimpleData name="ADDR_SN">NORTHMINSTER</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_ST">DR</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_SD" />
+		<ns0:SimpleData name="ZIP_1">31204</ns0:SimpleData>
+		<ns0:SimpleData name="City_1">MACON</ns0:SimpleData>
+		<ns0:SimpleData name="ADDType">PARCEL</ns0:SimpleData>
+		<ns0:SimpleData name="FULLNAME">NORTHMINISTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="FULLADDR">504 NORTHMINSTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="UNIT" />
+		<ns0:SimpleData name="PREDIR" />
+		<ns0:SimpleData name="SUFDIR" />
+		<ns0:SimpleData name="BusName" />
+		<ns0:SimpleData name="MSAG">MACON-BIBB COUNTY</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-83.6863250961357,32.8721376385818</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  <ns0:Placemark>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#Address_Points">
+		<ns0:SimpleData name="OBJECTID">3</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_HN">465</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_PD" />
+		<ns0:SimpleData name="ADDR_PT" />
+		<ns0:SimpleData name="ADDR_SN">NORTHMINSTER</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_ST">DR</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_SD" />
+		<ns0:SimpleData name="ZIP_1">31204</ns0:SimpleData>
+		<ns0:SimpleData name="City_1">MACON</ns0:SimpleData>
+		<ns0:SimpleData name="ADDType">PARCEL</ns0:SimpleData>
+		<ns0:SimpleData name="FULLNAME">NORTHMINISTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="FULLADDR">465 NORTHMINSTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="UNIT" />
+		<ns0:SimpleData name="PREDIR" />
+		<ns0:SimpleData name="SUFDIR" />
+		<ns0:SimpleData name="BusName" />
+		<ns0:SimpleData name="MSAG">MACON-BIBB COUNTY</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-83.6880983338163,32.8721477852986</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  <ns0:Placemark>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#Address_Points">
+		<ns0:SimpleData name="OBJECTID">4</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_HN">441</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_PD" />
+		<ns0:SimpleData name="ADDR_PT" />
+		<ns0:SimpleData name="ADDR_SN">NORTHMINSTER</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_ST">DR</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_SD" />
+		<ns0:SimpleData name="ZIP_1">31204</ns0:SimpleData>
+		<ns0:SimpleData name="City_1">MACON</ns0:SimpleData>
+		<ns0:SimpleData name="ADDType">PARCEL</ns0:SimpleData>
+		<ns0:SimpleData name="FULLNAME">NORTHMINISTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="FULLADDR">441 NORTHMINSTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="UNIT" />
+		<ns0:SimpleData name="PREDIR" />
+		<ns0:SimpleData name="SUFDIR" />
+		<ns0:SimpleData name="BusName" />
+		<ns0:SimpleData name="MSAG">MACON-BIBB COUNTY</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-83.6885365039767,32.8721849174667</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  <ns0:Placemark>
+	<ns0:ExtendedData><ns0:SchemaData schemaUrl="#Address_Points">
+		<ns0:SimpleData name="OBJECTID">5</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_HN">477</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_PD" />
+		<ns0:SimpleData name="ADDR_PT" />
+		<ns0:SimpleData name="ADDR_SN">NORTHMINSTER</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_ST">DR</ns0:SimpleData>
+		<ns0:SimpleData name="ADDR_SD" />
+		<ns0:SimpleData name="ZIP_1">31204</ns0:SimpleData>
+		<ns0:SimpleData name="City_1">MACON</ns0:SimpleData>
+		<ns0:SimpleData name="ADDType">PARCEL</ns0:SimpleData>
+		<ns0:SimpleData name="FULLNAME">NORTHMINISTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="FULLADDR">477 NORTHMINSTER DR</ns0:SimpleData>
+		<ns0:SimpleData name="UNIT" />
+		<ns0:SimpleData name="PREDIR" />
+		<ns0:SimpleData name="SUFDIR" />
+		<ns0:SimpleData name="BusName" />
+		<ns0:SimpleData name="MSAG">MACON-BIBB COUNTY</ns0:SimpleData>
+	</ns0:SchemaData></ns0:ExtendedData>
+      <ns0:Point><ns0:coordinates>-83.6878116001904,32.8721218599225</ns0:coordinates></ns0:Point>
+  </ns0:Placemark>
+  </ns0:Folder>
+</ns0:Document></ns0:kml>

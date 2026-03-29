@@ -1,0 +1,155 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "OBJECTID": 1,
+        "ADDR_HN": "489",
+        "ADDR_PD": " ",
+        "ADDR_PT": " ",
+        "ADDR_SN": "NORTHMINSTER",
+        "ADDR_ST": "DR",
+        "ADDR_SD": " ",
+        "ZIP_1": "31204",
+        "City_1": "MACON",
+        "ADDType": "PARCEL",
+        "FULLNAME": "NORTHMINISTER DR",
+        "FULLADDR": "489 NORTHMINSTER DR",
+        "UNIT": " ",
+        "PREDIR": " ",
+        "SUFDIR": " ",
+        "BusName": " ",
+        "MSAG": "MACON-BIBB COUNTY",
+        "JOIN_ID": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -83.6874440229731,
+          32.8720832079171
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "OBJECTID": 2,
+        "ADDR_HN": "504",
+        "ADDR_PD": " ",
+        "ADDR_PT": " ",
+        "ADDR_SN": "NORTHMINSTER",
+        "ADDR_ST": "DR",
+        "ADDR_SD": " ",
+        "ZIP_1": "31204",
+        "City_1": "MACON",
+        "ADDType": "PARCEL",
+        "FULLNAME": "NORTHMINISTER DR",
+        "FULLADDR": "504 NORTHMINSTER DR",
+        "UNIT": " ",
+        "PREDIR": " ",
+        "SUFDIR": " ",
+        "BusName": " ",
+        "MSAG": "MACON-BIBB COUNTY",
+        "JOIN_ID": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -83.6863250961357,
+          32.8721376385818
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "OBJECTID": 3,
+        "ADDR_HN": "465",
+        "ADDR_PD": " ",
+        "ADDR_PT": " ",
+        "ADDR_SN": "NORTHMINSTER",
+        "ADDR_ST": "DR",
+        "ADDR_SD": " ",
+        "ZIP_1": "31204",
+        "City_1": "MACON",
+        "ADDType": "PARCEL",
+        "FULLNAME": "NORTHMINISTER DR",
+        "FULLADDR": "465 NORTHMINSTER DR",
+        "UNIT": " ",
+        "PREDIR": " ",
+        "SUFDIR": " ",
+        "BusName": " ",
+        "MSAG": "MACON-BIBB COUNTY",
+        "JOIN_ID": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -83.6880983338163,
+          32.8721477852986
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "OBJECTID": 4,
+        "ADDR_HN": "441",
+        "ADDR_PD": " ",
+        "ADDR_PT": " ",
+        "ADDR_SN": "NORTHMINSTER",
+        "ADDR_ST": "DR",
+        "ADDR_SD": " ",
+        "ZIP_1": "31204",
+        "City_1": "MACON",
+        "ADDType": "PARCEL",
+        "FULLNAME": "NORTHMINISTER DR",
+        "FULLADDR": "441 NORTHMINSTER DR",
+        "UNIT": " ",
+        "PREDIR": " ",
+        "SUFDIR": " ",
+        "BusName": " ",
+        "MSAG": "MACON-BIBB COUNTY",
+        "JOIN_ID": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -83.6885365039767,
+          32.8721849174667
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "OBJECTID": 5,
+        "ADDR_HN": "477",
+        "ADDR_PD": " ",
+        "ADDR_PT": " ",
+        "ADDR_SN": "NORTHMINSTER",
+        "ADDR_ST": "DR",
+        "ADDR_SD": " ",
+        "ZIP_1": "31204",
+        "City_1": "MACON",
+        "ADDType": "PARCEL",
+        "FULLNAME": "NORTHMINISTER DR",
+        "FULLADDR": "477 NORTHMINSTER DR",
+        "UNIT": " ",
+        "PREDIR": " ",
+        "SUFDIR": " ",
+        "BusName": " ",
+        "MSAG": "MACON-BIBB COUNTY",
+        "JOIN_ID": null
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -83.6878116001904,
+          32.8721218599225
+        ]
+      }
+    }
+  ]
+}

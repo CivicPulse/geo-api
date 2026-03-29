@@ -5,6 +5,7 @@
 *.tar.xz
 data/*.kml
 data/*.geojso*
+!data/SAMPLE_*
 
 # Downloaded TIGER/Census data
 tiger-data/
