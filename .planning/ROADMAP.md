@@ -39,7 +39,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 
 - [x] **Phase 12: Correctness Fixes and DB Prerequisites** — Fix 4 known provider defects and add GIN trigram indexes before any cascade logic is built (completed 2026-03-29)
 - [x] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching (completed 2026-03-29)
-- [ ] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode
+- [x] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode (completed 2026-03-29)
 - [ ] **Phase 15: LLM Sidecar** — Local Ollama sidecar for address correction when deterministic stages fail (data-driven: execute only if Phase 14 telemetry shows > 1-2% unresolved)
 
 ## Phase Details
@@ -92,7 +92,7 @@ Plans:
 Plans:
 - [x] 14-01-PLAN.md — Config settings, Alembic migration (set_by_stage), and Pydantic schema extensions
 - [x] 14-02-PLAN.md — CascadeOrchestrator service with consensus scoring engine
-- [ ] 14-03-PLAN.md — GeocodingService refactor, API route integration, and parameterized tests
+- [x] 14-03-PLAN.md — GeocodingService refactor, API route integration, and parameterized tests
 **UI hint**: no
 
 ### Phase 15: LLM Sidecar
@@ -123,5 +123,5 @@ Plans:
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
-| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 2/3 | In Progress|  |
+| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete   | 2026-03-29 |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |

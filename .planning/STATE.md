@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
 status: executing
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-03-29T15:41:44.833Z"
+stopped_at: Completed 14-03-PLAN.md
+last_updated: "2026-03-29T15:53:59.006Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # Project State
@@ -25,7 +25,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 14 (cascade-orchestrator-and-consensus-scoring) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -45,6 +45,7 @@ v1.2 Progress: [----------] 0/4 phases
 | Phase 13-spell-correction-and-fuzzy-phonetic-matching P01 | 7 | 3 tasks | 11 files |
 | Phase 13-spell-correction-and-fuzzy-phonetic-matching P02 | 9 | 2 tasks | 3 files |
 | Phase 14-cascade-orchestrator-and-consensus-scoring P02 | 6min | 1 tasks | 2 files |
+| Phase 14-cascade-orchestrator-and-consensus-scoring P03 | 7 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -64,6 +65,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 13]: Calibration corpus uses mock session for CI-compatible D-15 regression testing
 - [Phase 14-02]: official_loaded flag prevents double _get_official() call when admin override blocks auto-set
 - [Phase 14-02]: best_candidate selected as cluster member closest to weighted centroid (not first/highest-weight)
+- [Phase 14]: patch settings via civpulse_geo.services.geocoding.settings (not the module directly) for test isolation
+- [Phase 14]: outlier_providers defaults to empty set() in legacy path result dict to avoid KeyError in API
 
 ### Phase Ordering Notes
 
@@ -97,6 +100,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Completed 14-02-PLAN.md
+Stopped at: Completed 14-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 12`
