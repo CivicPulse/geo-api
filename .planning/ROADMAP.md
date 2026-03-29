@@ -54,7 +54,11 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
   3. A street named "Beaver Falls" (where scourgify extracts "Falls" as a suffix token) matches successfully because the query includes the suffix field
   4. Scourgify and Tiger validation responses carry `confidence=0.5` rather than `1.0`, distinguishing structural parse from verified geocode
   5. GIN trigram indexes exist on `openaddresses_points.street` and `nad_points.street_name` — a pg_trgm similarity query against NAD completes within 500ms
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — Parse expansion (5-tuple), suffix matching, and zip prefix fallback across OA/NAD/Macon-Bibb
+- [ ] 12-02-PLAN.md — Tiger county spatial post-filter, confidence constants, and GIN trigram migration
 
 ### Phase 13: Spell Correction and Fuzzy/Phonetic Matching
 **Goal**: Addresses with typoed or phonetically misspelled street names are recovered before they reach the cascade orchestrator
@@ -108,7 +112,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 | 9. Tiger Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 10. NAD Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
-| 12. Correctness Fixes and DB Prerequisites | v1.2 | 0/? | Not started | - |
+| 12. Correctness Fixes and DB Prerequisites | v1.2 | 0/2 | Planning | - |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 0/? | Not started | - |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
