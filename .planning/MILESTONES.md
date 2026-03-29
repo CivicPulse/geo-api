@@ -1,5 +1,33 @@
 # Milestones
 
+## v1.2 Cascading Address Resolution (Shipped: 2026-03-29)
+
+**Phases:** 5 | **Plans:** 11 | **Commits:** 94 | **Files:** 107 | **LOC:** 8,153 Python
+**Timeline:** 2026-03-29 (single day)
+**Git range:** v1.1..78754b0
+**Requirements:** 25/25 complete
+
+**Key accomplishments:**
+
+1. Fixed 4 provider defects (Tiger wrong-county, truncated ZIP, suffix matching, confidence semantics) and added GIN trigram indexes for fuzzy matching
+2. Spell correction layer (symspellpy) with auto-rebuilding dictionary from OA/NAD/Macon-Bibb/Tiger street names
+3. FuzzyMatcher service with pg_trgm word_similarity() + Double Metaphone tiebreaker across all local staging tables
+4. CascadeOrchestrator with 6-stage pipeline: normalize → spell-correct → exact match → fuzzy → LLM → consensus scoring with auto-set official geocode
+5. Local Ollama LLM sidecar (qwen2.5:3b) for address correction when deterministic stages fail, with zip/state guardrails and Docker/K8s deployment
+6. Audit gap closure: FuzzyMatcher startup wiring, legacy 5-tuple unpack fix, Phase 13 formal verification
+
+**Delivered:** Auto-resolving cascading geocode pipeline that progressively refines degraded address input (typos, truncated ZIPs, misspellings) into an accurate official geocode — transparent to callers, with cross-provider consensus scoring and outlier detection.
+
+**Known tech debt:**
+
+- Tiger provider times out at 2000ms under load (wrong-county outlier fix works when Tiger responds)
+- Cascade path hardcodes cache_hit=False (repeated calls re-dispatch all providers)
+- No geo-api K8s Deployment manifest (Ollama K8s manifests exist but geo-api needs env var injection)
+- Pre-existing CLI test failures: test_import_cli.py, test_load_oa_cli.py (missing fixture data)
+- spell_dictionary starts empty until rebuild-spell-dictionary CLI is run
+
+---
+
 ## v1.1 Local Data Sources (Shipped: 2026-03-29)
 
 **Phases completed:** 5 phases, 9 plans, 16 tasks

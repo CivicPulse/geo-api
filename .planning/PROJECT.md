@@ -30,27 +30,19 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-- ✓ Cascading resolution pipeline that auto-sets official geocode from best available result — Phase 14
-- ✓ Tiger county disambiguation via PostGIS spatial boundary post-filter — Phase 12
-- ✓ Zip prefix fallback matching for truncated/mistyped zip codes in local providers — Phase 12
-- ✓ Fuzzy/phonetic street matching (pg_trgm, Soundex/Metaphone) as exact-match fallback — Phase 13, wired Phase 16
-- ✓ Spell correction layer for address input before provider dispatch — Phase 13
-- ✓ Local LLM sidecar for address correction/completion when deterministic methods fail — Phase 15
-- ✓ Cross-provider consensus scoring to flag outliers and weight agreement — Phase 14
-- ✓ Validation confidence semantics fix (structural parse ≠ address-verified) — Phase 12
-- ✓ Street name normalization mismatch fix for multi-word street names with USPS suffixes — Phase 12
+(None — next milestone requirements defined via `/gsd:new-milestone`)
 
-## Current Milestone: v1.2 Cascading Address Resolution
+### Validated (v1.2)
 
-**Goal:** Transform the multi-provider lookup into an auto-resolving cascading pipeline that progressively refines degraded address input into an accurate official geocode — transparent to end users.
-
-**Target features:**
-- Fix 5 known provider defects from E2E testing (Issue #1)
-- Fuzzy/phonetic street matching via pg_trgm and Soundex/Metaphone
-- Spell correction layer (offline library) before provider dispatch
-- Local LLM sidecar for address correction/completion
-- Cross-provider consensus scoring
-- Cascading resolution pipeline: normalize → spell-correct → exact match → fuzzy match → AI correction → re-match → score consensus → auto-set official
+- ✓ Cascading resolution pipeline that auto-sets official geocode from best available result — v1.2, Phase 14
+- ✓ Tiger county disambiguation via PostGIS spatial boundary post-filter — v1.2, Phase 12
+- ✓ Zip prefix fallback matching for truncated/mistyped zip codes in local providers — v1.2, Phase 12
+- ✓ Fuzzy/phonetic street matching (pg_trgm, Double Metaphone) as exact-match fallback — v1.2, Phase 13/16
+- ✓ Spell correction layer for address input before provider dispatch — v1.2, Phase 13
+- ✓ Local LLM sidecar for address correction/completion when deterministic methods fail — v1.2, Phase 15
+- ✓ Cross-provider consensus scoring to flag outliers and weight agreement — v1.2, Phase 14
+- ✓ Validation confidence semantics fix (structural parse ≠ address-verified) — v1.2, Phase 12
+- ✓ Street name normalization mismatch fix for multi-word street names with USPS suffixes — v1.2, Phase 12
 
 ### Out of Scope
 
@@ -70,12 +62,13 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ## Context
 
-Shipped v1.1 with ~10,000 LOC Python, 379 tests.
-Tech stack: FastAPI, SQLAlchemy 2.0, GeoAlchemy2, asyncpg, httpx, Alembic, Pydantic, scourgify, fiona, Typer, Rich.
-Database: PostgreSQL 17 + PostGIS 3.5.
-Dev environment: Docker Compose (API + PostGIS with seed data and Tiger extensions).
+Shipped v1.2 with ~8,153 LOC Python, 504 tests (11 pre-existing failures in CLI fixture tests).
+Tech stack: FastAPI, SQLAlchemy 2.0, GeoAlchemy2, asyncpg, httpx, Alembic, Pydantic, scourgify, symspellpy, fiona, Typer, Rich.
+Database: PostgreSQL 17 + PostGIS 3.5 + pg_trgm + fuzzystrmatch extensions.
+Dev environment: Docker Compose (API + PostGIS + optional Ollama LLM sidecar via `--profile llm`).
 
 Active providers: Census Geocoder (external, cached), OpenAddresses (local), Tiger (local, PostGIS SQL), NAD (local, bulk COPY), Macon-Bibb GIS (local, county-specific).
+Cascade pipeline: normalize → spell-correct → exact match (parallel, 5 providers) → fuzzy match (pg_trgm + dmetaphone) → LLM correction (Ollama qwen2.5:3b) → consensus scoring → auto-set official.
 
 Part of the CivPulse ecosystem alongside run-api and vote-api. Internal API consumed by other CivPulse services, not directly by end users.
 
@@ -111,6 +104,13 @@ Known future provider candidates: USPS (for real DPV), Amazon Location Service, 
 | NAD bulk COPY via temp table | COPY to nad_temp (TEXT), then upsert with ST_GeogFromText — avoids geography type in COPY stream | ✓ Good — handles 80M rows efficiently |
 | Conditional provider registration | _oa_data_available / _nad_data_available / _tiger_extension_available checks at startup | ✓ Good — API starts cleanly regardless of which data is loaded |
 | Google Geocoding API excluded | ToS Section 3.2.3(a) prohibits caching geocoding results | ✓ Good — removes legal risk; local providers cover the use case |
+| symspellpy for spell correction | Offline, fast, no external dependency | ✓ Good — sub-ms correction with dictionary from staging tables |
+| pg_trgm + dmetaphone for fuzzy matching | Built-in PostgreSQL extensions, no app-level indexing | ✓ Good — leverages GIN indexes, phonetic tiebreaker resolves ambiguity |
+| CascadeOrchestrator as staged pipeline | 6-stage progressive refinement with early-exit optimization | ✓ Good — P95 < 3s, transparent to callers |
+| 100m cluster radius, 1km outlier threshold | Calibrated against Issue #1 test corpus (4 Macon addresses) | ✓ Good — stable across multiple test runs |
+| Ollama qwen2.5:3b for LLM sidecar | Local-only, 3B params, structured JSON output | ✓ Good — no data leaves network, fast enough for single-address correction |
+| Docker Compose profiles for Ollama | `--profile llm` avoids 2GB model download for devs not using LLM | ✓ Good — opt-in activation |
+| Direct httpx for Ollama client | Reuses existing AsyncClient, no new dependency | ✓ Good — full timeout control, simple integration |
 
 ## Evolution
 
@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 — Phase 16 complete (Audit Gap Closure: FuzzyMatcher wired to app startup, legacy 5-tuple unpack fix, Phase 13 formal verification, all v1.2 requirements satisfied)*
+*Last updated: 2026-03-29 after v1.2 milestone*

@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
-status: verifying
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-03-29T18:43:06.573Z"
+status: completed
+stopped_at: Milestone v1.2 archived
+last_updated: "2026-03-29T20:30:00.000Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 5
@@ -20,17 +20,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 16 — audit-gap-closure
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 16
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: —
+Plan: —
+Status: Milestone v1.2 shipped — ready for next milestone
 Last activity: 2026-03-29
 
 ```
-v1.2 Progress: [----------] 0/4 phases
+v1.2 Progress: [██████████] 5/5 phases — SHIPPED
 ```
 
 ## Performance Metrics
@@ -114,7 +114,7 @@ None.
 
 ## Session Continuity
 
-Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Completed quick task 260329-qm8
+Last activity: 2026-03-29 — Milestone v1.2 archived
+Stopped at: Milestone v1.2 complete
 Resume file: None
-Next action: `/gsd:plan-phase 12`
+Next action: `/gsd:new-milestone`
