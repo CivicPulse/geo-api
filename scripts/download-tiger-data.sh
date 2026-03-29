@@ -203,20 +203,39 @@ for table in "${NATIONAL_TABLES[@]}"; do
 done
 
 # --- Pre-fetch county table directory listings (4 requests, not 4×N) ---
+# Cached as plain text files (one zip filename per line) in .listings/
+
+LISTINGS_DIR="${OUTPUT_DIR}/.listings"
+mkdir -p "$LISTINGS_DIR"
 
 echo ""
 echo "=== Pre-fetching county table listings ==="
 declare -A COUNTY_LISTINGS
 for table in "${COUNTY_TABLES[@]}"; do
-  echo "  Fetching ${table} listing..."
-  if listing=$(fetch_listing "${BASE_URL}/${table}/"); then
-    COUNTY_LISTINGS[$table]="$listing"
-    echo "  ${table}: OK"
+  table_lower=$(echo "$table" | tr '[:upper:]' '[:lower:]')
+  cache_file="${LISTINGS_DIR}/${table}.txt"
+
+  # Use cached listing if it exists and is less than 30 days old
+  cache_max_age=$((30 * 24 * 60 * 60))
+  if [[ -f "$cache_file" && -s "$cache_file" ]] && \
+     [[ $(($(date +%s) - $(date -r "$cache_file" +%s))) -lt $cache_max_age ]]; then
+    COUNTY_LISTINGS[$table]=$(cat "$cache_file")
+    count=$(wc -l < "$cache_file")
+    echo "  ${table}: cached (${count} files)"
   else
-    echo "  WARNING: Could not fetch ${table} listing. County downloads for ${table} will be skipped." >&2
-    COUNTY_LISTINGS[$table]=""
+    echo "  Fetching ${table} listing..."
+    if html=$(fetch_listing "${BASE_URL}/${table}/"); then
+      filenames=$(echo "$html" | grep -oP "tl_${TIGER_YEAR}_\\d+_${table_lower}\\.zip" | sort -u)
+      echo "$filenames" > "$cache_file"
+      COUNTY_LISTINGS[$table]="$filenames"
+      count=$(echo "$filenames" | grep -c . || true)
+      echo "  ${table}: OK (${count} files)"
+    else
+      echo "  WARNING: Could not fetch ${table} listing. County downloads for ${table} will be skipped." >&2
+      COUNTY_LISTINGS[$table]=""
+    fi
+    sleep "$WAIT"
   fi
-  sleep "$WAIT"
 done
 
 # --- Per-state processing ---
@@ -259,11 +278,14 @@ for state in "${STATES[@]}"; do
     echo "  [${table}] Found ${count} files. Downloading..."
     downloaded=0
     skipped=0
+    idx=0
     for fname in $files; do
+      idx=$((idx + 1))
       if [[ -f "${dir}/${fname}" && -s "${dir}/${fname}" ]]; then
         skipped=$((skipped + 1))
         continue
       fi
+      echo "  [${table}] (${idx}/${count}) Downloading ${fname}..."
       url="${BASE_URL}/${table}/${fname}"
       if download "$url" "${dir}/${fname}"; then
         downloaded=$((downloaded + 1))
