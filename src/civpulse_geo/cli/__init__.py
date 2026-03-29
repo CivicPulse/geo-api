@@ -572,7 +572,7 @@ def _parse_oa_feature(feat: dict, stats: dict, default_region: str | None = None
         "region": props.get("region") or default_region,
         "postcode": props.get("postcode") or None,
         "location": f"SRID=4326;POINT({lng} {lat})",
-        "accuracy": props.get("accuracy") or "parcel",
+        "accuracy": props.get("accuracy") or None,
     }
 
 
