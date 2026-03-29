@@ -9,8 +9,7 @@ Tests use unittest.mock to patch the sync engine created inside the lifespan
 so no real database connection is required.
 """
 
-import pytest
-from unittest.mock import MagicMock, patch, call, AsyncMock
+from unittest.mock import MagicMock
 
 
 def _make_mock_conn(dict_count: int, staging_count: int) -> MagicMock:
@@ -48,7 +47,7 @@ def _run_lifespan_spell_block(dict_count: int, staging_count: int,
 
         if _staging_count and _staging_count > 0:
             _t0 = _time.monotonic()
-            word_count = rebuild_fn(conn)
+            rebuild_fn(conn)
             _elapsed_ms = round((_time.monotonic() - _t0) * 1000)
         # else: skip — no staging data
 

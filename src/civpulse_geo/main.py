@@ -29,7 +29,7 @@ from civpulse_geo.providers.macon_bibb import (
     MaconBibbValidationProvider,
     _macon_bibb_data_available,
 )
-from civpulse_geo.spell import load_spell_corrector
+from civpulse_geo.spell import load_spell_corrector, rebuild_dictionary
 from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.services.llm_corrector import LLMAddressCorrector, _ollama_model_available
 
@@ -82,16 +82,50 @@ async def lifespan(app: FastAPI):
     # Load spell corrector dictionary into memory (D-09)
     # Uses a sync engine since SymSpell.create_dictionary_entry is synchronous.
     # Workers reload dictionary on restart to pick up new rebuilds.
+    # Auto-rebuilds when empty if staging tables have data (DEBT-03, D-07, D-08).
     try:
         from sqlalchemy import create_engine as _create_sync_engine
+        from sqlalchemy import text as _text
         from civpulse_geo.config import settings as _settings
+        import time as _time
+
         _sync_engine = _create_sync_engine(_settings.database_url_sync)
         with _sync_engine.connect() as conn:
+            # Check if spell_dictionary is empty (DEBT-03, D-07, D-08)
+            dict_count = conn.execute(
+                _text("SELECT COUNT(*) FROM spell_dictionary")
+            ).scalar()
+
+            if dict_count == 0:
+                # Check if any staging table has data before rebuilding
+                staging_count = conn.execute(_text(
+                    "SELECT (SELECT COUNT(*) FROM openaddresses_points) "
+                    "+ (SELECT COUNT(*) FROM nad_points) "
+                    "+ (SELECT COUNT(*) FROM macon_bibb_points)"
+                )).scalar()
+
+                if staging_count and staging_count > 0:
+                    logger.info(
+                        "spell_dictionary empty — auto-rebuilding from staging tables..."
+                    )
+                    _t0 = _time.monotonic()
+                    word_count = rebuild_dictionary(conn)
+                    _elapsed_ms = round((_time.monotonic() - _t0) * 1000)
+                    logger.info(
+                        "spell_dictionary rebuilt: {} words in {}ms",
+                        word_count, _elapsed_ms,
+                    )
+                else:
+                    logger.warning(
+                        "spell_dictionary empty and staging tables empty "
+                        "— skipping auto-rebuild"
+                    )
+
             app.state.spell_corrector = load_spell_corrector(conn)
-        word_count = len(app.state.spell_corrector._sym_spell.words)
-        logger.info(f"SpellCorrector loaded with {word_count} dictionary words")
+        loaded_count = len(app.state.spell_corrector._sym_spell.words)
+        logger.info(f"SpellCorrector loaded with {loaded_count} dictionary words")
     except Exception as e:
-        logger.warning(f"SpellCorrector not loaded (spell_dictionary may be empty): {e}")
+        logger.warning(f"SpellCorrector not loaded: {e}")
         app.state.spell_corrector = None
 
     # Register FuzzyMatcher (FUZZ-02/03/04) — stateless init, no try/except needed
