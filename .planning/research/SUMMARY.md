@@ -1,237 +1,234 @@
 # Project Research Summary
 
-**Project:** CivPulse Geo API — v1.1 Local Data Source Providers
-**Domain:** Local geocoding and address validation provider integration
-**Researched:** 2026-03-20
-**Confidence:** HIGH — all findings verified against actual data files and live codebase
+**Project:** CivPulse Geo API — v1.2 Cascading Address Resolution
+**Domain:** Multi-provider geocoding pipeline with fuzzy/phonetic fallback, LLM correction, and consensus scoring
+**Researched:** 2026-03-29
+**Confidence:** HIGH
 
 ## Executive Summary
 
-The v1.1 milestone adds three local geocoding data source providers (OpenAddresses, NAD, PostGIS Tiger) to the existing CivPulse Geo API plugin architecture. All three providers implement the existing `GeocodingProvider` and `ValidationProvider` ABCs, and all three share a critical behavioral constraint: results bypass DB caching entirely and are returned directly to callers. This "direct-return pipeline" is not a nice-to-have — it is an explicitly stated requirement in PROJECT.md and the correct architectural response to the fact that local data is already on-disk and caching it would create staleness and write overhead with no benefit.
+The v1.2 milestone transforms an existing multi-provider exact-match geocoding API (v1.1) into a self-healing cascade that handles degraded address input. The pipeline stages are: input normalization, spell correction (symspellpy with a domain dictionary bootstrapped from the local address corpus), exact provider dispatch, fuzzy SQL matching via pg_trgm and Double Metaphone, optional LLM correction via an Ollama sidecar, cross-provider consensus scoring, and auto-set of the official geocode. The recommended approach is strictly sequential with early-exit at each stage — cheap deterministic stages first, expensive probabilistic stages only as fallback. The critical architectural decision is that all new logic lives in a `correction/` package and a `CascadeOrchestrator` service; the existing `providers/` package is frozen and requires zero changes.
 
-The core implementation challenge is scale. NAD r21 is 35.8 GB uncompressed (~80M rows) and cannot be scanned at query time under any circumstance. OpenAddresses county files are small enough for in-memory dev use, but production deployments with multi-state coverage require PostGIS import. The PostGIS Tiger geocoder requires both extension installation and a separate TIGER/LINE data loading step — and must degrade gracefully when data is absent. All three providers must be backed by PostGIS staging tables and queried via indexed SQL, not by file I/O at request time.
+The stack impact is minimal: only one new Python library (`symspellpy 6.9.0`) is required. PostgreSQL extensions `pg_trgm` and `fuzzystrmatch` are already bundled in the `postgis/postgis:17-3.5` Docker image. The Ollama sidecar is a Docker Compose addition, not a Python dependency, and is feature-flagged off by default (`CASCADE_LLM_ENABLED=false`). Consensus scoring uses PostGIS spatial functions and stdlib math — no new libraries. The net result is a meaningfully more capable pipeline with an extremely contained dependency footprint.
 
-No new Python libraries are required. The entire implementation fits within the existing dependency footprint: stdlib `gzip` + `json` for OpenAddresses streaming at load time, stdlib `csv` + `zipfile` for NAD streaming at load time, `fiona` (already installed at 1.10.1) for NAD FGDB if needed, `usaddress` (already locked as a transitive dep) for address component parsing, and `sqlalchemy.text()` + `asyncpg` (already in use) for Tiger SQL function calls. The key risks are architectural: accidentally routing local providers through the cached pipeline (causes DB bloat), blocking the async event loop with synchronous file I/O, and not handling Tiger's optional data presence gracefully.
-
----
+The most significant risks are not technical: they are operational. The Tiger geocoder has a documented wrong-county bug (Issue #1) that causes ~50% error rates when no county boundary restriction is applied. This bug must be fixed before any cascade auto-set logic is enabled, or the pipeline will auto-promote wrong official geocodes at batch scale. Confidence semantics are also currently broken — `scourgify` returns `confidence=1.0` for structural parse success, which is not the same as geocode verification. This semantic issue must be resolved in Phase 1 before any downstream consensus scoring or auto-set logic is built, or those systems will be built on a corrupted confidence scale.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v1.1 stack is entirely additive within the existing dependency footprint. No new packages are required in `pyproject.toml`. The critical insight from stack research is that each data source maps to capabilities already installed: GeoJSONL streaming to stdlib, CSV streaming to stdlib, Esri FGDB to `fiona`'s OpenFileGDB driver (confirmed present in project venv), and Tiger geocoding to PostGIS via the existing async SQLAlchemy session.
+The v1.2 stack additions are minimal by design. All four new capabilities (spell correction, fuzzy SQL matching, LLM correction, consensus scoring) are implemented using the existing dependency footprint plus one new Python library and one Docker sidecar.
 
-See `.planning/research/STACK.md` for full version table and "What NOT to Add" rationale.
+**Core new technologies:**
+- `symspellpy 6.9.0`: Symmetric Delete spell correction — 1M+ words/second, custom dictionary support via `create_dictionary_entry()`, compound multi-word correction via `lookup_compound()`. MIT license. The only new Python dependency.
+- `pg_trgm` (PostgreSQL contrib): Trigram-based fuzzy string similarity. `word_similarity()` is the correct function for matching a short street name token against a stored value (not `similarity()` which scores poorly when the query is a small fraction of the target). Requires a GIN index per table; without it, trigram scans are unusable at NAD scale (80M rows).
+- `fuzzystrmatch` (PostgreSQL contrib): Already enabled as a Tiger prerequisite. `dmetaphone()` and `dmetaphone_alt()` preferred over `soundex()` — Soundex collapses "Main" and "Macon" to the same 4-character code.
+- `ollama/ollama` (Docker, `qwen2.5:3b` model): Structured JSON output via REST API. `qwen2.5:3b` (~1.9 GB, ~2.5 GB RAM) is the correct size for CPU-only address string correction. Invoked via existing `httpx.AsyncClient` — no new Python client required.
+- Consensus scoring: Custom implementation using PostGIS `ST_Distance(Geography, Geography)` and stdlib `math`. No new library.
 
-**Core technologies:**
-- `gzip` + `json` (stdlib): Stream OpenAddresses `.geojson.gz` NDJSON files line-by-line at load time — `json.load()` raises `JSONDecodeError` on these files; only `json.loads(line)` works
-- `csv.DictReader` + `zipfile` (stdlib): Stream NAD `NAD_r21.txt` with `utf-8-sig` encoding directly from inside the zip — do not extract the 35.8 GB file before reading
-- `fiona` 1.10.1 (already installed): OpenFileGDB driver confirmed present in project venv — use TXT over FGDB for the runtime provider (TXT is streamable in-zip; FGDB requires extraction)
-- `usaddress` 0.5.16 (transitive dep, already in `uv.lock`): Address component decomposition before field-matching — do not add to `pyproject.toml`
-- `sqlalchemy.text()` + `asyncpg` (already installed): Tiger geocoder SQL function calls via existing async session — extract coordinates with `ST_X`/`ST_Y` in SQL to avoid WKB parsing
-- PostGIS `geography(POINT,4326)` (existing pattern): Storage type for both new staging tables — consistent with existing schema; ST_DWithin distances interpreted as meters automatically
-
----
+**Critical version notes:**
+- `httpx==0.28.1` must be >= 0.26.0 for `ollama==0.6.1` (optional package if httpx direct calls are sufficient).
+- GIN indexes on `openaddresses_points.street` and `nad_points.street_name` are a prerequisite, not optional — add via Alembic migration.
+- `pg_trgm.word_similarity_threshold` default is 0.6; raise to 0.65–0.75 for street name matching.
 
 ### Expected Features
 
-The feature set is tightly scoped to three provider pairs and the service-layer changes needed to support them.
+The v1.2 pipeline has 11 required features (P1) and 3 deferred features (P2/P3). All P1 features are needed for the milestone to deliver a functional cascade.
 
-See `.planning/research/FEATURES.md` for full feature table, dependency graph, provider behavior reference, and confidence/location_type mapping tables.
+**Must have (table stakes — P1):**
+- Validation confidence semantics fix: add `confidence_basis` field to `GeocodingResult` distinguishing `STRUCTURAL_PARSE` from `GEOCODED_MATCH` from `FUZZY_MATCH` from `LLM_SUGGESTION`. Without this, consensus scoring operates on corrupted confidence values.
+- Street name normalization mismatch fix: USPS suffix expansion applied right-to-left (find last valid suffix token); bidirectional St/Street, Dr/Drive etc. Both sides of any comparison must be normalized identically.
+- Input normalization (USPS suffix expansion both directions, uppercase normalize, state canonicalization, zero-pad zip): prerequisite for all provider dispatch.
+- Zip prefix fallback: `zip_code LIKE :prefix%` for truncated/4-digit ZIP input; only when street+number match is otherwise unambiguous.
+- Tiger county disambiguation via `restrict_region`: pass county polygon from `tiger.county` to `geocode()` to fix the wrong-county bug. This is a hard gate — Tiger results must not feed into auto-set logic until this fix is deployed.
+- pg_trgm fuzzy street matching with GIN index (threshold 0.65–0.75 on street_name field).
+- Double Metaphone phonetic fallback as tiebreaker when trigram similarity is ambiguous.
+- Spell correction layer (symspellpy + domain dictionary bootstrapped from NAD/OA street names corpus).
+- Cross-provider consensus scoring (cluster-based, 100m–200m radius, outlier flagging).
+- Auto-set official geocode from consensus (confidence >= 0.8 + spatial plausibility `ST_Within` county boundary check; audit metadata required).
+- Pipeline stage telemetry (`resolution_stage`, `similarity_score`, elapsed ms per stage, logged via Loguru).
 
-**Must have (v1.1 table stakes):**
-- OpenAddresses geocoding + validation provider — data files present; county-level files support dev use immediately
-- NAD import CLI command — required before NAD provider can function; streams 80M rows in 50K-row COPY batches
-- NAD geocoding + validation provider — PostGIS table query with (state, zip_code, street_name) B-tree index
-- PostGIS Tiger geocoder provider — SQL function call via existing async session; graceful failure when Tiger data not loaded
-- PostGIS Tiger validation provider — `normalize_address()` uses bundled lookup tables, always available when extension is installed
-- Direct-return pipeline (no DB caching for local providers) — `is_local` property on provider ABC; service layer bypass path
-- `location_type` + `confidence` mapping per provider — verified against actual data field schemas
-- `delivery_point_verified = False` for all three providers — none have USPS DPV data
-
-**Should have (production readiness, P2):**
-- Optional Tiger setup scripts — explicit CLI command, never automatic at container startup
-- OpenAddresses PostGIS import CLI — for full-state or national coverage beyond dev county files
-- Configuration-driven provider file paths — `OPENADDRESSES_GLOB` setting avoids hardcoded filenames and parcel file confusion
+**Should have (differentiators — P2, after validation):**
+- Local LLM sidecar (Ollama + qwen2.5:3b): only after telemetry shows >1–2% of addresses fail all deterministic stages. Feature-flagged off (`CASCADE_LLM_ENABLED=false`).
+- Per-provider confidence weight tuning: adjust starting weights (Macon-Bibb 1.0, OA 0.9, NAD 0.85, Census 0.80, Tiger-restricted 0.75, Tiger-unrestricted 0.40) based on observed error patterns from telemetry.
+- Spell correction dictionary refresh from updated NAD/OA imports.
 
 **Defer (v2+):**
-- OpenAddresses incremental data refresh — trigger only when data staleness becomes an operational issue
-- NAD table partitioning by state — defer until query latency exceeds acceptable threshold
-- Reverse geocoding via Tiger `Reverse_Geocode()` — explicitly out of scope in PROJECT.md v1
-- `delivery_point_verified = True` for any local provider — requires USPS DPV source not present in any of these datasets
-
----
+- ML-based address confidence scoring (requires labeled data).
+- Real-time USPS DPV validation via USPS API (cost implications).
 
 ### Architecture Approach
 
-The architecture is a minimal, backward-compatible extension of the existing plugin system. The `GeocodingProvider` and `ValidationProvider` ABCs gain a single `is_local` property (default `False`) to signal bypass routing. `GeocodingService.geocode()` and `ValidationService.validate()` gain a split: local providers are called and collected without DB writes; remote providers use the existing cache-first pipeline unchanged. The response merges both result sets. Two new PostGIS staging tables (`openaddresses_points`, `nad_points`) are added via Alembic migrations with spatial GIST indexes. Three new provider files mirror the existing one-file-per-provider pattern.
-
-See `.planning/research/ARCHITECTURE.md` for full component table, staging table DDL, data flow diagrams, and the 10-step recommended build order.
+The cascade is implemented as a 7-stage pipeline coordinated by a new `CascadeOrchestrator` service. The `providers/` package is frozen — all new logic lives in a new `correction/` package. `GeocodingService` delegates to `CascadeOrchestrator` when `CASCADE_ENABLED=true`; behavior is unchanged for deployments without the feature flag. All stages implement early-exit: if a stage produces a result with sufficient confidence (e.g., 2+ providers agree within 100m), subsequent stages are skipped.
 
 **Major components:**
-1. `providers/base.py` modification — add `is_local` property with default `False`; backward-compatible; all existing providers inherit `False`
-2. `services/geocoding.py` + `services/validation.py` modification — local provider bypass path; cache check scoped to remote-only providers; response merges local + remote result sets
-3. `providers/openaddresses.py` (new) — `OAGeocodingProvider` + `OAValidationProvider` querying `openaddresses_points` PostGIS table; `source_hash` dedup on re-load
-4. `providers/nad.py` (new) — `NADGeocodingProvider` + `NADValidationProvider` querying `nad_points` PostGIS table; ILIKE street name matching
-5. `providers/tiger.py` (new) — `TigerGeocodingProvider` + `TigerValidationProvider` calling Tiger SQL functions; conditional registration at startup based on `pg_extension` check
-6. `cli/commands.py` (new) — `load-oa`, `load-nad`, `setup-tiger` Typer commands; data loading is CLI-only, never API-triggered or container-startup-triggered
-7. `models/local_sources.py` (new) — `OpenAddressesPoint`, `NADPoint` ORM models for read-only staging tables
-8. Alembic migrations — `openaddresses_points` and `nad_points` tables with GIST indexes (spatial indexes must be written manually; Alembic autogenerate does not emit them)
-
----
+1. `SpellCorrector` (`correction/spell.py`) — symspellpy token correction on `StreetName` tokens only, before scourgify, using a domain dictionary bootstrapped from NAD/OA at startup.
+2. `FuzzyMatcher` (`correction/fuzzy.py`) — pg_trgm + Metaphone SQL against `openaddresses_points` and `nad_points`; NOT a provider subclass; called only by the orchestrator after all exact providers return `confidence == 0.0`.
+3. `LLMAddressCorrector` (`correction/llm.py`) — thin async httpx client to Ollama; structured JSON output; maximum one re-attempt; 10-second hard timeout; graceful skip when Ollama unavailable.
+4. `ConsensusScorer` (`correction/consensus.py`) — pairwise Haversine distance, cluster-based agreement at configurable distance threshold (default 200m), provider weighting, outlier flagging.
+5. `CascadeOrchestrator` (`services/cascade.py`) — coordinates all 7 stages; owns early-exit logic, latency budgets, and audit metadata.
+6. Modified `GeocodingService` — delegates to `CascadeOrchestrator`; `OfficialGeocoding` upsert changed from `DO NOTHING` to `DO UPDATE` on the cascade path only.
+7. Ollama Docker Compose sidecar — model storage on named volume (ZFS/NFS PVC in K8s production); default off via `CASCADE_LLM_ENABLED` env var.
 
 ### Critical Pitfalls
 
-The following pitfalls are the highest-consequence mistakes for this milestone, verified against the codebase.
+1. **Confidence semantics conflation** — `scourgify` returns `confidence=1.0` for structural parse; Tiger returns `confidence=1.0` for normalized geocode. These are different concepts. Fix by adding `confidence_basis` enum field to `GeocodingResult` before building any consensus or auto-set logic. Only `GEOCODED_MATCH` and `FUZZY_MATCH` results contribute to spatial consensus. Avoid by treating `STRUCTURAL_PARSE` results as normalization artifacts, not spatial evidence.
 
-See `.planning/research/PITFALLS.md` for the full 25-pitfall catalog with phase mapping and recovery strategies.
+2. **Tiger wrong-county bug auto-sets bad official records at scale** — Tiger without `restrict_region` returns results in neighboring counties (Issue #1 ~50% error rate). If Tiger feeds into cascade auto-set before the county disambiguation fix, wrong official geocodes are written at batch scale and poison downstream vote-api and run-api district assignments. Tiger county disambiguation is a hard gate: Tiger results may not contribute to auto-set logic until `restrict_region` is deployed and verified.
 
-1. **Local providers accidentally writing to the provider cache (Pitfalls 6, 18)** — Introduce `is_local` property before implementing any provider. Service layer must check it before calling `_upsert_geocoding_result()`. Integration tests must assert `geocoding_results` is NOT touched by local provider calls. Registering local providers in `app.state.providers` alongside `CensusGeocodingProvider` is the single most likely architectural mistake.
+3. **Fuzzy threshold miscalibration** — threshold too low (< 0.65) matches different streets with similar names ("CHERRY ST" vs "CHERRY LN" at similarity ~0.57); threshold too high (> 0.85) catches nothing beyond exact match. Calibrate against the known-bad inputs from the E2E test suite (Issue #1 cases) before wiring downstream auto-set logic. Log raw similarity scores on every fuzzy match for empirical tuning.
 
-2. **Synchronous file I/O blocking the async event loop (Pitfall 9)** — All file I/O in provider `geocode()` methods must be wrapped in `asyncio.to_thread()`. The ABC is async but `gzip.open()` and `csv.DictReader` are blocking C-level calls. Establish this pattern in the first local provider built; subsequent providers follow automatically.
+4. **Spell correction "corrects" valid street names** — general English dictionaries correct "MERCER" to "MERCY", "LANEY" to "LANE". Use symspellpy with a domain dictionary bootstrapped from the local address corpus. Only apply spell correction to tokens classified as `StreetName` by `usaddress.tag()`. Treat corrections as candidates — if the corrected form still fails exact and fuzzy match, abandon and proceed with original input.
 
-3. **Loading large datasets into application memory at provider init (Pitfall 8)** — OpenAddresses and NAD data must be loaded into PostGIS staging tables via CLI, not held in application memory. Loading NAD (35.8 GB uncompressed / ~80M rows) into memory is not feasible on any deployment.
-
-4. **Tiger data not loaded even though extension is installed (Pitfall 11)** — Extension installation and data loading are two separate steps. At startup, check `SELECT count(*) FROM tiger_data.county > 0` and log a clear warning if empty. Provider must return `confidence=0.0` / NO_MATCH gracefully, not crash. Tiger data loading must be a separate CLI command, never automatic at container startup.
-
-5. **Tiger rating not converted to confidence float (Pitfall 12)** — Tiger `rating` is 0–100+ where lower is better; `GeocodingResult.confidence` is 0.0–1.0 where higher is better. Apply `max(0.0, 1.0 - rating / 100.0)` in the provider. A raw rating of `20` must not appear as `confidence=20.0`.
-
----
+5. **Cascade latency explosion** — sequential stages with no early-exit or per-stage timeouts accumulate: LLM alone is 1–10 seconds on CPU. Define a total budget (3s P95 for single address) before implementing any stage. Implement early-exit at each stage, LLM trigger threshold (only when fuzzy confidence < 0.6), and per-stage timeouts (LLM: 10s, pg_trgm: 500ms statement_timeout). Run local providers concurrently via `asyncio.gather()`.
 
 ## Implications for Roadmap
 
-The dependency graph and pitfall-phase mapping from research suggest a 4-phase structure. The ordering is driven by two constraints: the `is_local` service bypass must exist before any local provider is wired up, and PostGIS staging tables must exist before provider query logic is written. All other phases follow naturally from data complexity (smallest to largest) and implementation novelty (PostGIS table queries before SQL function calls, SQL function calls before bulk 80M-row loading).
+Based on research, the natural phase structure follows the dependency order of the cascade: correctness fixes before new capabilities, foundational DB changes before query logic, deterministic stages before probabilistic stages.
+
+### Phase 1: Foundation Fixes and Schema Prerequisites
+
+**Rationale:** Three correctness bugs from Issue #1 E2E testing must be fixed before any new cascade logic is built. Confidence semantics corruption and the Tiger wrong-county bug are systemic defects that corrupt every downstream stage if not resolved first. The pg_trgm schema migration (GIN indexes) must also land here — fuzzy matching cannot run at production scale without it.
+
+**Delivers:**
+- `confidence_basis` field on `GeocodingResult` distinguishing parse quality from geocode quality
+- USPS suffix normalization applied right-to-left, bidirectional (fixes multi-word suffix mismatch)
+- Tiger `restrict_region` county boundary filter (fixes wrong-county bug — hard gate for auto-set)
+- Alembic migration: `CREATE EXTENSION pg_trgm`, GIN index on `openaddresses_points.street`, GIN index on `nad_points.street_name`
+
+**Addresses:** Validation confidence semantics fix, street name normalization mismatch fix, Tiger county disambiguation
+**Avoids:** Pitfall 7 (auto-sets wrong official at scale), Pitfall 8 (corrupted confidence), Pitfall 9 (normalization mismatch)
+**Research flag:** Standard patterns — well-documented; no phase-level research needed
 
 ---
 
-### Phase 1: Provider Pipeline Refactor and Staging Table Infrastructure
+### Phase 2: Input Pre-Processing (Normalization + Spell Correction)
 
-**Rationale:** The architectural boundary between local and remote providers must be established before any local provider is implemented. Registering local providers in the cached pipeline is the highest-risk mistake (Pitfalls 6 and 18) and cannot be retrofitted easily once other phases are built on top of it. Alembic migrations for staging tables must also precede all provider query work.
+**Rationale:** Normalization and spell correction run before any provider is dispatched. Fixing input quality at this layer reduces failure load on every downstream stage. Both are low-complexity and use existing or minimal new dependencies. The domain dictionary bootstrap requires the NAD/OA data to already be imported (v1.1 milestone complete).
 
-**Delivers:** `is_local` property on provider ABCs (default `False`, backward-compatible), service-layer bypass path in `GeocodingService` and `ValidationService`, `openaddresses_points` and `nad_points` staging tables with GIST + B-tree indexes, Docker GDAL package verification (`'OpenFileGDB' in fiona.supported_drivers`), `load_geojson_lines()` NDJSON streaming parser in `cli/parsers.py`
+**Delivers:**
+- Input normalization: USPS suffix expansion both directions, uppercase normalize, zero-pad zip, state canonicalization
+- Zip prefix fallback matching (`LIKE :prefix%` with unambiguous-match guard)
+- `SpellCorrector` with symspellpy + domain dictionary bootstrapped from NAD/OA street names at startup
+- `usaddress.tag()` scope constraint: spell correction only on `StreetName` tokens
+- Correction audit logging (original input, corrected form, canonical normalized — as separate traceable fields)
 
-**Addresses:** Direct-return pipeline requirement
-
-**Avoids:** Pitfalls 6 (accidental cache writes), 18 (wrong registry), 7 (GDAL driver missing in Docker), 2 (FLOAT columns instead of geography — staging tables use `geography(POINT,4326)` from day one)
-
-**Research flag:** Standard patterns — well-understood SQLAlchemy, Alembic, and PostGIS work; no phase research needed
-
----
-
-### Phase 2: OpenAddresses Provider
-
-**Rationale:** OpenAddresses county files are small (the Bibb county file is tiny) and provide fast end-to-end feedback on the full provider pattern. Build and validate the NDJSON streaming loader, PostGIS COPY load command, and provider query pattern here before tackling NAD's scale. Establishes the `asyncio.to_thread()` file I/O pattern and explicit file glob configuration for all subsequent providers.
-
-**Delivers:** `load-oa` CLI command (NDJSON streaming → 10K-row COPY batches → `openaddresses_points`), `OAGeocodingProvider`, `OAValidationProvider`, `location_type` mapping from `accuracy` field, `confidence` mapping per `accuracy` value, `source_hash` dedup logic
-
-**Addresses:** OpenAddresses geocode + validate (P1 features)
-
-**Avoids:** Pitfalls 8 (in-memory load), 9 (blocking I/O), 13 (null/missing OA field handling — use `.get()` with defaults), 15 (exact-string matching — decompose to components before querying), 25 (parcel file discovery — configure with explicit glob `*_Addresses_*.geojson.gz`)
-
-**Research flag:** Standard patterns — NDJSON streaming and PostgreSQL COPY are well-documented with verified data schemas from on-disk files; no phase research needed
+**Uses:** `symspellpy 6.9.0` (only new Python dependency for the entire milestone)
+**Implements:** Architecture Pattern 1 (spell correction before scourgify)
+**Avoids:** Pitfall 3 (general dictionary corrects valid street names), Pitfall 10 (zip prefix wrong-city match)
+**Research flag:** Standard patterns for symspellpy; no phase-level research needed
 
 ---
 
-### Phase 3: PostGIS Tiger Provider
+### Phase 3: Fuzzy and Phonetic Matching
 
-**Rationale:** Tiger comes before NAD in build order because the Tiger provider is the most architecturally distinct (SQL function call vs table query, conditional registration, multi-extension dependency chain) and the most failure-prone (optional extension + optional data + rating-to-confidence inversion). Tackling Tiger while the codebase is clean reduces risk. The Tiger validation provider also provides useful functionality independently of Tiger data being loaded.
+**Rationale:** This is the primary recovery mechanism for typo-laden input that exact match cannot handle. It depends on Phase 1 (GIN indexes must exist, normalization must be consistent on both sides of the comparison) and Phase 2 (spell correction primes input). The `FuzzyMatcher` component is architecturally a service-layer component, not a provider — this boundary must be established before implementation.
 
-**Delivers:** `TigerGeocodingProvider`, `TigerValidationProvider`, startup extension check + conditional provider registration with warning log, `setup-tiger` CLI command, Tiger extension installation order documented, rating-to-confidence conversion (`max(0.0, 1.0 - rating / 100.0)`)
+**Delivers:**
+- `FuzzyMatcher` (`correction/fuzzy.py`): pg_trgm `word_similarity()` on `street_name` field (threshold 0.65–0.75)
+- Double Metaphone phonetic fallback as tiebreaker when trigram ambiguous
+- Fuzzy confidence assignment: `similarity_score * 0.8`, capped at 0.8 (ensures fuzzy ranks below exact in consensus)
+- Query order: `openaddresses_points` first (denser for Macon-Bibb), then `nad_points`
+- Threshold calibration against E2E test suite (Issue #1 known-bad inputs) before wiring to auto-set
 
-**Addresses:** Tiger geocode + validate providers (P1 features), optional Tiger setup scripts (P2)
-
-**Avoids:** Pitfalls 10 (missing extensions — install in order: postgis → fuzzystrmatch → postgis_tiger_geocoder → address_standardizer), 11 (data not loaded — startup check + graceful NO_MATCH), 12 (rating mapping), 16 (Tiger data loading breaking Docker startup)
-
-**Research flag:** Verify Tiger extension availability in `postgis/postgis:17-3.5` Docker image at the start of this phase — research was MEDIUM confidence on exact image contents. Run `SELECT name FROM pg_available_extensions WHERE name LIKE 'postgis%' OR name LIKE 'address%' OR name = 'fuzzystrmatch'` before writing provider code.
+**Implements:** Architecture Pattern 2 (FuzzyMatcher as service-layer component)
+**Avoids:** Pitfall 1 (threshold too low — cross-match different streets), Pitfall 2 (threshold too high — no improvement over exact)
+**Research flag:** Threshold calibration is empirical — requires testing against Issue #1 E2E corpus; no external research needed
 
 ---
 
-### Phase 4: NAD Provider
+### Phase 4: CascadeOrchestrator and Consensus Scoring
 
-**Rationale:** NAD is the most complex data loading task (~80M rows, estimated 20–40 min import, 50K-row COPY batches) but the query pattern mirrors what was already built and proven for OpenAddresses. Coming last means the staging table schema, provider ABC pattern, `asyncio.to_thread()` pattern, and service-layer bypass are all validated before tackling the scale challenge. Build order within this phase: import CLI first, then provider query logic.
+**Rationale:** All individual correction components (Phases 1–3) exist; this phase wires them into the coordinated pipeline. Consensus scoring cannot be built meaningfully until both exact providers (v1.1) and fuzzy matching (Phase 3) can contribute results. The OfficialGeocoding `DO NOTHING` vs. `DO UPDATE` database change lands here and requires the audit metadata fields from Phase 1.
 
-**Delivers:** `load-nad` CLI command (streams `NAD_r21.txt` from inside zip → 50K-row COPY batches → `nad_points`), `NADGeocodingProvider`, `NADValidationProvider`, `location_type` mapping from `Placement` field, `confidence` mapping per `Placement` value, TXT format selection documented (prefer over FGDB: streamable in-zip, no extraction required)
+**Delivers:**
+- `CascadeOrchestrator` (`services/cascade.py`): 7-stage pipeline with early-exit, per-stage timeouts, total latency budget (3s P95 single address)
+- `ConsensusScorer` (`correction/consensus.py`): pairwise Haversine clustering, provider weighting, outlier flagging, `ST_Within` spatial plausibility check
+- Provider weights: Macon-Bibb 1.0, OA 0.9, NAD 0.85, Census 0.80, Tiger-restricted 0.75, Tiger-unrestricted 0.40
+- Auto-set OfficialGeocoding: `ON CONFLICT DO UPDATE` on cascade path; audit metadata (`set_by_stage`, `winning_confidence`); minimum confidence 0.8; spatial plausibility check
+- Dry-run mode (`dry_run=True`) flag for batch validation before production use
+- `GeocodingService` modified to delegate to `CascadeOrchestrator` when `CASCADE_ENABLED=true`
+- Pipeline stage telemetry: `resolution_stage`, `similarity_score`, elapsed ms per stage
 
-**Addresses:** NAD geocode + validate + import CLI (P1 features)
+**Implements:** Architecture Patterns 4 (ConsensusScorer) + Stage 7 (OfficialGeocoding auto-set)
+**Avoids:** Pitfall 5 (consensus where all providers share same data lineage — weight by independence), Pitfall 6 (latency explosion), Pitfall 7 (auto-sets wrong records at scale)
+**Research flag:** Needs code inspection of `ON CONFLICT DO UPDATE` cascade path interaction with v1.0 admin override mechanism; 200m consensus distance threshold should be validated against Macon-Bibb address distribution before setting as default
 
-**Avoids:** Pitfalls 8 (in-memory load — physically impossible at 35.8 GB), 14 (FGDB vs TXT format — TXT preferred), 15 (address matching — `StNam_Full` includes direction and type; parse to components before querying), column-index parsing (always use `csv.DictReader` with header names, not positional index)
+---
 
-**Research flag:** Standard patterns — CSV streaming and PostgreSQL COPY are well-documented; same patterns proven in Phase 2; no phase research needed
+### Phase 5: LLM Sidecar (Optional, Data-Driven)
+
+**Rationale:** Gated behind Phase 4 telemetry. Only proceed if >1–2% of addresses fail all deterministic stages. If that threshold is not reached, Phase 5 is not needed. This is not a speculative build — it is an evidence-based decision.
+
+**Delivers (if triggered):**
+- `LLMAddressCorrector` (`correction/llm.py`): async httpx client to Ollama; `qwen2.5:3b`; structured JSON via Pydantic schema; temperature=0; 10-second timeout; graceful skip when unavailable
+- Docker Compose `ollama` service with named volume (ZFS/NFS PVC in K8s production on thor)
+- Re-entry rule: max one LLM re-attempt; re-enter at Stage 1 on corrected input
+- Post-LLM verification: corrected form must pass exact or fuzzy match; never auto-set from LLM suggestion alone
+- Hard reject heuristics: state code change, zip/state mismatch
+
+**Implements:** Architecture Pattern 3 (LLM sidecar with graceful degradation)
+**Avoids:** Pitfall 4 (LLM hallucinating plausible-but-wrong addresses)
+**Research flag:** If triggered, research the `qwen2.5:3b` model pull behavior and K8s PVC configuration for the bare-metal thor cluster storage class.
 
 ---
 
 ### Phase Ordering Rationale
 
-- Phase 1 before everything: the `is_local` bypass must exist before any local provider touches the service layer. This is not optional — wiring a local provider into the existing pipeline before the bypass exists guarantees the accidental-cache-write failure mode.
-- Phase 2 before Phase 4: OpenAddresses county-level files validate the full load-to-query pattern at manageable scale. Once the pattern is proven, NAD is mechanically the same at 100x the row count.
-- Phase 3 before Phase 4: Tiger's SQL function call pattern is different enough from table queries to warrant proving it separately. If Phase 3 surfaces architectural changes to the provider ABC, NAD can incorporate them without rework.
-- Phase 4 last: NAD's import time (20–40 min) makes iteration slow. Build on a proven foundation to minimize re-runs.
-
----
+- Phase 1 must precede all others: confidence semantics corruption and Tiger wrong-county bug are systemic defects that corrupt every downstream stage if not fixed first. The pg_trgm GIN indexes are also a hard prerequisite for Phase 3.
+- Phase 2 before Phase 3: spell correction primes input quality; fuzzy matching should see spell-corrected input to produce accurate similarity scores and avoid wasting GIN index scans on corrupted tokens.
+- Phase 3 before Phase 4: the orchestrator and consensus scorer need fuzzy results to be meaningful; building consensus scoring against exact-match-only results is a partial implementation requiring rework.
+- Phase 5 is optional and data-driven: never build the LLM sidecar speculatively; build Phase 4 telemetry first and let observed failure rates decide.
 
 ### Research Flags
 
-Phases needing deeper research during planning:
+Phases likely needing deeper research during planning:
+- **Phase 4:** The interaction between the cascade `ON CONFLICT DO UPDATE` path and the existing admin override mechanism needs explicit code inspection. The v1.0 first-writer-wins semantics must be preserved for admin overrides while the cascade path uses update-if-higher-confidence semantics.
+- **Phase 5 (if triggered):** K8s PVC configuration for Ollama model storage on the ZFS/NFS fileserver (bare-metal thor cluster) needs verification against the available storage class.
 
-- **Phase 3 (Tiger):** Verify Docker image extension contents. Research found MEDIUM confidence that `postgis/postgis:17-3.5` includes all five Tiger extensions — confirm before writing provider code.
-
-Phases with standard patterns (skip research-phase):
-
-- **Phase 1:** Alembic migrations with manual spatial indexes, SQLAlchemy ABC additions — well-established in this codebase
-- **Phase 2:** NDJSON streaming, PostgreSQL COPY, PostGIS text queries — well-documented with schemas verified from on-disk files
-- **Phase 4:** CSV streaming and PostgreSQL COPY — same patterns as Phase 2; field schema verified from on-disk data
-
----
+Phases with standard patterns (skip research):
+- **Phase 1:** PostgreSQL `CREATE EXTENSION` migrations and Tiger `restrict_region` parameter are fully documented in official PostGIS docs.
+- **Phase 2:** symspellpy API patterns are verified against official docs; normalization logic is algorithmic with no external dependencies.
+- **Phase 3:** pg_trgm and fuzzystrmatch SQL patterns are verified against official PostgreSQL 17 docs.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All findings verified against actual data files and project venv; `fiona` OpenFileGDB driver confirmed; `usaddress` confirmed in `uv.lock`; no new deps needed |
-| Features | HIGH | Data schemas verified from on-disk files (`US_GA_Bibb_Addresses_2026-03-20.geojson.gz`, `NAD_r21_TXT.zip`); PostGIS function signatures from official docs; field domain values sampled from 500K-row NAD subset |
-| Architecture | HIGH | Direct codebase inspection of `providers/base.py`, `services/geocoding.py`, `services/validation.py`, `providers/census.py`, `providers/scourgify.py`, `main.py`, `cli/parsers.py`; build order follows clear dependency graph |
-| Pitfalls | MEDIUM-HIGH | v1.1 pitfalls web-verified and grounded in codebase inspection; v1.0 carry-over pitfalls from training data (MEDIUM). Tiger Docker image extension contents are the single remaining MEDIUM-confidence finding |
+| Stack | HIGH | All new dependencies verified against official docs and actual project venv/lock file. Single new Python library. PostgreSQL extensions confirmed bundled in existing Docker image. |
+| Features | MEDIUM-HIGH | Feature requirements derived from known defects (Issue #1 E2E failures) and official geocoding research. Fuzzy thresholds (0.65–0.75) are empirically-supported recommendations, not verified values — calibration against the actual corpus is required in Phase 3. |
+| Architecture | HIGH | Based on direct codebase inspection of v1.1 implementation. Provider ABCs, OfficialGeocoding upsert pattern, and service layer structure confirmed from existing code. Component boundaries are clear and non-invasive to existing providers. |
+| Pitfalls | HIGH | Structural pitfalls (Tiger bug, confidence semantics, latency explosion, auto-set at scale) are all drawn from existing Issue #1 defects and verified code behavior. Threshold-specific pitfalls (fuzzy calibration, spell correction proper-noun collisions) are MEDIUM — empirical risk, not verifiable in advance. |
 
-**Overall confidence:** HIGH
-
----
+**Overall confidence:** HIGH for structural decisions; MEDIUM for threshold values requiring empirical calibration against real address data.
 
 ### Gaps to Address
 
-- **Tiger Docker image contents:** Verify with `SELECT name FROM pg_available_extensions WHERE name LIKE 'postgis%' OR name LIKE 'address%' OR name = 'fuzzystrmatch'` in the Tiger phase before writing provider code. Research found MEDIUM confidence that all five extensions are present in `postgis/postgis:17-3.5`.
-- **NAD FGDB vs TXT format decision:** Research recommends TXT for the runtime provider (streamable in-zip, no extraction required). Confirm this holds in the Phase 4 plan — if FGDB is ever needed, the Dockerfile must add GDAL system packages and the decision must be explicit.
-- **Address match rate thresholds:** Research establishes scourgify pre-normalization + exact component matching as the strategy. Pitfall research flags a match rate below 60% as a warning sign. Measure match rate against a representative sample of known addresses during Phase 2 and revisit before Phase 4 NAD.
-- **Tiger/LINE dev data:** National Tiger data is 1–2 GB per state. A dev-friendly pre-seeded single-state subset for Docker Compose local development is deferred to Tiger setup scripts in Phase 3 — an explicit decision on whether to bundle a minimal dataset is needed during Phase 3 planning.
-
----
+- **Fuzzy threshold calibration**: Recommended range 0.65–0.75 for `street_name` field. Actual calibration must be done during Phase 3 against the Issue #1 E2E corpus. Define a test fixture of known-bad to known-good address pairs; measure false positive and false negative rates; adjust threshold in 0.05 steps. Do not wire auto-set logic until calibration is complete.
+- **Consensus distance threshold (200m)**: Starting value from published geocoding consensus research. Validate against the Macon-Bibb address distribution before setting as default — in dense downtown neighborhoods, 200m may be too permissive and collapse distinct street intersections into a single cluster.
+- **LLM decision gate**: Phase 5 trigger depends on Phase 4 telemetry. No commitment on whether Phase 5 is needed until at least 2–4 weeks of production telemetry from the Phase 4 cascade is available.
+- **OfficialGeocoding audit metadata schema**: `set_by_stage`, `winning_confidence`, `alternatives_considered` fields need to be added to the `official_geocodings` table in the Phase 4 Alembic migration. Schema must support bulk rollback queries if a batch auto-set produces incorrect results.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- `data/US_GA_Bibb_Addresses_2026-03-20.geojson.gz` — confirmed GeoJSONL line-delimited format, full field schema
-- `data/NAD_r21_TXT.zip/TXT/NAD_r21.txt` + `TXT/schema.ini` — confirmed 60-field CSV schema, `utf-8-sig` BOM encoding, field domain values sampled from 500K rows
-- `data/collection-us-south.zip` — 3,054 files; path pattern `us/{state}/{county}-addresses-county.geojson` confirmed
-- `fiona.supported_drivers` in project venv — `OpenFileGDB` driver confirmed present in fiona 1.10.1
-- `uv.lock` — `usaddress==0.5.16` confirmed locked as transitive dependency
-- Direct codebase inspection: `providers/base.py`, `services/geocoding.py`, `services/validation.py`, `providers/census.py`, `providers/scourgify.py`, `main.py`, `cli/parsers.py`
-- [PostGIS geocode() function](https://postgis.net/docs/Geocode.html) — function signature, return type, rating scale
-- [PostGIS Normalize_Address](https://postgis.net/docs/Normalize_Address.html) — validation without TIGER data
-- [PostGIS Extras](https://postgis.net/docs/Extras.html) — Tiger geocoder overview, extension list
-- [GDAL OpenFileGDB driver](https://gdal.org/en/stable/drivers/vector/openfilegdb.html) — no ESRI license required for read
-- [NAD schema documentation](https://www.transportation.gov/sites/dot.gov/files/2023-07/NAD_Schema_202304.pdf) — 60-column definitions
-- [OpenAddresses schema](https://github.com/openaddresses/openaddresses/blob/master/schema/layers/address_conform.json) — field semantics
-- [FastAPI async/blocking I/O](https://fastapi.tiangolo.com/async/) — asyncio.to_thread() guidance
-- [asyncio.to_thread Python docs](https://docs.python.org/3/library/asyncio-task.html) — official
+- [PostgreSQL 17 pg_trgm official docs](https://www.postgresql.org/docs/current/pgtrgm.html) — all operators, functions, GIN vs GiST index types, threshold tuning
+- [PostgreSQL 17 fuzzystrmatch official docs](https://www.postgresql.org/docs/17/fuzzystrmatch.html) — dmetaphone, soundex, levenshtein function signatures and encoding caveats
+- [symspellpy GitHub](https://github.com/mammothb/symspellpy) — `load_dictionary()`, `load_bigram_dictionary()`, `create_dictionary_entry()`, `lookup_compound()` API
+- [Ollama structured outputs official docs](https://docs.ollama.com/capabilities/structured-outputs) — `format` parameter JSON schema, structured output behavior
+- [PostGIS geocode() function docs](https://postgis.net/docs/Geocode.html) — `restrict_region` parameter, return type, rating semantics
+- Direct codebase inspection — provider ABCs, OfficialGeocoding upsert pattern, GeocodingService structure, v1.1 implementation
 
 ### Secondary (MEDIUM confidence)
-- [RustProof Labs Tiger setup](https://blog.rustprooflabs.com/2023/10/geocode-with-postgis-setup) — extension creation steps, timing data
-- [postgis/docker-postgis](https://github.com/postgis/docker-postgis) — Tiger extension availability in official image
-- [PostGIS Tiger Geocoder Cheatsheet](https://postgis.net/docs/manual-3.6/tiger_geocoder_cheatsheet-en.html) — function reference
-- [ijson PyPI](https://pypi.org/project/ijson/) — streaming JSON; referenced in pitfalls but not required since OA files are NDJSON (not FeatureCollection)
+- [EarthDaily Geocoding Consensus Algorithm](https://earthdaily.com/blog/geocoding-consensus-algorithm-a-foundation-for-accurate-risk-assessment) — cluster-based spatial agreement approach
+- [Multi-provider geocoding optimization research](https://www.tandfonline.com/doi/full/10.1080/17538947.2025.2578735) — provider weighting approaches
+- [Geocoding systematic review 2025](https://arxiv.org/pdf/2503.18888) — LLM hallucination on rural address geocoding
+- [Ollama Docker Hub](https://hub.docker.com/r/ollama/ollama) — container environment variables, model storage
+- [Qwen2.5-3B hardware specs](https://apxml.com/models/qwen2-5-3b) — quantization sizes, RAM requirements, CPU inference speed
 
 ### Tertiary (LOW confidence)
-- v1.0 SUMMARY.md research (training data, knowledge cutoff August 2025) — v1.0 pitfall patterns; superseded by v1.1 web-verified research where they overlap
+- LLM trigger threshold (fuzzy confidence < 0.6) — derived from architectural reasoning; needs empirical validation from Phase 4 telemetry before treating as a fixed value
 
 ---
-*Research completed: 2026-03-20*
+*Research completed: 2026-03-29*
 *Ready for roadmap: yes*

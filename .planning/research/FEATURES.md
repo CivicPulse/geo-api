@@ -1,207 +1,21 @@
 # Feature Research
 
-**Domain:** Local geocoding data source providers (OpenAddresses, NAD, PostGIS Tiger geocoder)
-**Researched:** 2026-03-20
-**Confidence:** HIGH (data schemas verified directly from actual data files; PostGIS functions confirmed via official documentation)
+**Domain:** Cascading address resolution pipeline (v1.2)
+**Researched:** 2026-03-29
+**Confidence:** MEDIUM-HIGH (pg_trgm/fuzzystrmatch verified via official PostgreSQL docs; Ollama structured output verified via official docs; consensus scoring patterns from published geocoding research; LLM prompting patterns from current community practice)
 
 ---
 
 ## Context: What This Milestone Adds
 
-This research covers the v1.1 milestone: adding three local data source providers to the existing geo-api plugin architecture. All three implement the existing `GeocodingProvider` and `ValidationProvider` ABCs. The key behavioral difference from external providers: **no DB caching** — local providers return results directly without writing to `provider_results` table.
+This research covers the v1.2 milestone: transforming the multi-provider lookup into an auto-resolving cascading pipeline. The existing pipeline (v1.1) already handles: USPS normalization via scourgify, exact lookup across 5 providers (Census, OA, Tiger, NAD, Macon-Bibb), and admin override. What it does NOT do: handle degraded input, weight provider results, or auto-set an official geocode.
 
-The previous FEATURES.md covered v1.0 (multi-provider cache pipeline, admin override, USPS validation). This file supersedes it for the v1.1 milestone.
-
----
-
-## Data Source Schemas (Verified from Actual Files)
-
-### OpenAddresses (data/*.geojson.gz, collection-us-south.zip)
-
-**Format:** Newline-delimited GeoJSON (one JSON feature per line, gzip-compressed).
-Confirmed from `data/US_GA_Bibb_Addresses_2026-03-20.geojson.gz`.
-
-**Feature schema per line:**
-```json
-{
-  "type": "Feature",
-  "properties": {
-    "hash": "bed3195d7ea1ba2b",
-    "number": "489",
-    "street": "NORTHMINISTER DR",
-    "unit": "",
-    "city": "MACON",
-    "district": "BIBB",
-    "region": "",
-    "postcode": "31204",
-    "id": "",
-    "accuracy": ""
-  },
-  "geometry": {
-    "type": "Point",
-    "coordinates": [-83.687444, 32.8720832]
-  }
-}
+**The v1.2 pipeline goal:**
+```
+normalize → spell-correct → exact match → fuzzy match → AI correction → re-match → score consensus → auto-set official
 ```
 
-**Field semantics (from openaddresses/openaddresses schema):**
-- `number`: House/building number (string, may include alpha suffix like "100A")
-- `street`: Street name including type, USPS-style ("NORTHMINISTER DR")
-- `unit`: Suite/apt/unit designator, often empty string
-- `city`: City/locality name, uppercase
-- `district`: County name (not always populated)
-- `region`: State/province — often empty; state is inferred from file path (`us/ga/bibb-addresses-county.geojson`)
-- `postcode`: ZIP or ZIP+4
-- `id`: Source-system identifier (often empty)
-- `accuracy`: Point precision — values: `""`, `"rooftop"`, `"parcel"`, `"interpolated"`, `"centroid"`
-- `hash`: OpenAddresses internal dedup hash (16-char hex)
-- `geometry.coordinates`: [longitude, latitude] in WGS84
-
-**Collection zip layout** (`collection-us-south.zip`, 3,054 files):
-```
-us/fl/washington-addresses-county.geojson
-us/fl/washington-addresses-county.geojson.meta
-us/ga/bibb-addresses-county.geojson
-us/ga/bibb-addresses-county.geojson.meta
-...
-```
-Path pattern: `us/{state_abbr}/{county_slug}-addresses-county.geojson`
-Also contains `-parcels-county.geojson` files (not needed for address geocoding).
-Each `.geojson.meta` file is a JSON object with run metadata (source, layer, status).
-
-**Geocoding query pattern:**
-Parse input address into components (number, street, city, state, ZIP), then exact-match
-after normalization against `number` + `street` + `city`/`postcode` fields.
-Coordinates come directly from `geometry.coordinates` — these are address points
-(rooftop or parcel centroid), so location_type maps to "ROOFTOP" or "GEOMETRIC_CENTER".
-
-**Validation pattern:**
-A found record confirms the address exists in the dataset. Use matched record's
-`number + street + unit + city + postcode` fields to populate `ValidationResult`.
-`delivery_point_verified = False` (OA is not a USPS DPV source).
-
----
-
-### National Address Database / NAD (data/NAD_r21_TXT.zip)
-
-**Format:** Single large CSV: `TXT/NAD_r21.txt`, UTF-8 BOM, comma-delimited.
-**Size:** 35.8 GB uncompressed, ~7.8 GB compressed. Officially ~80M addresses.
-
-**Key columns for geocoding/matching (60 total, comma-delimited per schema.ini):**
-
-| Column | Index | Type | Notes |
-|--------|-------|------|-------|
-| `Add_Number` | 2 | Long | House number (integer) |
-| `AddNo_Full` | 4 | Text | Full address number string (includes alpha suffix if any) |
-| `St_PreDir` | 6 | Text | Predirectional (N, S, E, W) |
-| `St_Name` | 9 | Text | Street name |
-| `St_PosTyp` | 10 | Text | Street type (Road, Avenue, Street...) |
-| `St_PosDir` | 11 | Text | Postdirectional |
-| `Unit` | 16 | Text | Unit/apartment |
-| `Post_City` | 24 | Text | Postal city name (may be "Not stated") |
-| `State` | 33 | Text | Two-letter state abbreviation |
-| `Zip_Code` | 34 | Text | ZIP code (may be empty) |
-| `Plus_4` | 35 | Text | ZIP+4 extension |
-| `Longitude` | 39 | Double | WGS84 longitude |
-| `Latitude` | 40 | Double | WGS84 latitude |
-| `Placement` | 43 | Text | Point type (see mapping below) |
-| `Lifecycle` | 50 | Text | Address status (see below) |
-| `Addr_Type` | 56 | Text | Address classification |
-| `DeliverTyp` | 57 | Text | Delivery type (unreliable in this dataset) |
-
-**Placement domain values (from 500k-row sample):**
-- `"Structure - Rooftop"` or `"Structure - Entrance"` → maps to ROOFTOP
-- `"Parcel - Centroid"` or `"Parcel - Other"` → maps to GEOMETRIC_CENTER
-- `"Linear Geocode"` or `"Property Access"` → maps to RANGE_INTERPOLATED
-- `"Site"` → maps to GEOMETRIC_CENTER
-- `"Unknown"` or `""` → maps to APPROXIMATE (~91% of rows in sample)
-
-**Lifecycle domain values (from 500k-row sample):**
-- `"ACTIVE"` — explicitly flagged active (~9% of sample rows, from higher-quality sources)
-- `""` — not stated (majority; treat as geocodable — most rows are valid address points)
-- Malformed values exist in a small fraction of rows (data quality issue from some contributors)
-
-**Key data quality finding:**
-The vast majority of rows have `Lifecycle=""` and `Placement="Unknown"`. This is normal — most contributing agencies do not populate these optional fields. Both empty-Lifecycle and ACTIVE rows are valid geocoding candidates. Filtering to ACTIVE-only would eliminate most of the dataset.
-
-**DeliverTyp is not reliable:** Mostly empty in r21 TXT export. Not usable for DPV confirmation.
-
-**Geocoding query pattern:**
-Parse input → match on `Add_Number` + `St_Name` + `St_PosTyp` + `State` + `Zip_Code`.
-Coordinate columns `Latitude` and `Longitude` are already WGS84 decimal degrees.
-Location type mapped from `Placement` field per table above.
-
-**Validation pattern:**
-Same as OpenAddresses — found record confirms address exists; reconstruct
-`ValidationResult` from matched row. `delivery_point_verified = False`.
-
-**Scale challenge:** 35.8 GB uncompressed — cannot be loaded into memory or streamed per query.
-Must be pre-indexed into a PostGIS table or equivalent for query-time lookup.
-This is the single most significant implementation complexity in this milestone.
-
----
-
-### PostGIS Tiger/LINE Geocoder (PostgreSQL extension)
-
-**Setup:** Requires `postgis_tiger_geocoder` extension plus TIGER/LINE shapefiles
-loaded into `tiger` and `tiger_data` schemas via generated loader scripts.
-
-**Extensions required:**
-```sql
-CREATE EXTENSION postgis;
-CREATE EXTENSION fuzzystrmatch;
-CREATE EXTENSION postgis_tiger_geocoder;
-CREATE EXTENSION address_standardizer;  -- optional, improves normalization accuracy
-```
-
-**Geocode function signature (from official PostGIS docs):**
-```sql
-setof record geocode(
-  varchar address,
-  integer max_results=10,
-  geometry restrict_region=NULL,
-  norm_addy OUT addy,
-  geometry OUT geomout,
-  integer OUT rating
-)
-```
-
-**Return schema:**
-- `geomout`: Point geometry in NAD83 long/lat (compatible with WGS84 for practical US geocoding)
-- `rating`: Match quality — 0 = exact match, higher = lower confidence; sorted ascending (lower is better)
-- `addy`: `norm_addy` composite type with fields: `address` (street number), `predirAbbrev`, `streetName`,
-  `streetTypeAbbrev`, `postdirAbbrev`, `internal` (unit), `location` (city), `stateAbbrev`, `zip`,
-  `parsed` (bool), `zip4`, `address_alphanumeric`
-
-**Standard geocoding SQL (Python via SQLAlchemy text()):**
-```sql
-SELECT
-  g.rating,
-  ST_X(g.geomout)       AS lon,
-  ST_Y(g.geomout)       AS lat,
-  pprint_addy(g.addy)   AS normalized_address,
-  (g.addy).address      AS street_number,
-  (g.addy).streetname   AS street_name,
-  (g.addy).location     AS city,
-  (g.addy).stateabbrev  AS state,
-  (g.addy).zip          AS zip
-FROM geocode(:address, 1) AS g;
-```
-
-**Address normalization/validation SQL (works without TIGER data loaded):**
-```sql
-SELECT pprint_addy(normalize_address(:address)) AS normalized;
-```
-`normalize_address()` uses only bundled lookup tables (directions, states, street type suffixes) —
-does not require TIGER shapefile data. The `parsed` field on `norm_addy` indicates success.
-
-**Confidence mapping from rating:**
-`confidence = max(0.0, 1.0 - rating / 100.0)` with a floor of 0.0.
-
-**Python async integration:**
-Tiger geocoder runs as a PostgreSQL function — called via `await db.execute(text(...), {"address": addr})`
-using the existing SQLAlchemy async session. No additional Python libraries needed.
-Geometry extracted with `ST_X(geomout)` / `ST_Y(geomout)` in the SQL to avoid WKB parsing.
+The previous FEATURES.md covered v1.1 (local data source providers). This file supersedes it for the v1.2 milestone.
 
 ---
 
@@ -209,116 +23,130 @@ Geometry extracted with `ST_X(geomout)` / `ST_Y(geomout)` in the SQL to avoid WK
 
 ### Table Stakes (Users Expect These)
 
-Features the milestone must deliver. Missing any of these = milestone incomplete.
+Features a "cascading resolution" system must deliver. Missing these = the cascade doesn't cascade.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| OpenAddresses geocoding provider | Core milestone requirement; data files present | MEDIUM | Newline-delimited GeoJSON scan; needs fast lookup — in-memory dict for dev (county files), PostGIS import for production |
-| OpenAddresses validation provider | Expected alongside geocoding; same data source | LOW | Geocode first, map matched record fields to ValidationResult; delivery_point_verified=False |
-| NAD geocoding provider | Core milestone requirement; data files present | HIGH | 35.8 GB uncompressed requires pre-import to PostGIS with indexed columns; cannot stream at query time |
-| NAD validation provider | Expected alongside geocoding; same PostGIS table | LOW after NAD import | Reuses NAD table query; maps matched row to ValidationResult |
-| PostGIS Tiger geocoder provider | Core milestone requirement; PostGIS 3.5 installed | MEDIUM | SQL call via existing async session; graceful failure when TIGER data not loaded |
-| PostGIS Tiger validation provider | normalize_address() works without TIGER data | LOW | Uses bundled lookup tables — always available when extension is installed |
-| Direct-return pipeline (no DB caching) | Explicitly required in PROJECT.md Active requirements | MEDIUM | GeocodingService must branch: local providers bypass cache write and Address row creation |
-| location_type mapping per provider | GeocodingResult.location_type must use LocationType enum | LOW | OA: from accuracy field; NAD: from Placement field; Tiger: from rating heuristic |
-| NAD import CLI command | Required for NAD provider to function | MEDIUM | Typer CLI consistent with existing GIS import CLI; reads TXT.zip, streams into PostGIS table |
-| No-match result (GeocodingResult with confidence=0.0) | All providers must handle address not found | LOW | Follow existing census provider pattern: lat=0.0, lng=0.0, confidence=0.0 |
+| Input normalization before dispatch | Every pipeline needs a clean starting point | LOW | Already partially done via scourgify; v1.2 adds USPS suffix expansion (Road→RD) and state abbreviation canonicalization before provider dispatch — not a new library, just consistent pre-processing |
+| Zip prefix fallback for truncated/mistyped ZIPs | Callers submit 4-digit or transposed ZIPs; pipeline must not fail | LOW | Detect zip len < 5 or >5; try 5-digit prefix match against `zip_code LIKE :prefix%` in OA/NAD PostGIS tables; SQL-level, no new library |
+| pg_trgm fuzzy street name matching | Exact match fails on "Northminstr Dr" → "Northminster Dr" | MEDIUM | `CREATE EXTENSION pg_trgm;` (already available in PostGIS images); `similarity(input_street, street) > 0.7` threshold; GIN index on street column mandatory for acceptable performance at NAD/OA scale; 0.7 is a well-supported practical threshold for street names — lower causes too many false positives on short names |
+| Soundex/Metaphone phonetic fallback | Handles homophones and OCR-style substitutions ("Mane" → "Main") | LOW | `SELECT dmetaphone(street_input) = dmetaphone(street_col)` via `fuzzystrmatch` extension (already in PostGIS image); use as a secondary filter when trigram similarity alone is ambiguous; Double Metaphone preferred over plain Soundex for accuracy |
+| Tiger county disambiguation via spatial boundary | Tiger geocoder returns results 50 miles off because it has no county restriction — it matches the nearest street in any loaded county | MEDIUM | Pass `restrict_region` geometry to Tiger's `geocode()` function — it accepts a `geometry` parameter; get county polygon from PostGIS `tiger.county` table by FIPS or name; this is the documented mitigation and verified against PostGIS Tiger function signature |
+| Confidence semantics fix (validation) | scourgify returning structural parse ≠ delivery point verified; callers are treating `is_valid=True` as authoritative | LOW | Rename/clarify `is_valid` to indicate parse success only; add `address_exists` boolean populated only when a provider confirms the address exists in a dataset; this is a correctness fix, not new behavior |
+| Street name normalization for multi-word streets with USPS suffixes | "Oak Hill Road" fails because scourgify returns "Oak Hill Rd" and the stored value is "OAK HILL RD" — case and full/abbrev mismatch | LOW | Uppercase both sides before compare; maintain a USPS suffix expansion/contraction table (St↔Street, Dr↔Drive, Rd↔Road, Blvd↔Boulevard — ~60 common types); apply both directions in matching |
 
 ### Differentiators (Competitive Advantage)
 
+Features that make this pipeline substantially better than a simple ordered fallback.
+
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| NAD pre-import to PostGIS with spatial+text index | Converts unusable 35.8 GB flat file into a fast queryable source | HIGH | One-time CLI import; ~80M rows; needs B-tree index on (state, zip_code, add_number, st_name) minimum |
-| OpenAddresses in-memory dict for county files | County-scoped files fit in RAM for dev use | LOW | Bibb county file is tiny; appropriate for dev/testing; same provider ABC works |
-| Tiger normalize_address() as always-available validation | Works without TIGER shapefile data | LOW | Validation provider functional even when geocode() has no data; decouples the two |
-| Optional Tiger setup scripts | Lowers barrier to enabling Tiger geocoder in Docker Compose | MEDIUM | Generates and runs Census TIGER/LINE loader scripts; works-without flag avoids hard dependency |
-| Graceful provider-unavailable handling | Clear error when extension/data not loaded; no crash | LOW | Check extension presence at startup via SQL; configure as optional provider |
-| scourgify pre-normalization before local lookup | Normalizes "Road" → "RD", "Georgia" → "GA" before matching | LOW | Existing scourgify provider already handles this; compose, don't duplicate |
+| Spell correction layer (symspellpy) | Fixes common typos before any provider is called — "Nrothminster" → "Northminster" before any DB query; reduces fuzzy match load | MEDIUM | symspellpy supports custom dictionaries; load a frequency dictionary built from the imported NAD/OA street names corpus so domain corrections outrank general English suggestions; max edit distance 2 covers most real typos; do NOT use general English spell checkers (pyspellchecker, TextBlob) for street names — they will incorrectly "correct" proper nouns and place names |
+| Local LLM sidecar for address correction (Ollama) | Handles pathologically broken input that deterministic methods cannot fix — transposed components, wrong city/state, incomplete addresses | HIGH | Ollama supports structured output via JSON schema (verified, v0.5+); use temperature=0 for determinism; Pydantic model as the schema; prompt with: (1) system context about address format, (2) few-shot examples of bad→corrected addresses, (3) explicit instruction to return null fields it cannot determine; only invoke after all deterministic stages fail; set timeout budget (2–5 seconds); model selection: qwen2.5:7b or mistral:7b balances size vs accuracy for structured extraction |
+| Cross-provider consensus scoring | When multiple providers return results, weight them by agreement — providers that cluster together are more likely correct than an outlier (the Tiger-50-miles-off case) | MEDIUM | Score = (number of providers within N meters of this result) × (provider_weight); use 100m as clustering radius for "agreement"; Tiger weighted lower (0.6) when it disagrees with 2+ other providers; Census/OA/NAD weighted higher (0.9) when they agree; outlier = result > 1km from cluster centroid of other providers; this mirrors published multi-provider geocoding optimization approaches |
+| Auto-resolution pipeline: auto-set official geocode | When pipeline produces a high-confidence result, write it as the OfficialGeocoding without requiring admin action | MEDIUM | Only auto-set when: (a) at least 2 providers agree within 100m, OR (b) single provider returns confidence ≥ 0.90; never auto-set from Tiger-only result unless restrict_region filter applied; use the existing `OfficialGeocoding` upsert mechanism — the auto-resolver is just another writer |
+| Pipeline stage telemetry | Which stage resolved the address? "spell_correction", "fuzzy_pg_trgm", "llm_correction", "consensus_score" — critical for debugging and tuning thresholds | LOW | Add `resolution_stage` field to `GeocodingResult` or a parallel metadata object; log at INFO level with address hash, stage name, elapsed ms; no new infrastructure |
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Streaming NAD lookup (scan 35.8 GB per query) | Avoids separate import step; simpler code | 35.8 GB sequential scan per geocode request is unusable at any scale (minutes per query) | Pre-import to PostGIS with indexed columns; one-time cost unlocks millisecond queries |
-| delivery_point_verified=True for local providers | Caller wants mail-deliverable confirmation | None of the three sources have USPS DPV data — OA/NAD are address point datasets, not USPS databases | Keep delivery_point_verified=False; document limitation; recommend USPS v3 API for DPV |
-| Caching local provider results to DB | Seems consistent with external provider pattern | Local providers exist to avoid DB round-trips; caching negates purpose and adds write overhead for fast-path queries | Skip cache writes entirely via pipeline branch; consistent with PROJECT.md Active requirement |
-| Fuzzy/phonetic matching in OA and NAD providers | Handles misspellings and abbreviation variants | Adds significant complexity; scourgify normalization + exact match handles most real cases; Tiger already uses soundex internally | Normalize input with scourgify first, then exact match; Tiger handles fuzziness natively |
-| Loading full national NAD into memory | Simplest Python code path | ~80M rows × ~350 bytes = ~28 GB RAM requirement; not deployable | PostGIS import with indexed table; SQL queries run in milliseconds |
-| Loading all OA collection files at startup | Maximum coverage from a single provider | collection-us-south.zip alone has 1,527 geojson files; full US would be much larger | Support per-file or PostGIS import; county-level for dev, state-level import for production |
-| Lifecycle=ACTIVE-only filter for NAD | Seems like it would return only valid addresses | ~91% of rows have empty Lifecycle; filtering to ACTIVE would eliminate most of the dataset | Include both ACTIVE and empty-Lifecycle rows; filter on Longitude/Latitude IS NOT NULL instead |
+| General English spell checker for addresses | Obvious first choice for "fixing typos" | General dictionaries actively harm address correction — "Main" gets corrected to "Maine", "Peach" to "Peace", "Bibb" (a county) has no English context; edit distance alone without domain frequency data produces wrong corrections | Use symspellpy with a custom frequency dictionary built from the actual address corpus (NAD/OA street names) |
+| Running LLM on every address | Seems like it would maximize accuracy | LLM latency (500ms–2s per call) makes it unusable in the hot path; cost for self-hosted models is GPU/CPU time per request; most addresses resolve correctly at the normalization or exact-match stage | LLM is a last-resort fallback only — after normalization, spell correction, exact match, and fuzzy match all fail |
+| Parallel LLM + provider dispatch | Seems like it saves time | Wastes GPU/CPU resources on addresses that would resolve deterministically; burns the LLM budget on addresses that don't need it; muddies which result to trust | Sequential pipeline with early-exit; LLM only invoked when earlier stages fail |
+| Fuzzy matching at similarity threshold < 0.5 | More permissive = more matches | At < 0.6, trigram similarity on short strings (3–5 char street names) produces too many false positive matches; "Oak" has similarity 0.5 with "Oak" but also with other 3-gram clusters; creates wrong geocodes that are harder to detect than no result | Keep threshold at 0.65–0.75; prefer "no match" over "wrong match" for geocoding |
+| Consensus scoring that averages all provider coordinates | Seems like a middle ground | Averaging a correct result (32.87°N, -83.69°W) with an outlier (33.42°N, -83.51°W — 55 miles off) produces a result that is wrong for everyone; the averaged point corresponds to no real address | Detect and exclude outliers before averaging; use cluster-based approach (majority vote within radius) not arithmetic mean |
+| Auto-set official from any single-provider result | Simplest auto-resolution | Single provider can be wrong — especially Tiger on streets near county boundaries; auto-setting a wrong OfficialGeocoding is worse than leaving it unset because it poisons downstream callers | Require multi-provider agreement OR a high-confidence single result (≥ 0.90, from a rooftop-accuracy source) before auto-setting |
+| Spell-correcting city and state fields | Seems consistent with street correction | City and state corrections require geographic validation (is "Macoon, GA" → "Macon, GA" correct? only if zip confirms it) — general spell correction gets these wrong; city names are proper nouns with low general frequency | Limit spell correction to street name token only; validate city/state against zip-code centroid data if needed |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[NAD geocode + validate providers]
-    └──requires──> [NAD PostGIS import CLI]
-                       └──requires──> [data/NAD_r21_TXT.zip present]
-                       └──requires──> [PostgreSQL with PostGIS for target table]
+[Cascading Resolution Pipeline]
+    └──requires──> [Input Normalization (USPS suffix expansion)]
+                       └──uses──> [scourgify (already built)]
+    └──requires──> [Zip Prefix Fallback]
+                       └──uses──> [OA + NAD PostGIS tables (v1.1)]
+    └──requires──> [Exact Match across all providers (v1.0 + v1.1)]
+    └──requires──> [Fuzzy Street Matching (pg_trgm + Soundex)]
+                       └──requires──> [pg_trgm extension (in PostGIS image)]
+                       └──requires──> [fuzzystrmatch extension (in PostGIS image)]
+                       └──requires──> [GIN index on OA/NAD street columns]
+    └──requires──> [Spell Correction Layer (symspellpy)]
+                       └──requires──> [Street name corpus dictionary (from NAD/OA data)]
+    └──optional──> [LLM Address Correction (Ollama sidecar)]
+                       └──requires──> [Ollama service running with a suitable model]
+                       └──requires──> [Structured output schema (Pydantic)]
+    └──requires──> [Cross-Provider Consensus Scoring]
+                       └──requires──> [Results from 2+ providers]
+                       └──requires──> [ST_Distance (PostGIS — already available)]
+    └──requires──> [Auto-Set Official Geocode]
+                       └──requires──> [OfficialGeocoding upsert (already built, v1.0)]
+                       └──requires──> [Consensus score above threshold]
 
-[OpenAddresses geocode + validate providers]
-    └──requires──> [data/*.geojson.gz present]
-    └──option A (dev)──> [in-memory dict at startup for small county files]
-    └──option B (prod)──> [OA PostGIS import CLI for full coverage]
+[Tiger County Disambiguation]
+    └──requires──> [Tiger geocoder provider (v1.1)]
+    └──requires──> [tiger.county table with polygon geometry (loaded with TIGER/LINE data)]
+    └──uses──> [restrict_region parameter on geocode() SQL function]
 
-[PostGIS Tiger geocoder provider (geocode)]
-    └──requires──> [postgis_tiger_geocoder extension installed]
-    └──requires──> [TIGER/LINE data loaded into tiger_data schema]
-    └──optional──> [Tiger setup scripts to load TIGER data]
+[Validation Confidence Semantics Fix]
+    └──requires──> [Understanding of current scourgify provider behavior]
+    └──enhances──> [All existing validation providers]
 
-[PostGIS Tiger validation provider]
-    └──requires──> [postgis_tiger_geocoder extension installed]
-    └──note──> does NOT require TIGER data — normalize_address() uses bundled tables
+[Street Name Normalization Fix]
+    └──requires──> [USPS suffix lookup table (St↔Street, Dr↔Drive, etc.)]
+    └──enhances──> [OA, NAD, Tiger providers]
+    └──conflicts──> [Current scourgify pre-normalization if suffix expansion not bidirectional]
 
-[Direct-return pipeline]
-    └──requires──> [all three provider pairs above]
-    └──requires──> [GeocodingService pipeline branch distinguishing local from remote]
-
-[scourgify normalization (existing, already built)]
-    └──enhances──> [all three local providers]
-    └──rationale──> normalize "Road"→"RD", "Georgia"→"GA" before matching
-
-[Tiger setup scripts]
-    └──enhances──> [PostGIS Tiger geocoder provider]
-    └──note──> optional — Tiger validation works without them
+[Pipeline Stage Telemetry]
+    └──enhances──> [All pipeline stages above]
+    └──uses──> [Loguru (already in stack)]
 ```
 
 ### Dependency Notes
 
-- **NAD provider requires NAD PostGIS import:** The 35.8 GB flat file cannot be queried at runtime. A CLI import step pre-loads ~80M rows into a PostGIS table with indexes. This is a one-time setup cost, not per-request.
-- **OpenAddresses in-memory vs PostGIS are two valid strategies:** In-memory dict works for county-level `.geojson.gz` files during development. Production deployments with multi-state coverage need PostGIS import. Both strategies use the same provider ABC — the strategy is a constructor argument.
-- **Tiger validation does not require Tiger geocoding data:** `normalize_address()` uses only lookup tables bundled with the `postgis_tiger_geocoder` extension. The validation provider can always be available while the geocoding provider is optional (gated on TIGER/LINE data being loaded).
-- **Direct-return pipeline requires service-layer changes:** The existing `GeocodingService` unconditionally writes to `provider_results`. A routing decision must be added to distinguish local providers (direct return, no DB writes) from remote providers (cache-write path). No `Address` row created, no `OfficialGeocoding` set for local results.
-- **scourgify pre-normalization should compose with local providers:** Run input through scourgify normalization before passing to OA/NAD/Tiger lookup. The existing `ScourgifyValidationProvider` is pure Python with no I/O — safe to call synchronously from within async provider methods. This maximizes match rate without adding fuzzy matching complexity.
+- **Fuzzy matching requires GIN indexes before use in production:** Trigram similarity without an index performs a full sequential scan of the OA/NAD PostGIS tables. At 60k+ (OA) and 80M+ (NAD) rows, this is unusable. `CREATE INDEX idx_oa_street_trgm ON openaddresses USING GIN (street gin_trgm_ops);` is a prerequisite step, not a runtime dependency.
+
+- **Spell correction dictionary must be built from the address corpus:** The symspellpy dictionary should be generated from the street names in the loaded NAD/OA data — not from a general English corpus. This means the CLI that imports NAD/OA data should optionally produce the frequency dictionary, or a separate build step generates it. The dictionary file is an artifact of the import, not a static resource.
+
+- **LLM sidecar is optional infrastructure:** The Ollama service is an optional component. If it is not running, the pipeline skips the LLM stage and proceeds to consensus scoring with whatever results the deterministic stages produced. The pipeline must not fail when Ollama is unavailable — treat as a graceful no-op.
+
+- **Consensus scoring requires 2+ provider results to be meaningful:** If only one provider returns a result, scoring is trivially 1.0. Consensus is only meaningful when multiple providers have results — the scoring logic must handle the single-result case by passing it through unchanged.
+
+- **Tiger county disambiguation is an improvement to the existing Tiger provider:** It is not a new provider. It adds a `restrict_region` geometry argument to the Tiger SQL call. Requires that the `tiger.county` table is populated (loaded with TIGER/LINE data). If TIGER/LINE data is not loaded, the Tiger provider is already unavailable — this is a non-issue.
+
+- **Auto-set official geocode reuses the v1.0 OfficialGeocoding upsert:** The existing `ON CONFLICT DO UPDATE` logic in the OfficialGeocoding upsert must be changed from `DO NOTHING` to `DO UPDATE` for auto-resolution to work — or a separate "cascade auto-resolve" write path that only fires under the confidence threshold condition. This interacts with the v1.0 "first-writer-wins" decision; the v1.2 pipeline needs to explicitly supersede it.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1.1 milestone — all required)
+### Launch With (v1.2 milestone — all required)
 
-- [ ] OpenAddresses geocoding provider — data files present; enables local lookup with no external API
-- [ ] OpenAddresses validation provider — reuses same data; minimal additional work over geocoding
-- [ ] NAD import CLI command — required for NAD provider to function; Typer CLI consistent with existing GIS import
-- [ ] NAD geocoding provider — PostGIS table + index from import CLI; fast address lookup
-- [ ] NAD validation provider — reuses NAD PostGIS query; minimal additional work
-- [ ] PostGIS Tiger geocoder provider — leverages existing PostGIS 3.5 infrastructure
-- [ ] PostGIS Tiger validation provider — normalize_address() always available; low effort
-- [ ] Direct-return pipeline (no DB caching for local providers) — required per PROJECT.md Active requirements
-- [ ] Optional Tiger setup scripts — lowers barrier for Tiger geocoder; graceful when absent
+- [ ] Input normalization fix (USPS suffix expansion both directions, uppercase normalize) — prerequisite for everything else; fixes known provider defects from E2E testing
+- [ ] Validation confidence semantics fix — correctness fix; scourgify `is_valid=True` currently misleads callers
+- [ ] Street name normalization mismatch fix — correctness fix; multi-word streets with USPS suffixes fail
+- [ ] Zip prefix fallback matching — low complexity; recovers truncated/mistyped ZIPs without new libraries
+- [ ] Tiger county disambiguation via `restrict_region` — directly fixes the Tiger-50-miles-off defect identified in E2E testing; uses existing PostGIS infrastructure
+- [ ] pg_trgm fuzzy street matching (threshold 0.65–0.70) — core fuzzy capability; needs GIN index creation
+- [ ] Soundex/Double Metaphone phonetic fallback — complements trigrams for phonetic variants; same `fuzzystrmatch` extension
+- [ ] Spell correction layer (symspellpy + domain dictionary) — improves input quality before any DB query; offline, no service dependency
+- [ ] Cross-provider consensus scoring (cluster-based, 100m radius) — enables outlier exclusion; prerequisite for trustworthy auto-resolution
+- [ ] Auto-set official geocode from consensus — closes the pipeline loop; only fires at high confidence threshold
+- [ ] Pipeline stage telemetry — needed for threshold tuning after deployment
 
 ### Add After Validation (v1.x)
 
-- [ ] OpenAddresses PostGIS import CLI — for full-state or national coverage; trigger: production deployment need
-- [ ] Per-state TIGER/LINE data loading — reduces storage vs loading all states; trigger: storage constraints
-- [ ] NAD table partitioning by state — improves query performance; trigger: query latency above acceptable threshold
+- [ ] Local LLM sidecar (Ollama) for pathological cases — trigger: measurement shows what percentage of addresses fail all deterministic stages; only worth adding if failure rate is > 1–2%
+- [ ] Per-provider confidence weight tuning — trigger: telemetry shows which providers are systematically biased; adjust weights based on observed error patterns
+- [ ] Spell correction dictionary refresh from updated NAD/OA imports — trigger: operational issue with stale dictionary after data refresh
 
 ### Future Consideration (v2+)
 
-- [ ] OpenAddresses incremental data refresh CLI — OA data is updated periodically; trigger: data staleness operational issue
-- [ ] NAD Lifecycle=ACTIVE-only mode toggle — needs measurement first; filtering may reduce match rate unacceptably
-- [ ] Reverse geocoding via Tiger Reverse_Geocode() — explicitly marked Out of Scope in PROJECT.md v1
+- [ ] ML-based address confidence scoring — replaces heuristic weights with a trained model; trigger: enough labeled data to train; high effort
+- [ ] Real-time address validation via USPS API — provides actual DPV; trigger: a downstream service needs mail-deliverable confirmation; has cost implications
 
 ---
 
@@ -326,93 +154,221 @@ Features the milestone must deliver. Missing any of these = milestone incomplete
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Direct-return pipeline | HIGH | MEDIUM | P1 |
-| OpenAddresses provider (geocode + validate) | HIGH | MEDIUM | P1 |
-| NAD import CLI | HIGH | MEDIUM | P1 |
-| NAD provider (geocode + validate) | HIGH | LOW after import CLI | P1 |
-| Tiger geocoder provider | HIGH | MEDIUM | P1 |
-| Tiger validation provider | MEDIUM | LOW | P1 |
-| Tiger setup scripts | MEDIUM | MEDIUM | P2 |
-| OpenAddresses PostGIS import CLI | MEDIUM | MEDIUM | P2 |
-| NAD table partitioning | LOW | MEDIUM | P3 |
+| Validation confidence semantics fix | HIGH | LOW | P1 |
+| Street name normalization mismatch fix | HIGH | LOW | P1 |
+| Input normalization (USPS suffix expansion) | HIGH | LOW | P1 |
+| Zip prefix fallback | HIGH | LOW | P1 |
+| Tiger county disambiguation (restrict_region) | HIGH | LOW | P1 |
+| pg_trgm fuzzy street matching + GIN index | HIGH | MEDIUM | P1 |
+| Soundex/Double Metaphone phonetic fallback | MEDIUM | LOW | P1 |
+| Cross-provider consensus scoring | HIGH | MEDIUM | P1 |
+| Auto-set official geocode from consensus | HIGH | MEDIUM | P1 |
+| Spell correction (symspellpy + domain dict) | HIGH | MEDIUM | P1 |
+| Pipeline stage telemetry | MEDIUM | LOW | P1 |
+| Local LLM sidecar (Ollama) | MEDIUM | HIGH | P2 |
+| Per-provider weight tuning | LOW | LOW | P2 |
+| ML-based confidence scoring | MEDIUM | HIGH | P3 |
 
 **Priority key:**
-- P1: Required for v1.1 milestone
-- P2: Enhances production readiness; add post-milestone
-- P3: Future consideration; defer until need is demonstrated
+- P1: Required for v1.2 milestone
+- P2: Add after validation once failure-rate data available
+- P3: Future consideration; defer until need demonstrated
 
 ---
 
-## Provider Behavior Reference
+## Capability Deep Dives
 
-### location_type Mapping
+### Fuzzy Address Matching: What "Good" Looks Like
 
-| Provider | Source Field | Value | location_type |
-|----------|-------------|-------|---------------|
-| OpenAddresses | `accuracy` | `"rooftop"` | `ROOFTOP` |
-| OpenAddresses | `accuracy` | `"parcel"` | `GEOMETRIC_CENTER` |
-| OpenAddresses | `accuracy` | `"interpolated"` | `RANGE_INTERPOLATED` |
-| OpenAddresses | `accuracy` | `""` or `"centroid"` | `GEOMETRIC_CENTER` |
-| NAD | `Placement` | `"Structure - Rooftop"` or `"Structure - Entrance"` | `ROOFTOP` |
-| NAD | `Placement` | `"Parcel - Centroid"` or `"Parcel - Other"` | `GEOMETRIC_CENTER` |
-| NAD | `Placement` | `"Linear Geocode"` or `"Property Access"` | `RANGE_INTERPOLATED` |
-| NAD | `Placement` | `"Unknown"` or `""` | `APPROXIMATE` |
-| Tiger | `rating` | `0` | `ROOFTOP` |
-| Tiger | `rating` | `1–30` | `RANGE_INTERPOLATED` |
-| Tiger | `rating` | `>30` | `APPROXIMATE` |
+**What works at the DB layer:**
 
-### confidence Mapping
+pg_trgm similarity threshold of **0.65–0.70** is the right range for US street names. The default (0.3) is too permissive and will match unrelated streets. 0.80+ is too strict and misses real typos. The sweet spot for multi-word street names (where trigrams accumulate quickly) is 0.70. For short single-token names (Oak, Elm), drop to 0.65.
 
-| Provider | Condition | confidence |
-|----------|-----------|------------|
-| OpenAddresses | Found, accuracy = "rooftop" | 0.95 |
-| OpenAddresses | Found, accuracy other | 0.85 |
-| OpenAddresses | Not found | 0.0 |
-| NAD | Found, Placement = Structure | 0.95 |
-| NAD | Found, Placement = Parcel | 0.85 |
-| NAD | Found, Placement = Unknown/empty | 0.75 |
-| NAD | Not found | 0.0 |
-| Tiger | Found | `max(0.0, 1.0 - rating / 100.0)` |
-| Tiger | Not found | 0.0 |
+**Combine trigram + phonetic:** Use trigram similarity as primary filter (`similarity(street, :input) > 0.65`), then rank results using Double Metaphone agreement as a tiebreaker. This handles both character-level typos ("Northminstr") and phonetic substitutions ("Mane St" → "Main St").
 
-### delivery_point_verified
+**GIN vs GiST index:** Use GIN for static data (OA, NAD — loaded once, rarely updated). GIN is faster for read-heavy workloads. GiST is better for frequently updated tables and smaller index size. At NAD scale (80M rows), GIN build time is significant (30–60 min) but query performance is milliseconds.
 
-All three local providers: **always False**.
-- OpenAddresses: community-collected address points; no USPS DPV
-- NAD: E911/transportation authority address points; no USPS DPV
-- Tiger: TIGER/LINE street range interpolation; no USPS DPV
+**Threshold tuning approach:** Run the pipeline against known-bad inputs from the E2E test cases; adjust threshold per provider if needed. Lower threshold is acceptable for NAD (80M rows, high coverage) than for OA (county-level file, lower coverage). Emit `resolution_stage=fuzzy_trgm` and `similarity_score` in telemetry to measure.
 
-For USPS DPV confirmation, the USPS Address Information API or a provider like SmartyStreets is required. That is a v2+ concern per PROJECT.md.
+**What "good" looks like:** Fuzzy matching resolves "Northminstr Dr" → "Northminster Dr" with a score of ~0.76. It does NOT resolve "Oak St" → "Elm St" (score ~0.14 — correctly rejected). It does NOT resolve street numbers — number matching remains exact; only the street name token is fuzzy-matched.
 
-### No-Cache Pipeline
+---
 
-Local providers bypass the standard GeocodingService write path:
-1. Input normalized via scourgify
-2. Provider queried directly (OA dict/file, NAD PostGIS table, Tiger SQL function)
-3. GeocodingResult returned to caller
-4. No `Address` row created or looked up
-5. No `provider_results` write
-6. No `OfficialGeocoding` set
+### Spell Correction: What "Good" Looks Like
 
-This satisfies the "direct-return pipeline" requirement in PROJECT.md Active requirements.
+**Why general spell checkers fail for addresses:**
+
+pyspellchecker and TextBlob use general English word frequency. Street names like "Northminster", "Napier", "Shurling", "Zebulon" are rare in English corpora and will be "corrected" to random common words. This produces wrong results that are harder to detect than no result.
+
+**The right approach — symspellpy with domain dictionary:**
+
+1. Extract all unique street name tokens from the loaded OA and NAD PostGIS tables (post-import).
+2. Build a frequency dictionary: term → count (use actual occurrence count from the dataset).
+3. Load this dictionary into symspellpy instead of the default English dictionary.
+4. Max edit distance = 2 (covers single transpositions and common typos; distance 3 produces too many false positives).
+5. Only apply spell correction to the **street name token**, not the full address string. House numbers, unit designators, ZIP codes, and state abbreviations must not be spell-corrected.
+
+**What "good" looks like:** "Northminstr Dr" → spell correction unchanged (trigrams handle this better than edit distance); "Rosevelt Ave" → "Roosevelt Ave" (edit distance 2, present in corpus). "123 Mane St Macon GA 31204" → spell corrects "Mane" to "Main" (if Main St exists in corpus) but does not touch "123", "Macon", "GA", or "31204".
+
+**What "good" does NOT look like:** Correcting city names, correcting state abbreviations, correcting cardinal directions (N/S/E/W), correcting house numbers with alpha suffixes ("123A" stays "123A").
+
+---
+
+### LLM Address Correction: What "Good" Looks Like
+
+**When to invoke:**
+
+LLM is a last-resort fallback. Only invoke after: (1) input normalization, (2) spell correction, (3) exact match across all providers, and (4) fuzzy match — all fail to produce a result with confidence ≥ 0.40. In practice, this is pathological input like transposed components ("Macon GA 1234 Northminster Dr") or incomplete addresses ("1234 Northminster, 31204").
+
+**Prompting pattern (verified working with Ollama structured output):**
+
+```
+System: You are an address parser for US postal addresses in Macon-Bibb County, Georgia.
+        Extract the components from malformed or incomplete address input.
+        Return only what you can determine with confidence; use null for fields you cannot determine.
+
+User: Parse this address: "{raw_input}"
+
+Schema: {
+  "house_number": "string or null",
+  "street_name": "string or null",
+  "street_suffix": "string or null",
+  "unit": "string or null",
+  "city": "string or null",
+  "state": "string or null",
+  "zip_code": "string or null"
+}
+```
+
+Few-shot examples in system prompt improve accuracy significantly. Include 2–3 examples of bad input → correct structured output.
+
+**What "good" looks like:** Given "1234 Northminster, Bibb County GA 31204", the LLM returns `{"house_number": "1234", "street_name": "Northminster", "street_suffix": null, "city": "Macon", "state": "GA", "zip_code": "31204"}`. The returned partial address is then fed back into the pipeline for a new exact/fuzzy match pass.
+
+**What "good" does NOT look like:** The LLM inventing a street that doesn't exist in the corpus ("Northminster Drive" when the correct address is "Northminster Boulevard"), or returning coordinates directly (LLMs are unreliable for this). The LLM's job is **address component extraction and completion**, not geocoding.
+
+**Infrastructure note:** Ollama structured output requires `format` parameter set to the JSON schema. Pydantic `model_json_schema()` produces a compatible schema. Use `temperature=0` for determinism. Implement a 3-second timeout; treat timeout as LLM-unavailable and skip stage.
+
+---
+
+### Consensus Scoring: What "Good" Looks Like
+
+**The Tiger-50-miles-off problem:**
+
+Tiger geocodes without a county restriction can return a result in an adjacent county or state that happens to have a street with the same name. The result is geometrically far from the expected location (often 30–80 miles). Cross-provider consensus scoring should detect and down-weight this.
+
+**Cluster-based approach (not averaging):**
+
+1. Collect all provider results with confidence > 0.0.
+2. Group results by spatial cluster: results within 100m of each other form a cluster.
+3. The winning cluster is the one with the highest aggregate weight (sum of per-provider weights).
+4. Results outside the winning cluster are flagged as outliers.
+5. The consensus result is the centroid of the winning cluster (not the arithmetic mean of all results).
+
+**Provider weights (starting values — tune with telemetry):**
+
+| Provider | Weight | Rationale |
+|----------|--------|-----------|
+| Macon-Bibb GIS | 1.0 | Authoritative local source; highest trust |
+| OpenAddresses | 0.9 | Community-collected rooftop points; high accuracy |
+| NAD | 0.85 | E911 source data; reliable but placement varies |
+| Census Geocoder | 0.80 | Interpolated; accurate but not rooftop |
+| Tiger (restricted) | 0.75 | PostGIS Tiger with restrict_region applied |
+| Tiger (unrestricted) | 0.40 | Unrestricted Tiger; outlier candidate |
+
+**Confidence output:**
+
+```
+consensus_confidence = (winning_cluster_weight_sum / total_weight_sum) × max_cluster_confidence
+```
+
+If winning cluster has weight 2.65 (OA + NAD + Census) out of total 3.25 (all providers), consensus confidence = 0.815 × 0.95 (OA confidence) ≈ 0.77.
+
+**What "good" looks like:** Three providers agree within 100m → high consensus confidence → auto-set OfficialGeocoding. Tiger returns a point 55 miles away → outlier flagged → Tiger excluded from consensus → pipeline warns in logs but still produces a good result from the agreeing providers.
+
+**What "good" does NOT look like:** A single provider result with confidence=0.95 being treated as consensus. Single-provider results must be marked as `consensus_method=single_provider` and only auto-set official if confidence ≥ 0.90 and provider is a rooftop-accuracy source.
+
+---
+
+### Cascading Pipeline: What Ordering Matters
+
+**The correct ordering:**
+
+```
+Stage 1: Input normalization
+  - Lowercase, strip punctuation, expand USPS suffix abbreviations
+  - Canonicalize state to 2-letter; zero-pad zip to 5 digits
+  - EXIT if address is structurally unparseable (return validation error)
+
+Stage 2: Zip prefix recovery
+  - If zip < 5 digits, try prefix match
+  - Mutate the parsed address zip before further stages
+
+Stage 3: Spell correction (symspellpy, domain dictionary)
+  - Only on street name token
+  - Store original; record correction applied
+  - CONTINUE with corrected form; keep original as fallback
+
+Stage 4: Exact match across all providers
+  - Dispatch in priority order: Macon-Bibb → OA → NAD → Census → Tiger(restricted)
+  - Collect ALL results that return confidence > 0.0
+  - If 2+ providers agree within 100m → run consensus scoring → EXIT with result
+  - If 1 provider returns confidence ≥ 0.90 (rooftop source) → EXIT with result
+
+Stage 5: Fuzzy match (pg_trgm similarity on street name)
+  - Run against OA and NAD PostGIS tables (they support SQL-level fuzzy)
+  - threshold = 0.70 for multi-word streets, 0.65 for single-word
+  - Collect candidates; re-run consensus scoring
+  - If consensus passes threshold → EXIT with result
+
+Stage 6: Phonetic fallback (Double Metaphone)
+  - Combine with trigram: dmetaphone agreement breaks ties between trigram candidates
+  - Run against OA and NAD PostGIS tables
+  - Collect candidates; re-run consensus scoring
+  - If consensus passes threshold → EXIT with result
+
+Stage 7: LLM address correction (optional, if Ollama available)
+  - Only if stages 1–6 produced no result with confidence ≥ 0.40
+  - LLM returns corrected address components
+  - Feed corrected components back into stages 4–6
+  - Record resolution_stage = "llm_correction"
+
+Stage 8: Final scoring and auto-set
+  - Best available result from highest-confidence stage
+  - If confidence ≥ threshold AND meets provider agreement rule → auto-set OfficialGeocoding
+  - Otherwise → return result without auto-setting (admin action required)
+  - Always return best available result; never return empty when a partial result exists
+```
+
+**Why this order:**
+
+- Normalization first eliminates the largest class of mismatches (suffix mismatch, case) before any DB query.
+- Spell correction before DB dispatch means the DB sees a cleaner string; avoids needing fuzzy indexes on all providers.
+- Exact match before fuzzy: exact is fast (indexed B-tree); fuzzy scan is more expensive even with GIN index. Try cheap paths first.
+- Tiger restricted comes before Tiger unrestricted — always; the unrestricted call is purely a fallback.
+- LLM last: highest latency, highest infrastructure dependency; only justified when all deterministic methods fail.
+- Consensus scoring at each exit point, not just the end: early consensus detection enables early exit, which is critical for batch throughput.
 
 ---
 
 ## Sources
 
-- OpenAddresses schema: [openaddresses/openaddresses schema/layers/address_conform.json](https://github.com/openaddresses/openaddresses/blob/master/schema/layers/address_conform.json)
-- PostGIS Geocode function: [postgis.net/docs/Geocode.html](https://postgis.net/docs/Geocode.html)
-- PostGIS Normalize_Address: [postgis.net/docs/Normalize_Address.html](https://postgis.net/docs/Normalize_Address.html)
-- PostGIS Extras (Tiger geocoder overview): [postgis.net/docs/Extras.html](https://postgis.net/docs/Extras.html)
-- NAD schema documentation: [transportation.gov — NAD Schema April 2023](https://www.transportation.gov/sites/dot.gov/files/2023-07/NAD_Schema_202304.pdf)
-- RustProof Labs Tiger setup guide: [blog.rustprooflabs.com/2023/10/geocode-with-postgis-setup](https://blog.rustprooflabs.com/2023/10/geocode-with-postgis-setup)
-- Data schema verified directly from on-disk files:
-  - `data/US_GA_Bibb_Addresses_2026-03-20.geojson.gz` (OpenAddresses newline-delimited GeoJSON)
-  - `data/NAD_r21_TXT.zip` → `TXT/NAD_r21.txt` and `TXT/schema.ini` (60 columns, field types, sample rows)
-  - `data/collection-us-south.zip` (3,054 files; path/naming pattern; meta format)
-  - NAD field domain values sampled from first 500,000 rows of NAD_r21.txt
+- PostgreSQL pg_trgm official docs: [postgresql.org/docs/current/pgtrgm.html](https://www.postgresql.org/docs/current/pgtrgm.html)
+- PostgreSQL fuzzystrmatch (Soundex/Metaphone): [postgresql.org/docs/current/fuzzystrmatch.html](https://www.postgresql.org/docs/current/fuzzystrmatch.html)
+- Neon pg_trgm extension guide: [neon.com/docs/extensions/pg_trgm](https://neon.com/docs/extensions/pg_trgm)
+- symspellpy (Python SymSpell port): [pypi.org/project/symspellpy](https://pypi.org/project/symspellpy/)
+- libpostal address normalization reference: [github.com/openvenues/libpostal](https://github.com/openvenues/libpostal)
+- Ollama structured outputs (v0.5+): [docs.ollama.com/capabilities/structured-outputs](https://docs.ollama.com/capabilities/structured-outputs)
+- Ollama structured outputs blog: [ollama.com/blog/structured-outputs](https://ollama.com/blog/structured-outputs)
+- Multi-provider geocoding optimization (POI-constrained): [tandfonline.com/doi/full/10.1080/17538947.2025.2578735](https://www.tandfonline.com/doi/full/10.1080/17538947.2025.2578735)
+- EarthDaily Geocoding Consensus Algorithm: [earthdaily.com/blog/geocoding-consensus-algorithm](https://earthdaily.com/blog/geocoding-consensus-algorithm-a-foundation-for-accurate-risk-assessment)
+- Geocoding systematic review (2025): [arxiv.org/pdf/2503.18888](https://arxiv.org/pdf/2503.18888)
+- PostGIS geocode() function (restrict_region): [postgis.net/docs/Geocode.html](https://postgis.net/docs/Geocode.html)
+- Crunchydata address matching with libpostal: [crunchydata.com/blog/quick-and-dirty-address-matching-with-libpostal](https://www.crunchydata.com/blog/quick-and-dirty-address-matching-with-libpostal)
+- Incognia messy address pipeline: [medium.com/incognia-tech/handling-messy-address-data](https://medium.com/incognia-tech/handling-messy-address-data-4d51bbb7e8e3)
+- Cascading geocoding success rates: [coordable.co — Geocoding Orchestrator](https://coordable.co/)
+- Address normalization state of the field: [medium.com/@albamus/the-state-of-address-normalisation](https://medium.com/@albamus/the-state-of-address-normalisation-9c41a20a638a)
 
 ---
 
-*Feature research for: local geocoding data source providers (OpenAddresses, NAD, PostGIS Tiger/LINE)*
-*Researched: 2026-03-20*
+*Feature research for: cascading address resolution pipeline (v1.2)*
+*Researched: 2026-03-29*
