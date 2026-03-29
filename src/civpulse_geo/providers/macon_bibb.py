@@ -70,12 +70,14 @@ async def _find_macon_bibb_match(
     street_number: str,
     street_name: str,
     postal_code: str,
+    street_suffix: str | None = None,
 ) -> tuple[MaconBibbPoint, float, float] | None:
     """Query macon_bibb_points for a matching row plus lat/lng coordinates.
 
     Returns a tuple of (MaconBibbPoint row, lat, lng) or None if no match.
     Lat/lng are extracted in the same query via PostGIS ST_Y/ST_X to avoid a
     second round-trip. Matches on street_number, upper-cased street_name, and zip_code.
+    When street_suffix is provided, it is included in the WHERE clause (D-07).
     """
     stmt = (
         select(
@@ -87,6 +89,12 @@ async def _find_macon_bibb_match(
             MaconBibbPoint.street_number == street_number,
             func.upper(MaconBibbPoint.street_name) == street_name.upper(),
             MaconBibbPoint.zip_code == postal_code,
+            # D-07: include suffix when available; fall back to name-only if suffix is NULL
+            *(
+                [func.upper(MaconBibbPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
         )
         .order_by(MaconBibbPoint.id)
         .limit(1)
@@ -100,12 +108,14 @@ async def _find_macon_bibb_fuzzy_match(
     street_number: str,
     street_name: str,
     postal_code: str,
+    street_suffix: str | None = None,
 ) -> tuple[MaconBibbPoint, float, float] | None:
     """Fuzzy fallback: find the nearest address on the same street and ZIP.
 
     Drops the exact street_number match and instead orders by numeric distance
     from the target address number. Only returns a match if the nearest row is
-    within FUZZY_MAX_DISTANCE address numbers.
+    within FUZZY_MAX_DISTANCE address numbers. When street_suffix is provided,
+    it is included in the WHERE clause (D-07).
 
     Returns (MaconBibbPoint, lat, lng) or None.
     """
@@ -124,6 +134,12 @@ async def _find_macon_bibb_fuzzy_match(
             func.upper(MaconBibbPoint.street_name) == street_name.upper(),
             MaconBibbPoint.zip_code == postal_code,
             MaconBibbPoint.street_number.op("~")(r"^\d+$"),
+            # D-07: include suffix when available
+            *(
+                [func.upper(MaconBibbPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
         )
         .order_by(
             func.abs(
@@ -148,6 +164,45 @@ async def _find_macon_bibb_fuzzy_match(
         return None
 
     return row_tuple
+
+
+async def _find_macon_bibb_zip_prefix_match(
+    session: AsyncSession,
+    street_number: str,
+    street_name: str,
+    zip_prefix: str,
+    street_suffix: str | None = None,
+) -> tuple[MaconBibbPoint, float, float] | None:
+    """ZIP prefix fallback: find a match using a LIKE prefix on zip_code (D-04/D-06).
+
+    Used when the input postal_code is fewer than 5 digits (truncated ZIP). Queries
+    with zip_code LIKE '{zip_prefix}%' and orders results lexicographically so that
+    adjacent ZIP codes are returned first.
+
+    Returns (MaconBibbPoint, lat, lng) or None.
+    """
+    stmt = (
+        select(
+            MaconBibbPoint,
+            func.ST_Y(MaconBibbPoint.location.cast(Geometry)).label("lat"),
+            func.ST_X(MaconBibbPoint.location.cast(Geometry)).label("lng"),
+        )
+        .where(
+            MaconBibbPoint.street_number == street_number,
+            func.upper(MaconBibbPoint.street_name) == street_name.upper(),
+            MaconBibbPoint.zip_code.like(f"{zip_prefix}%"),
+            # D-07: include suffix when available
+            *(
+                [func.upper(MaconBibbPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
+        )
+        .order_by(MaconBibbPoint.zip_code.asc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return result.first()
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +247,7 @@ class MaconBibbGeocodingProvider(GeocodingProvider):
         Raises:
             ProviderError: On SQLAlchemy database error.
         """
-        street_number, street_name, postal_code = _parse_input_address(address)
+        street_number, street_name, postal_code, street_suffix, street_directional = _parse_input_address(address)
 
         # If parsing failed, return NO_MATCH immediately (no DB query needed)
         if street_number is None or street_name is None or postal_code is None:
@@ -208,14 +263,25 @@ class MaconBibbGeocodingProvider(GeocodingProvider):
         try:
             async with self._session_factory() as session:
                 row_tuple = await _find_macon_bibb_match(
-                    session, street_number, street_name, postal_code
+                    session, street_number, street_name, postal_code, street_suffix
                 )
                 fuzzy = False
                 if row_tuple is None:
                     row_tuple = await _find_macon_bibb_fuzzy_match(
-                        session, street_number, street_name, postal_code
+                        session, street_number, street_name, postal_code, street_suffix
                     )
                     fuzzy = True
+                # FIX-02: ZIP prefix fallback for truncated zips
+                if row_tuple is None and len(postal_code) < 5:
+                    row_tuple = await _find_macon_bibb_zip_prefix_match(
+                        session, street_number, street_name,
+                        postal_code[:4] if len(postal_code) >= 4 else postal_code,
+                        street_suffix,
+                    )
+                    if row_tuple is None and len(postal_code) >= 3:
+                        row_tuple = await _find_macon_bibb_zip_prefix_match(
+                            session, street_number, street_name, postal_code[:3], street_suffix
+                        )
         except SQLAlchemyError as e:
             raise ProviderError(f"Macon-Bibb query failed: {e}") from e
 
@@ -326,7 +392,7 @@ class MaconBibbValidationProvider(ValidationProvider):
         Raises:
             ProviderError: On SQLAlchemy database error.
         """
-        street_number, street_name, postal_code = _parse_input_address(address)
+        street_number, street_name, postal_code, street_suffix, street_directional = _parse_input_address(address)
 
         no_match_result = ValidationResult(
             normalized_address="",
@@ -347,8 +413,19 @@ class MaconBibbValidationProvider(ValidationProvider):
         try:
             async with self._session_factory() as session:
                 row_tuple = await _find_macon_bibb_match(
-                    session, street_number, street_name, postal_code
+                    session, street_number, street_name, postal_code, street_suffix
                 )
+                # FIX-02: ZIP prefix fallback for truncated zips
+                if row_tuple is None and len(postal_code) < 5:
+                    row_tuple = await _find_macon_bibb_zip_prefix_match(
+                        session, street_number, street_name,
+                        postal_code[:4] if len(postal_code) >= 4 else postal_code,
+                        street_suffix,
+                    )
+                    if row_tuple is None and len(postal_code) >= 3:
+                        row_tuple = await _find_macon_bibb_zip_prefix_match(
+                            session, street_number, street_name, postal_code[:3], street_suffix
+                        )
         except SQLAlchemyError as e:
             raise ProviderError(f"Macon-Bibb query failed: {e}") from e
 
