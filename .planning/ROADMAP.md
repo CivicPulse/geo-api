@@ -108,7 +108,7 @@ Plans:
 
 Plans:
 - [x] 15-01-PLAN.md — LLMAddressCorrector service, AddressCorrection model, guardrails, and config settings
-- [ ] 15-02-PLAN.md — Cascade stage 4 integration, GeocodingService threading, API routes, and startup wiring
+- [x] 15-02-PLAN.md — Cascade stage 4 integration, GeocodingService threading, API routes, and startup wiring
 - [x] 15-03-PLAN.md — Docker Compose Ollama service and K8s manifests for production deployment
 
 ## Progress
@@ -129,4 +129,4 @@ Plans:
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete    | 2026-03-29 |
-| 15. LLM Sidecar | v1.2 | 2/3 | In Progress|  |
+| 15. LLM Sidecar | v1.2 | 3/3 | Complete   | 2026-03-29 |
