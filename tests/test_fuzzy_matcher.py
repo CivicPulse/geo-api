@@ -21,33 +21,63 @@ from unittest.mock import AsyncMock, MagicMock
 # Helper factories
 # ---------------------------------------------------------------------------
 
-def _make_row(street_name, street_number, city, zip_code, lat, lng, score, source):
-    """Build a mock row that looks like a SQLAlchemy Row result."""
-    row = MagicMock()
-    row.street_name = street_name
-    row.street_number = street_number
-    row.city = city
-    row.zip_code = zip_code
-    row.lat = lat
-    row.lng = lng
-    row.score = score
-    row.source = source
-    return row
+def _make_mapping(street_name, street_number, city, zip_code, lat, lng, score, source):
+    """Build a mock mapping dict-like object for UNION ALL row."""
+    mapping = MagicMock()
+    mapping.__getitem__ = lambda self, key: {
+        "street_name": street_name,
+        "street_number": street_number,
+        "city": city,
+        "zip_code": zip_code,
+        "lat": lat,
+        "lng": lng,
+        "score": score,
+        "source": source,
+    }[key]
+    mapping.get = lambda key, default=None: {
+        "street_name": street_name,
+        "street_number": street_number,
+        "city": city,
+        "zip_code": zip_code,
+        "lat": lat,
+        "lng": lng,
+        "score": score,
+        "source": source,
+    }.get(key, default)
+    return mapping
 
 
-def _make_session_factory(rows):
-    """Return an async_sessionmaker mock whose sessions return `rows` from execute()."""
-    mock_result = MagicMock()
-    mock_result.mappings.return_value.all.return_value = rows
+def _make_session_factory(rows, tiebreak_rows=None):
+    """Return an async_sessionmaker mock.
 
-    mock_session = AsyncMock()
-    mock_session.execute = AsyncMock(return_value=mock_result)
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
+    First session call returns `rows` (main UNION ALL query).
+    If tiebreak_rows is given, second session call returns those (dmetaphone tiebreak).
+    """
+    call_count = [0]
 
-    mock_factory = MagicMock()
-    mock_factory.return_value = mock_session
-    return mock_factory, mock_session
+    def make_mock_session():
+        idx = call_count[0]
+        call_count[0] += 1
+
+        if idx == 0 or tiebreak_rows is None:
+            result_rows = rows
+        else:
+            result_rows = tiebreak_rows
+
+        mock_result = MagicMock()
+        mock_result.mappings.return_value.all.return_value = result_rows
+        mock_result.mappings.return_value.first.return_value = (
+            result_rows[0] if result_rows else None
+        )
+
+        mock_session = AsyncMock()
+        mock_session.execute = AsyncMock(return_value=mock_result)
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        return mock_session
+
+    mock_factory = MagicMock(side_effect=make_mock_session)
+    return mock_factory
 
 
 # ---------------------------------------------------------------------------
@@ -100,8 +130,8 @@ class TestFindFuzzyMatchBasic:
         """Returns FuzzyMatchResult when best candidate is above 0.65 threshold."""
         from civpulse_geo.services.fuzzy import FuzzyMatcher, FuzzyMatchResult
 
-        row = _make_row("MERCER", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses")
-        factory, session = _make_session_factory([row])
+        row = _make_mapping("MERCER", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses")
+        factory = _make_session_factory([row])
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("MRCCER", zip_code="31201")
@@ -118,7 +148,7 @@ class TestFindFuzzyMatchBasic:
         """Returns None when no candidate meets 0.65 threshold (empty result set)."""
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
-        factory, session = _make_session_factory([])
+        factory = _make_session_factory([])
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("XYZQWK", zip_code="31201")
@@ -131,10 +161,10 @@ class TestFindFuzzyMatchBasic:
         from civpulse_geo.services.fuzzy import FuzzyMatcher, FuzzyMatchResult
 
         rows = [
-            _make_row("MERCER", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses"),
-            _make_row("MILLER", "200", "MACON", "31201", 32.85, -83.64, 0.70, "nad"),
+            _make_mapping("MERCER", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses"),
+            _make_mapping("MILLER", "200", "MACON", "31201", 32.85, -83.64, 0.70, "nad"),
         ]
-        factory, session = _make_session_factory(rows)
+        factory = _make_session_factory(rows)
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("MRCCER", zip_code="31201")
@@ -150,8 +180,8 @@ class TestFindFuzzyMatchBasic:
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
         for score in [0.65, 0.75, 0.85, 0.95, 1.0]:
-            row = _make_row("MERCER", "100", "MACON", "31201", 32.84, -83.63, score, "openaddresses")
-            factory, session = _make_session_factory([row])
+            row = _make_mapping("MERCER", "100", "MACON", "31201", 32.84, -83.63, score, "openaddresses")
+            factory = _make_session_factory([row])
             matcher = FuzzyMatcher(factory)
             result = await matcher.find_fuzzy_match("MRCCER")
             assert result is not None
@@ -173,10 +203,10 @@ class TestFindFuzzyMatchTiebreaker:
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
         rows = [
-            _make_row("MERCER", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses"),
-            _make_row("MILLER", "200", "MACON", "31201", 32.85, -83.64, 0.70, "nad"),
+            _make_mapping("MERCER", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses"),
+            _make_mapping("MILLER", "200", "MACON", "31201", 32.85, -83.64, 0.70, "nad"),
         ]
-        factory, session = _make_session_factory(rows)
+        factory = _make_session_factory(rows)
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("MRCCER", zip_code="31201")
@@ -189,21 +219,23 @@ class TestFindFuzzyMatchTiebreaker:
     async def test_dmetaphone_tiebreak_picks_phonetic_match(self):
         """When candidates within 0.05, dmetaphone picks phonetically closest (D-12).
 
-        Input "FORSITH" is phonetically close to "FORSYTH" (FRSX) rather than
-        "FORSYTT" (FRST). Both candidates are within 0.05 of each other.
+        Mock the tiebreak session to return FORSYTH as the dmetaphone winner.
         """
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
+        # Main query: two candidates within 0.05 (0.80 vs 0.78)
         rows = [
-            _make_row("FORSYTH", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses"),
-            _make_row("FORSYTT", "200", "MACON", "31201", 32.85, -83.64, 0.78, "nad"),
+            _make_mapping("FORSYTH", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses"),
+            _make_mapping("FORSYTT", "200", "MACON", "31201", 32.85, -83.64, 0.78, "nad"),
         ]
-        factory, session = _make_session_factory(rows)
+
+        # Tiebreak query returns FORSYTH as the phonetically closest
+        tiebreak_row = _make_mapping("FORSYTH", "100", "MACON", "31201", 32.84, -83.63, 0.80, "openaddresses")
+        factory = _make_session_factory(rows, tiebreak_rows=[tiebreak_row])
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("FORSITH", zip_code="31201")
 
-        # FORSYTH should win — phonetically closer to FORSITH
         assert result is not None
         assert result.street_name == "FORSYTH"
 
@@ -212,8 +244,8 @@ class TestFindFuzzyMatchTiebreaker:
         """Single candidate above threshold wins immediately (no tiebreak needed)."""
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
-        row = _make_row("POPLAR", "100", "MACON", "31201", 32.84, -83.63, 0.95, "openaddresses")
-        factory, session = _make_session_factory([row])
+        row = _make_mapping("POPLAR", "100", "MACON", "31201", 32.84, -83.63, 0.95, "openaddresses")
+        factory = _make_session_factory([row])
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("POPLR", zip_code="31201")
@@ -258,8 +290,7 @@ class TestFindFuzzyMatchAllTables:
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
 
-        mock_factory = MagicMock()
-        mock_factory.return_value = mock_session
+        mock_factory = MagicMock(return_value=mock_session)
 
         matcher = FuzzyMatcher(mock_factory)
         await matcher.find_fuzzy_match("MRCCER", zip_code="31201")
@@ -275,8 +306,8 @@ class TestFindFuzzyMatchAllTables:
         """FuzzyMatcher can return a result sourced from nad (source='nad')."""
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
-        row = _make_row("WALNUT", "500", "MACON", "31201", 32.85, -83.65, 0.90, "nad")
-        factory, session = _make_session_factory([row])
+        row = _make_mapping("WALNUT", "500", "MACON", "31201", 32.85, -83.65, 0.90, "nad")
+        factory = _make_session_factory([row])
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("WALNIT", zip_code="31201")
@@ -290,8 +321,8 @@ class TestFindFuzzyMatchAllTables:
         """FuzzyMatcher can return a result sourced from macon_bibb."""
         from civpulse_geo.services.fuzzy import FuzzyMatcher
 
-        row = _make_row("VINEVILLE", "300", "MACON", "31204", 32.87, -83.66, 0.85, "macon_bibb")
-        factory, session = _make_session_factory([row])
+        row = _make_mapping("VINEVILLE", "300", "MACON", "31204", 32.87, -83.66, 0.85, "macon_bibb")
+        factory = _make_session_factory([row])
 
         matcher = FuzzyMatcher(factory)
         result = await matcher.find_fuzzy_match("VINVELLE", zip_code="31204")
