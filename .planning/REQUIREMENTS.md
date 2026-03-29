@@ -16,9 +16,9 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 
 ### Spell Correction
 
-- [ ] **SPELL-01**: Address input is spell-corrected via symspellpy before scourgify normalization, scoped to the street name token only (house numbers, zips, and state abbreviations are excluded)
-- [ ] **SPELL-02**: Spell correction dictionary is built from NAD, OA, and Macon-Bibb staging table street names, supplemented with Tiger `featnames` where available
-- [ ] **SPELL-03**: Dictionary auto-rebuilds when `load-oa`, `load-nad`, or `gis import` CLI commands complete
+- [x] **SPELL-01**: Address input is spell-corrected via symspellpy before scourgify normalization, scoped to the street name token only (house numbers, zips, and state abbreviations are excluded)
+- [x] **SPELL-02**: Spell correction dictionary is built from NAD, OA, and Macon-Bibb staging table street names, supplemented with Tiger `featnames` where available
+- [x] **SPELL-03**: Dictionary auto-rebuilds when `load-oa`, `load-nad`, or `gis import` CLI commands complete
 
 ### Fuzzy Matching
 
@@ -85,9 +85,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FIX-03 | Phase 12 | Complete |
 | FIX-04 | Phase 12 | Complete |
 | FUZZ-01 | Phase 12 | Complete |
-| SPELL-01 | Phase 13 | Pending |
-| SPELL-02 | Phase 13 | Pending |
-| SPELL-03 | Phase 13 | Pending |
+| SPELL-01 | Phase 13 | Complete |
+| SPELL-02 | Phase 13 | Complete |
+| SPELL-03 | Phase 13 | Complete |
 | FUZZ-02 | Phase 13 | Pending |
 | FUZZ-03 | Phase 13 | Pending |
 | FUZZ-04 | Phase 13 | Pending |

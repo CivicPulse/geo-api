@@ -73,7 +73,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 13-01-PLAN.md — SpellCorrector with symspellpy, spell_dictionary table, rebuild hooks, and startup loading
+- [x] 13-01-PLAN.md — SpellCorrector with symspellpy, spell_dictionary table, rebuild hooks, and startup loading
 - [ ] 13-02-PLAN.md — FuzzyMatcher service with word_similarity() + dmetaphone() tiebreaker and 30-address calibration corpus
 
 ### Phase 14: Cascade Orchestrator and Consensus Scoring
@@ -117,6 +117,6 @@ Plans:
 | 10. NAD Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
-| 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 0/2 | Not started | - |
+| 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 1/2 | In Progress|  |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
