@@ -29,6 +29,7 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.orm import selectinload
 
 from civpulse_geo.config import settings
 from civpulse_geo.models.address import Address
@@ -292,6 +293,7 @@ class CascadeOrchestrator:
         # Find or create Address record
         addr_result = await db.execute(
             select(Address)
+            .options(selectinload(Address.geocoding_results))
             .where(Address.address_hash == address_hash)
         )
         address = addr_result.scalars().first()
@@ -333,6 +335,100 @@ class CascadeOrchestrator:
                 "spell_corrected": spell_corrector is not None,
                 "ms": round((time.monotonic() - t_stage) * 1000, 1),
             })
+
+        # ----------------------------------------------------------------
+        # Cache check: skip remote providers if cached results exist (DEBT-02)
+        # Local providers always run fresh (they are never cached).
+        # Mirrors legacy _legacy_geocode() cache-hit pattern.
+        # ----------------------------------------------------------------
+        if address is not None and address.geocoding_results:
+            local_results_cache: list[GeocodingResultSchema] = []
+
+            # Run local providers fresh even on cache hit (per D-05)
+            for p_name, provider in providers.items():
+                if provider.is_local:
+                    try:
+                        _timeout_map = {
+                            "postgis_tiger": settings.tiger_timeout_ms,
+                        }
+                        timeout_ms = _timeout_map.get(p_name, settings.exact_match_timeout_ms)
+                        result = await asyncio.wait_for(
+                            provider.geocode(normalized, http_client=http_client),
+                            timeout=timeout_ms / 1000,
+                        )
+                        if result is not None:
+                            local_results_cache.append(result)
+                    except (asyncio.TimeoutError, Exception) as exc:
+                        logger.warning(
+                            "CascadeOrchestrator: cache-hit local provider {} failed: {}",
+                            p_name, exc,
+                        )
+
+            # Re-run consensus on cached ORM rows (per D-05)
+            # CRITICAL: Capture the return value — the winning cluster determines
+            # would_set_official so provider weight changes take effect retroactively.
+            cached_candidates = [
+                ProviderCandidate(
+                    provider_name=r.provider_name,
+                    lat=r.latitude or 0.0,
+                    lng=r.longitude or 0.0,
+                    confidence=r.confidence or 0.0,
+                    weight=get_provider_weight(r.provider_name),
+                )
+                for r in address.geocoding_results
+                if r.latitude and r.longitude and r.confidence
+            ]
+            # Include local provider results in consensus too
+            for lr in local_results_cache:
+                if lr.confidence and lr.confidence > 0.0:
+                    cached_candidates.append(ProviderCandidate(
+                        provider_name=lr.provider_name or "local",
+                        lat=lr.lat,
+                        lng=lr.lng,
+                        confidence=lr.confidence,
+                        weight=get_provider_weight(lr.provider_name or "local"),
+                        source_result=lr,
+                    ))
+
+            winning_cluster, scored_candidates = run_consensus(cached_candidates)
+
+            # Derive would_set_official from winning cluster (mirrors Stage 6 logic)
+            cache_would_set_official: ProviderCandidate | None = None
+            cache_outlier_providers: set[str] = set()
+            if winning_cluster is not None:
+                cache_outlier_providers = {
+                    c.provider_name for c in scored_candidates if c.is_outlier
+                }
+                # Find the member closest to the weighted centroid (same as Stage 6)
+                best_candidate = min(
+                    winning_cluster.members,
+                    key=lambda m: haversine_m(
+                        m.lat, m.lng,
+                        winning_cluster.centroid_lat, winning_cluster.centroid_lng,
+                    ),
+                )
+                cache_would_set_official = best_candidate
+
+            official_result = await self._get_official(db, address.id)
+            await db.commit()
+
+            cache_ms = round((time.monotonic() - t_total_start) * 1000, 1)
+            logger.debug(
+                "CascadeOrchestrator: cache hit — address_hash={} cached_results={} total_ms={}",
+                address_hash, len(address.geocoding_results), cache_ms,
+            )
+
+            return CascadeResult(
+                address_hash=address_hash,
+                normalized_address=normalized,
+                address=address,
+                cache_hit=True,
+                results=list(address.geocoding_results),
+                local_results=local_results_cache,
+                official=official_result,
+                would_set_official=cache_would_set_official,
+                outlier_providers=cache_outlier_providers,
+            )
 
         # ----------------------------------------------------------------
         # Stage 2: Exact match — all providers in parallel (D-05)
