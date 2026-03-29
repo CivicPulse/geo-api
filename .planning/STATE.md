@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
-status: planning
-stopped_at: Phase 12 context gathered
-last_updated: "2026-03-29T05:39:07.877Z"
-last_activity: 2026-03-29 — v1.2 roadmap created (Phases 12-15)
+status: executing
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-03-29T06:14:02.569Z"
+last_activity: 2026-03-29
 progress:
   total_phases: 4
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 2
+  completed_plans: 1
 ---
 
 # Project State
@@ -20,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** v1.2 Cascading Address Resolution — roadmap defined, ready to plan Phase 12
+**Current focus:** Phase 12 — correctness-fixes-and-db-prerequisites
 
 ## Current Position
 
-Phase: Not started (roadmap ready)
-Plan: —
-Status: Ready to plan Phase 12
-Last activity: 2026-03-29 — v1.2 roadmap created (Phases 12-15)
+Phase: 12 (correctness-fixes-and-db-prerequisites) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
+Last activity: 2026-03-29
 
 ```
 v1.2 Progress: [----------] 0/4 phases
@@ -40,12 +40,16 @@ v1.2 Progress: [----------] 0/4 phases
 | Requirements | 26/26 | 6/6 | 0/25 |
 | Phases | 6 | 5 | 0/4 |
 | Tests | 179 | 379 | - |
+| Phase 12-correctness-fixes-and-db-prerequisites P01 | 470 | 2 tasks | 6 files |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
+
+- [Phase 12-correctness-fixes-and-db-prerequisites]: _parse_input_address 5-tuple: street_suffix and street_directional added at positions 4 and 5; suffix condition uses tuple unpacking in WHERE clause so it is omitted when None
+- [Phase 12-correctness-fixes-and-db-prerequisites]: ZIP prefix ordering uses lexicographic .asc() on zip column rather than integer math; progressive fallback tries 4-digit prefix then 3-digit
 
 ### Phase Ordering Notes
 
@@ -79,6 +83,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Phase 12 context gathered
-Resume file: .planning/phases/12-correctness-fixes-and-db-prerequisites/12-CONTEXT.md
+Stopped at: Completed 12-01-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 12`

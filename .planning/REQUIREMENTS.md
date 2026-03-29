@@ -10,8 +10,8 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 ### Correctness Fixes
 
 - [ ] **FIX-01**: Tiger geocode results are filtered by expected county/city boundary via PostGIS `restrict_region` parameter, discarding wrong-county matches
-- [ ] **FIX-02**: Local providers (OA, Macon-Bibb) fall back to zip prefix matching (`LIKE '3120%'`) when input zip is < 5 digits, instead of exact equality
-- [ ] **FIX-03**: Street name matching includes `street_suffix` in the query to prevent multi-word street names (e.g., "Beaver Falls") from failing when scourgify extracts the suffix token
+- [x] **FIX-02**: Local providers (OA, Macon-Bibb) fall back to zip prefix matching (`LIKE '3120%'`) when input zip is < 5 digits, instead of exact equality
+- [x] **FIX-03**: Street name matching includes `street_suffix` in the query to prevent multi-word street names (e.g., "Beaver Falls") from failing when scourgify extracts the suffix token
 - [ ] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.5 to reflect "structurally parsed but not address-verified" semantics; Tiger validation confidence similarly adjusted
 
 ### Spell Correction
@@ -81,8 +81,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | FIX-01 | Phase 12 | Pending |
-| FIX-02 | Phase 12 | Pending |
-| FIX-03 | Phase 12 | Pending |
+| FIX-02 | Phase 12 | Complete |
+| FIX-03 | Phase 12 | Complete |
 | FIX-04 | Phase 12 | Pending |
 | FUZZ-01 | Phase 12 | Pending |
 | SPELL-01 | Phase 13 | Pending |
