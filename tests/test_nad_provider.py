@@ -149,7 +149,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             result = await provider.geocode("123 Main St, Macon, GA 31201")
 
         assert isinstance(result, GeocodingResult)
@@ -165,7 +165,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("999", "NONEXISTENT ST", "00000")):
+                   return_value=("999", "NONEXISTENT ST", "00000", None, None)):
             result = await provider.geocode("999 Nonexistent St, Nowhere, XX 00000")
 
         assert result.lat == 0.0
@@ -181,7 +181,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(mock_factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=(None, None, None)):
+                   return_value=(None, None, None, None, None)):
             result = await provider.geocode("gibberish address")
 
         assert result.location_type == "NO_MATCH"
@@ -197,7 +197,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             # Must NOT raise TypeError
             result = await provider.geocode(
                 "123 Main St, Macon, GA 31201",
@@ -212,7 +212,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             with pytest.raises(ProviderError, match="NAD query failed"):
                 await provider.geocode("123 Main St, Macon, GA 31201")
 
@@ -231,7 +231,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             result = await provider.geocode("123 Main St, Macon, GA 31201")
 
         assert result.raw_response["source_hash"] == "deadbeef"
@@ -252,7 +252,7 @@ class TestNADGeocodingProvider:
         ]
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             results = await provider.batch_geocode(addresses)
 
         assert len(results) == 2
@@ -266,7 +266,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             result = await provider.geocode("123 Main St, Macon, GA 31201")
 
         location_type, confidence = DEFAULT_PLACEMENT
@@ -281,7 +281,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             result = await provider.geocode("123 Main St, Macon, GA 31201")
 
         location_type, confidence = DEFAULT_PLACEMENT
@@ -296,7 +296,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             result = await provider.geocode("123 Main St, Macon, GA 31201")
 
         location_type, confidence = DEFAULT_PLACEMENT
@@ -311,7 +311,7 @@ class TestNADGeocodingProvider:
         provider = NADGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             result = await provider.geocode("123 Main St, Macon, GA 31201")
 
         location_type, confidence = DEFAULT_PLACEMENT
@@ -355,7 +355,7 @@ class TestNADValidationProvider:
         }
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN", "31201")):
+                   return_value=("123", "MAIN", "31201", None, None)):
             with patch(
                 "civpulse_geo.providers.nad.normalize_address_record",
                 return_value=scourgify_return,
@@ -389,7 +389,7 @@ class TestNADValidationProvider:
         }
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN", "31201")):
+                   return_value=("123", "MAIN", "31201", None, None)):
             with patch(
                 "civpulse_geo.providers.nad.normalize_address_record",
                 return_value=scourgify_return,
@@ -409,7 +409,7 @@ class TestNADValidationProvider:
         provider = NADValidationProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("999", "NONEXISTENT ST", "00000")):
+                   return_value=("999", "NONEXISTENT ST", "00000", None, None)):
             result = await provider.validate("999 Nonexistent St, Nowhere, XX 00000")
 
         assert isinstance(result, ValidationResult)
@@ -423,7 +423,7 @@ class TestNADValidationProvider:
         provider = NADValidationProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=(None, None, None)):
+                   return_value=(None, None, None, None, None)):
             result = await provider.validate("gibberish")
 
         assert result.normalized_address == ""
@@ -444,7 +444,7 @@ class TestNADValidationProvider:
         provider = NADValidationProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN", "31201")):
+                   return_value=("123", "MAIN", "31201", None, None)):
             with patch(
                 "civpulse_geo.providers.nad.normalize_address_record",
                 side_effect=Exception("scourgify failed"),
@@ -464,7 +464,7 @@ class TestNADValidationProvider:
         provider = NADValidationProvider(factory)
 
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=("123", "MAIN ST", "31201")):
+                   return_value=("123", "MAIN ST", "31201", None, None)):
             with pytest.raises(ProviderError, match="NAD query failed"):
                 await provider.validate("123 Main St, Macon, GA 31201")
 
@@ -475,11 +475,46 @@ class TestNADValidationProvider:
 
         addresses = ["addr1", "addr2"]
         with patch("civpulse_geo.providers.nad._parse_input_address",
-                   return_value=(None, None, None)):
+                   return_value=(None, None, None, None, None)):
             results = await provider.batch_validate(addresses)
 
         assert len(results) == 2
         assert all(isinstance(r, ValidationResult) for r in results)
+
+
+# ---------------------------------------------------------------------------
+# NAD zip prefix fallback tests
+# ---------------------------------------------------------------------------
+
+class TestNADZipPrefixFallback:
+
+    @pytest.mark.asyncio
+    async def test_nad_geocode_zip_prefix_fallback(self):
+        """A 4-digit truncated ZIP triggers prefix fallback in NADGeocodingProvider."""
+        row = _make_nad_row(placement="Structure - Rooftop", zip_code="31201")
+        # Calls: exact match → None, fuzzy match → None, 4-digit prefix → match
+        mock_session = AsyncMock()
+        mock_result_none = MagicMock()
+        mock_result_none.first.return_value = None
+        mock_result_match = MagicMock()
+        mock_result_match.first.return_value = _make_query_tuple(row, 32.84, -83.63)
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_result_none, mock_result_none, mock_result_match]
+        )
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        factory = MagicMock(return_value=mock_ctx)
+
+        provider = NADGeocodingProvider(factory)
+
+        with patch("civpulse_geo.providers.nad._parse_input_address",
+                   return_value=("123", "MAIN ST", "3120", None, None)):
+            result = await provider.geocode("123 Main St, Macon, GA 3120")
+
+        assert result.location_type != "NO_MATCH"
+        assert result.lat == pytest.approx(32.84)
+        assert result.provider_name == "national_address_database"
 
 
 # ---------------------------------------------------------------------------

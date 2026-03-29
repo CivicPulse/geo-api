@@ -128,7 +128,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             result = await provider.geocode("489 Northminster Dr, Macon, GA 31204")
 
         assert isinstance(result, GeocodingResult)
@@ -145,7 +145,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             result = await provider.geocode("489 Northminster Dr, Macon, GA 31204")
 
         assert result.location_type == "APPROXIMATE"
@@ -157,7 +157,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("999", "NONEXISTENT", "00000")):
+                   return_value=("999", "NONEXISTENT", "00000", None, None)):
             result = await provider.geocode("999 Nonexistent St, Nowhere, XX 00000")
 
         assert result.lat == 0.0
@@ -173,7 +173,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(mock_factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=(None, None, None)):
+                   return_value=(None, None, None, None, None)):
             result = await provider.geocode("gibberish address")
 
         assert result.location_type == "NO_MATCH"
@@ -188,7 +188,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             result = await provider.geocode(
                 "489 Northminster Dr, Macon, GA 31204",
                 http_client=None,
@@ -202,7 +202,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             with pytest.raises(ProviderError, match="Macon-Bibb query failed"):
                 await provider.geocode("489 Northminster Dr, Macon, GA 31204")
 
@@ -226,7 +226,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("490", "NORTHMINSTER", "31204")):
+                   return_value=("490", "NORTHMINSTER", "31204", None, None)):
             result = await provider.geocode("490 Northminster Dr, Macon, GA 31204")
 
         assert result.confidence == pytest.approx(0.4)  # 0.8 / 2
@@ -240,7 +240,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             result = await provider.geocode("489 Northminster Dr, Macon, GA 31204")
 
         location_type, confidence = DEFAULT_ADDRESS_TYPE
@@ -255,7 +255,7 @@ class TestMaconBibbGeocodingProvider:
         provider = MaconBibbGeocodingProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             result = await provider.geocode("489 Northminster Dr, Macon, GA 31204")
 
         location_type, confidence = DEFAULT_ADDRESS_TYPE
@@ -274,7 +274,7 @@ class TestMaconBibbGeocodingProvider:
         ]
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             results = await provider.batch_geocode(addresses)
 
         assert len(results) == 2
@@ -317,7 +317,7 @@ class TestMaconBibbValidationProvider:
         }
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             with patch(
                 "civpulse_geo.providers.macon_bibb.normalize_address_record",
                 return_value=scourgify_return,
@@ -350,7 +350,7 @@ class TestMaconBibbValidationProvider:
         }
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             with patch(
                 "civpulse_geo.providers.macon_bibb.normalize_address_record",
                 return_value=scourgify_return,
@@ -370,7 +370,7 @@ class TestMaconBibbValidationProvider:
         provider = MaconBibbValidationProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("999", "NONEXISTENT", "00000")):
+                   return_value=("999", "NONEXISTENT", "00000", None, None)):
             result = await provider.validate("999 Nonexistent St, Nowhere, XX 00000")
 
         assert isinstance(result, ValidationResult)
@@ -384,7 +384,7 @@ class TestMaconBibbValidationProvider:
         provider = MaconBibbValidationProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=(None, None, None)):
+                   return_value=(None, None, None, None, None)):
             result = await provider.validate("gibberish")
 
         assert result.normalized_address == ""
@@ -405,7 +405,7 @@ class TestMaconBibbValidationProvider:
         provider = MaconBibbValidationProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             with patch(
                 "civpulse_geo.providers.macon_bibb.normalize_address_record",
                 side_effect=Exception("scourgify failed"),
@@ -424,7 +424,7 @@ class TestMaconBibbValidationProvider:
         provider = MaconBibbValidationProvider(factory)
 
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=("489", "NORTHMINSTER", "31204")):
+                   return_value=("489", "NORTHMINSTER", "31204", None, None)):
             with pytest.raises(ProviderError, match="Macon-Bibb query failed"):
                 await provider.validate("489 Northminster Dr, Macon, GA 31204")
 
@@ -435,11 +435,46 @@ class TestMaconBibbValidationProvider:
 
         addresses = ["addr1", "addr2"]
         with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
-                   return_value=(None, None, None)):
+                   return_value=(None, None, None, None, None)):
             results = await provider.batch_validate(addresses)
 
         assert len(results) == 2
         assert all(isinstance(r, ValidationResult) for r in results)
+
+
+# ---------------------------------------------------------------------------
+# Macon-Bibb zip prefix fallback tests
+# ---------------------------------------------------------------------------
+
+class TestMaconBibbZipPrefixFallback:
+
+    @pytest.mark.asyncio
+    async def test_macon_bibb_geocode_zip_prefix_fallback(self):
+        """A 4-digit truncated ZIP triggers prefix fallback in MaconBibbGeocodingProvider."""
+        row = _make_macon_bibb_row(address_type="STRUCTURE", zip_code="31204")
+        # Calls: exact match → None, fuzzy match → None, 4-digit prefix → match
+        mock_session = AsyncMock()
+        mock_result_none = MagicMock()
+        mock_result_none.first.return_value = None
+        mock_result_match = MagicMock()
+        mock_result_match.first.return_value = _make_query_tuple(row, 32.872, -83.687)
+        mock_session.execute = AsyncMock(
+            side_effect=[mock_result_none, mock_result_none, mock_result_match]
+        )
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        factory = MagicMock(return_value=mock_ctx)
+
+        provider = MaconBibbGeocodingProvider(factory)
+
+        with patch("civpulse_geo.providers.macon_bibb._parse_input_address",
+                   return_value=("489", "NORTHMINSTER", "3120", None, None)):
+            result = await provider.geocode("489 Northminster Dr, Macon, GA 3120")
+
+        assert result.location_type != "NO_MATCH"
+        assert result.lat == pytest.approx(32.872)
+        assert result.provider_name == "macon_bibb"
 
 
 # ---------------------------------------------------------------------------
