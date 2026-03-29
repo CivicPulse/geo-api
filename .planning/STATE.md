@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
-status: roadmap_ready
-stopped_at: ~
-last_updated: "2026-03-29T12:00:00Z"
-last_activity: 2026-03-29
+status: planning
+stopped_at: Phase 12 context gathered
+last_updated: "2026-03-29T05:39:07.877Z"
+last_activity: 2026-03-29 — v1.2 roadmap created (Phases 12-15)
 progress:
   total_phases: 4
   completed_phases: 0
@@ -79,6 +79,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Roadmap definition complete
-Resume file: None
+Stopped at: Phase 12 context gathered
+Resume file: .planning/phases/12-correctness-fixes-and-db-prerequisites/12-CONTEXT.md
 Next action: `/gsd:plan-phase 12`
