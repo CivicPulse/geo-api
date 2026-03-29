@@ -72,7 +72,10 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
   2. Repeated geocoding calls for the same address return cache_hit=True on subsequent requests
   3. Application startup auto-populates the spell dictionary without any manual CLI intervention required
   4. All 504 test suite entries pass (or pre-existing CLI fixture failures are fixed and eliminated)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 17-01-PLAN.md — Fix OA accuracy parser, per-provider timeouts, Tiger optimization, cascade cache-hit early exit
+- [ ] 17-02-PLAN.md — Spell dictionary auto-rebuild at startup
 
 ### Phase 18: Code Review
 **Goal**: Codebase passes a thorough three-team audit with all blocking security, stability, and performance findings resolved
@@ -164,7 +167,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
-| 17. Tech Debt Resolution | v1.3 | 0/TBD | Not started | - |
+| 17. Tech Debt Resolution | v1.3 | 0/2 | In progress | - |
 | 18. Code Review | v1.3 | 0/TBD | Not started | - |
 | 19. Dockerfile and Database Provisioning | v1.3 | 0/TBD | Not started | - |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |
