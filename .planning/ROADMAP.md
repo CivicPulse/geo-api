@@ -68,3 +68,4 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
+| 17. Tech Debt Resolution | v1.3 | 1/2 | In progress | - |
