@@ -59,12 +59,14 @@ async def _find_nad_match(
     street_number: str,
     street_name: str,
     postal_code: str,
+    street_suffix: str | None = None,
 ) -> tuple[NADPoint, float, float] | None:
     """Query nad_points for a matching row plus lat/lng coordinates.
 
     Returns a tuple of (NADPoint row, lat, lng) or None if no match.
     Lat/lng are extracted in the same query via PostGIS ST_Y/ST_X to avoid a
     second round-trip. Matches on street_number, upper-cased street_name, and zip_code.
+    When street_suffix is provided, it is included in the WHERE clause (D-07).
     """
     stmt = (
         select(
@@ -76,6 +78,12 @@ async def _find_nad_match(
             NADPoint.street_number == street_number,
             func.upper(NADPoint.street_name) == street_name.upper(),
             NADPoint.zip_code == postal_code,
+            # D-07: include suffix when available; fall back to name-only if suffix is NULL
+            *(
+                [func.upper(NADPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
         )
         .order_by(NADPoint.id)
         .limit(1)
@@ -89,12 +97,14 @@ async def _find_nad_fuzzy_match(
     street_number: str,
     street_name: str,
     postal_code: str,
+    street_suffix: str | None = None,
 ) -> tuple[NADPoint, float, float] | None:
     """Fuzzy fallback: find the nearest address on the same street and ZIP.
 
     Drops the exact street_number match and instead orders by numeric distance
     from the target address number. Only returns a match if the nearest row is
-    within FUZZY_MAX_DISTANCE address numbers.
+    within FUZZY_MAX_DISTANCE address numbers. When street_suffix is provided,
+    it is included in the WHERE clause (D-07).
 
     Returns (NADPoint, lat, lng) or None.
     """
@@ -113,6 +123,12 @@ async def _find_nad_fuzzy_match(
             func.upper(NADPoint.street_name) == street_name.upper(),
             NADPoint.zip_code == postal_code,
             NADPoint.street_number.op("~")(r"^\d+$"),
+            # D-07: include suffix when available
+            *(
+                [func.upper(NADPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
         )
         .order_by(
             func.abs(
@@ -137,6 +153,45 @@ async def _find_nad_fuzzy_match(
         return None
 
     return row_tuple
+
+
+async def _find_nad_zip_prefix_match(
+    session: AsyncSession,
+    street_number: str,
+    street_name: str,
+    zip_prefix: str,
+    street_suffix: str | None = None,
+) -> tuple[NADPoint, float, float] | None:
+    """ZIP prefix fallback: find a match using a LIKE prefix on zip_code (D-04/D-06).
+
+    Used when the input postal_code is fewer than 5 digits (truncated ZIP). Queries
+    with zip_code LIKE '{zip_prefix}%' and orders results lexicographically so that
+    adjacent ZIP codes are returned first.
+
+    Returns (NADPoint, lat, lng) or None.
+    """
+    stmt = (
+        select(
+            NADPoint,
+            func.ST_Y(NADPoint.location.cast(Geometry)).label("lat"),
+            func.ST_X(NADPoint.location.cast(Geometry)).label("lng"),
+        )
+        .where(
+            NADPoint.street_number == street_number,
+            func.upper(NADPoint.street_name) == street_name.upper(),
+            NADPoint.zip_code.like(f"{zip_prefix}%"),
+            # D-07: include suffix when available
+            *(
+                [func.upper(NADPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
+        )
+        .order_by(NADPoint.zip_code.asc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return result.first()
 
 
 async def _nad_data_available(session_factory: async_sessionmaker[AsyncSession]) -> bool:
@@ -195,7 +250,7 @@ class NADGeocodingProvider(GeocodingProvider):
         Raises:
             ProviderError: On SQLAlchemy database error.
         """
-        street_number, street_name, postal_code = _parse_input_address(address)
+        street_number, street_name, postal_code, street_suffix, street_directional = _parse_input_address(address)
 
         # If parsing failed, return NO_MATCH immediately (no DB query needed)
         if street_number is None or street_name is None or postal_code is None:
@@ -210,11 +265,22 @@ class NADGeocodingProvider(GeocodingProvider):
 
         try:
             async with self._session_factory() as session:
-                row_tuple = await _find_nad_match(session, street_number, street_name, postal_code)
+                row_tuple = await _find_nad_match(session, street_number, street_name, postal_code, street_suffix)
                 fuzzy = False
                 if row_tuple is None:
-                    row_tuple = await _find_nad_fuzzy_match(session, street_number, street_name, postal_code)
+                    row_tuple = await _find_nad_fuzzy_match(session, street_number, street_name, postal_code, street_suffix)
                     fuzzy = True
+                # FIX-02: ZIP prefix fallback for truncated zips
+                if row_tuple is None and len(postal_code) < 5:
+                    row_tuple = await _find_nad_zip_prefix_match(
+                        session, street_number, street_name,
+                        postal_code[:4] if len(postal_code) >= 4 else postal_code,
+                        street_suffix,
+                    )
+                    if row_tuple is None and len(postal_code) >= 3:
+                        row_tuple = await _find_nad_zip_prefix_match(
+                            session, street_number, street_name, postal_code[:3], street_suffix
+                        )
         except SQLAlchemyError as e:
             raise ProviderError(f"NAD query failed: {e}") from e
 
@@ -326,7 +392,7 @@ class NADValidationProvider(ValidationProvider):
         Raises:
             ProviderError: On SQLAlchemy database error.
         """
-        street_number, street_name, postal_code = _parse_input_address(address)
+        street_number, street_name, postal_code, street_suffix, street_directional = _parse_input_address(address)
 
         no_match_result = ValidationResult(
             normalized_address="",
@@ -346,7 +412,18 @@ class NADValidationProvider(ValidationProvider):
 
         try:
             async with self._session_factory() as session:
-                row_tuple = await _find_nad_match(session, street_number, street_name, postal_code)
+                row_tuple = await _find_nad_match(session, street_number, street_name, postal_code, street_suffix)
+                # FIX-02: ZIP prefix fallback for truncated zips
+                if row_tuple is None and len(postal_code) < 5:
+                    row_tuple = await _find_nad_zip_prefix_match(
+                        session, street_number, street_name,
+                        postal_code[:4] if len(postal_code) >= 4 else postal_code,
+                        street_suffix,
+                    )
+                    if row_tuple is None and len(postal_code) >= 3:
+                        row_tuple = await _find_nad_zip_prefix_match(
+                            session, street_number, street_name, postal_code[:3], street_suffix
+                        )
         except SQLAlchemyError as e:
             raise ProviderError(f"NAD query failed: {e}") from e
 

@@ -7,11 +7,16 @@ Key design decisions:
 - lat/lng extracted via ST_Y(location::geometry) and ST_X(location::geometry) in the
   same SELECT statement to avoid a second round-trip.
 - _parse_input_address uses scourgify for normalization and usaddress for token parsing
-  to extract street_number and street_name from address_line_1.
-- On scourgify parse failure during input parsing, (None, None, None) is returned and
-  the caller returns a NO_MATCH result.
+  to extract street_number, street_name, postal_code, street_suffix, and
+  street_directional from address_line_1.
+- On scourgify parse failure during input parsing, (None, None, None, None, None) is
+  returned and the caller returns a NO_MATCH result.
 - geocode() accepts **kwargs to avoid TypeError when the service layer calls
   provider.geocode(normalized, http_client=http_client).
+- street_suffix is included in WHERE conditions when available (D-07) to correctly
+  match multi-word street names like "Beaver Falls" (suffix "FLS").
+- ZIP prefix fallback (D-04/D-05/D-06) handles truncated zips (e.g., "3120") by
+  using LIKE matching with progressive prefix lengths (4-digit then 3-digit).
 """
 from __future__ import annotations
 
@@ -65,27 +70,32 @@ async def _oa_data_available(session_factory: async_sessionmaker[AsyncSession]) 
         return False
 
 
-def _parse_input_address(address: str) -> tuple[str | None, str | None, str | None]:
-    """Parse a freeform address string into (street_number, street_name, postal_code).
+def _parse_input_address(
+    address: str,
+) -> tuple[str | None, str | None, str | None, str | None, str | None]:
+    """Parse freeform address into (street_number, street_name, postal_code, street_suffix, street_directional).
 
     Uses scourgify for USPS normalization and usaddress for token-level parsing of the
-    street line. Returns (None, None, None) on any parse failure.
+    street line. Returns (None, None, None, None, None) on any parse failure.
+
+    street_suffix: usaddress StreetNamePostType, e.g. "FLS", "RD", "ST"
+    street_directional: usaddress StreetNamePostDirectional, e.g. "N", "S"
     """
     try:
         parsed = normalize_address_record(address)
     except Exception:
-        return (None, None, None)
+        return (None, None, None, None, None)
 
     postal_code = (parsed.get("postal_code") or "").strip() or None
     address_line_1 = (parsed.get("address_line_1") or "").strip()
 
     if not address_line_1:
-        return (None, None, None)
+        return (None, None, None, None, None)
 
     try:
         tokens, _ = usaddress.tag(address_line_1)
     except usaddress.RepeatedLabelError:
-        return (None, None, None)
+        return (None, None, None, None, None)
 
     street_number = tokens.get("AddressNumber")
     # Collect all StreetName tokens (may be multiple for compound names like "MARTIN LUTHER KING")
@@ -94,8 +104,10 @@ def _parse_input_address(address: str) -> tuple[str | None, str | None, str | No
         if k == "StreetName"
     ]
     street_name = " ".join(street_name_parts).strip() or None
+    street_suffix = tokens.get("StreetNamePostType")           # e.g. "FLS", "RD", "ST"
+    street_directional = tokens.get("StreetNamePostDirectional")  # e.g. "N", "S"
 
-    return (street_number, street_name, postal_code)
+    return (street_number, street_name, postal_code, street_suffix, street_directional)
 
 
 FUZZY_MAX_DISTANCE = 10  # Maximum address-number distance for fuzzy match
@@ -106,12 +118,14 @@ async def _find_oa_match(
     street_number: str,
     street_name: str,
     postcode: str,
+    street_suffix: str | None = None,
 ) -> tuple[OpenAddressesPoint, float, float] | None:
     """Query openaddresses_points for a matching row plus lat/lng coordinates.
 
     Returns a tuple of (OpenAddressesPoint row, lat, lng) or None if no match.
     Lat/lng are extracted in the same query via PostGIS ST_Y/ST_X to avoid a
-    second round-trip.
+    second round-trip. When street_suffix is provided, it is included in the
+    WHERE clause to correctly match multi-word streets (D-07).
     """
     stmt = (
         select(
@@ -123,6 +137,12 @@ async def _find_oa_match(
             OpenAddressesPoint.street_number == street_number,
             func.upper(OpenAddressesPoint.street_name) == street_name.upper(),
             OpenAddressesPoint.postcode == postcode,
+            # D-07: include suffix when available; fall back to name-only if suffix is NULL
+            *(
+                [func.upper(OpenAddressesPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
         )
         .order_by(OpenAddressesPoint.id)
         .limit(1)
@@ -136,12 +156,14 @@ async def _find_oa_fuzzy_match(
     street_number: str,
     street_name: str,
     postcode: str,
+    street_suffix: str | None = None,
 ) -> tuple[OpenAddressesPoint, float, float] | None:
     """Fuzzy fallback: find the nearest address on the same street and ZIP.
 
     Drops the exact street_number match and instead orders by numeric distance
     from the target address number. Only returns a match if the nearest row is
-    within FUZZY_MAX_DISTANCE address numbers.
+    within FUZZY_MAX_DISTANCE address numbers. When street_suffix is provided,
+    it is included in the WHERE clause (D-07).
 
     Returns (OpenAddressesPoint, lat, lng) or None.
     """
@@ -160,6 +182,12 @@ async def _find_oa_fuzzy_match(
             func.upper(OpenAddressesPoint.street_name) == street_name.upper(),
             OpenAddressesPoint.postcode == postcode,
             OpenAddressesPoint.street_number.op("~")(r"^\d+$"),
+            # D-07: include suffix when available
+            *(
+                [func.upper(OpenAddressesPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
         )
         .order_by(
             func.abs(
@@ -184,6 +212,45 @@ async def _find_oa_fuzzy_match(
         return None
 
     return row_tuple
+
+
+async def _find_oa_zip_prefix_match(
+    session: AsyncSession,
+    street_number: str,
+    street_name: str,
+    zip_prefix: str,
+    street_suffix: str | None = None,
+) -> tuple[OpenAddressesPoint, float, float] | None:
+    """ZIP prefix fallback: find a match using a LIKE prefix on postcode (D-04/D-06).
+
+    Used when the input postal_code is fewer than 5 digits (truncated ZIP). Queries
+    with postcode LIKE '{zip_prefix}%' and orders results lexicographically so that
+    adjacent ZIP codes are returned first.
+
+    Returns (OpenAddressesPoint, lat, lng) or None.
+    """
+    stmt = (
+        select(
+            OpenAddressesPoint,
+            func.ST_Y(OpenAddressesPoint.location.cast(Geometry)).label("lat"),
+            func.ST_X(OpenAddressesPoint.location.cast(Geometry)).label("lng"),
+        )
+        .where(
+            OpenAddressesPoint.street_number == street_number,
+            func.upper(OpenAddressesPoint.street_name) == street_name.upper(),
+            OpenAddressesPoint.postcode.like(f"{zip_prefix}%"),
+            # D-07: include suffix when available
+            *(
+                [func.upper(OpenAddressesPoint.street_suffix) == street_suffix.upper()]
+                if street_suffix
+                else []
+            ),
+        )
+        .order_by(OpenAddressesPoint.postcode.asc())
+        .limit(1)
+    )
+    result = await session.execute(stmt)
+    return result.first()
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +294,7 @@ class OAGeocodingProvider(GeocodingProvider):
         Raises:
             ProviderError: On SQLAlchemy database error.
         """
-        street_number, street_name, postal_code = _parse_input_address(address)
+        street_number, street_name, postal_code, street_suffix, street_directional = _parse_input_address(address)
 
         # If parsing failed, return NO_MATCH immediately (no DB query needed)
         if street_number is None or street_name is None or postal_code is None:
@@ -242,11 +309,24 @@ class OAGeocodingProvider(GeocodingProvider):
 
         try:
             async with self._session_factory() as session:
-                row_tuple = await _find_oa_match(session, street_number, street_name, postal_code)
+                row_tuple = await _find_oa_match(session, street_number, street_name, postal_code, street_suffix)
                 fuzzy = False
                 if row_tuple is None:
-                    row_tuple = await _find_oa_fuzzy_match(session, street_number, street_name, postal_code)
+                    row_tuple = await _find_oa_fuzzy_match(session, street_number, street_name, postal_code, street_suffix)
                     fuzzy = True
+                # FIX-02: ZIP prefix fallback for truncated zips
+                if row_tuple is None and len(postal_code) < 5:
+                    # Try 4-char prefix first (if postal_code is 4+ chars)
+                    row_tuple = await _find_oa_zip_prefix_match(
+                        session, street_number, street_name,
+                        postal_code[:4] if len(postal_code) >= 4 else postal_code,
+                        street_suffix,
+                    )
+                    # Fall back to 3-char prefix if 4-char found nothing
+                    if row_tuple is None and len(postal_code) >= 3:
+                        row_tuple = await _find_oa_zip_prefix_match(
+                            session, street_number, street_name, postal_code[:3], street_suffix
+                        )
         except SQLAlchemyError as e:
             raise ProviderError(f"OpenAddresses query failed: {e}") from e
 
@@ -355,7 +435,7 @@ class OAValidationProvider(ValidationProvider):
         Raises:
             ProviderError: On SQLAlchemy database error.
         """
-        street_number, street_name, postal_code = _parse_input_address(address)
+        street_number, street_name, postal_code, street_suffix, street_directional = _parse_input_address(address)
 
         no_match_result = ValidationResult(
             normalized_address="",
@@ -375,7 +455,18 @@ class OAValidationProvider(ValidationProvider):
 
         try:
             async with self._session_factory() as session:
-                row_tuple = await _find_oa_match(session, street_number, street_name, postal_code)
+                row_tuple = await _find_oa_match(session, street_number, street_name, postal_code, street_suffix)
+                # FIX-02: ZIP prefix fallback for truncated zips
+                if row_tuple is None and len(postal_code) < 5:
+                    row_tuple = await _find_oa_zip_prefix_match(
+                        session, street_number, street_name,
+                        postal_code[:4] if len(postal_code) >= 4 else postal_code,
+                        street_suffix,
+                    )
+                    if row_tuple is None and len(postal_code) >= 3:
+                        row_tuple = await _find_oa_zip_prefix_match(
+                            session, street_number, street_name, postal_code[:3], street_suffix
+                        )
         except SQLAlchemyError as e:
             raise ProviderError(f"OpenAddresses query failed: {e}") from e
 
