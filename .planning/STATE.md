@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
 status: executing
-stopped_at: "Phase 17, Plan 1 complete"
-last_updated: "2026-03-29T23:02:24Z"
-last_activity: 2026-03-29 -- Phase 17 Plan 1 complete
+stopped_at: "Phase 17, Plans 1 & 2 complete"
+last_updated: "2026-03-29T23:10:00Z"
+last_activity: 2026-03-29 -- Phase 17 Plans 1 & 2 complete
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 2
-  completed_plans: 1
-  percent: 7
+  completed_plans: 2
+  percent: 14
 ---
 
 # Project State
@@ -50,6 +50,8 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 Decisions are logged in PROJECT.md Key Decisions table.
 
 Key decisions affecting v1.3 execution:
+- [Phase 17-tech-debt-resolution]: DEBT-03: Only auto-rebuild when spell_dictionary is empty — never TRUNCATE on every restart (D-08)
+- [Phase 17-tech-debt-resolution]: DEBT-03: Only rebuild when staging tables have data — skip with warning when no source data (D-07)
 
 - [Phase 17-01]: DEBT-04: accuracy parser uses None default (not 'parcel') — empty string from OA features must not become a fake accuracy value
 - [Phase 17-01]: DEBT-01: tiger_timeout_ms=3000 separate from exact_match_timeout_ms=2000 — PostGIS geocode() needs more time than HTTP providers
@@ -82,7 +84,7 @@ None.
 
 ## Session Continuity
 
-Last activity: 2026-03-29 — Phase 17 Plan 1 complete
-Stopped at: Phase 17, Plan 1 complete
-Resume file: .planning/phases/17-tech-debt-resolution/17-01-SUMMARY.md
-Next action: Execute Phase 17 Plan 2 (DEBT-03: spell dictionary startup fix)
+Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
+Stopped at: Phase 17 execution complete — awaiting verification
+Resume file: .planning/phases/17-tech-debt-resolution/
+Next action: Phase 17 verification
