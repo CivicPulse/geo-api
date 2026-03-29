@@ -41,7 +41,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 - [x] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching (completed 2026-03-29)
 - [x] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode (completed 2026-03-29)
 - [x] **Phase 15: LLM Sidecar** — Local Ollama sidecar for address correction when deterministic stages fail (data-driven: execute only if Phase 14 telemetry shows > 1-2% unresolved) (completed 2026-03-29)
-- [ ] **Phase 16: Audit Gap Closure** — Fix FuzzyMatcher startup wiring, legacy 5-tuple unpack, Phase 13 verification, and documentation cleanup (gap closure)
+- [x] **Phase 16: Audit Gap Closure** — Fix FuzzyMatcher startup wiring, legacy 5-tuple unpack, Phase 13 verification, and documentation cleanup (gap closure) (completed 2026-03-29)
 
 ## Phase Details
 
@@ -126,7 +126,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 16-01-PLAN.md — FuzzyMatcher startup wiring, legacy 5-tuple fix, Phase 13 verification, doc cleanup
+- [x] 16-01-PLAN.md — FuzzyMatcher startup wiring, legacy 5-tuple fix, Phase 13 verification, doc cleanup
 
 ## Progress
 
@@ -147,4 +147,4 @@ Plans:
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete    | 2026-03-29 |
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete    | 2026-03-29 |
-| 16. Audit Gap Closure | v1.2 | 0/1 | Pending | — |
+| 16. Audit Gap Closure | v1.2 | 1/1 | Complete   | 2026-03-29 |

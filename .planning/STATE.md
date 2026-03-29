@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
 status: verifying
-stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-03-29T17:05:30.074Z"
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-03-29T18:31:14.869Z"
 last_activity: 2026-03-29
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  total_phases: 5
+  completed_phases: 5
+  total_plans: 11
+  completed_plans: 11
 ---
 
 # Project State
@@ -20,12 +20,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 15 — llm-sidecar
+**Current focus:** Phase 16 — audit-gap-closure
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 16 (audit-gap-closure) — EXECUTING
+Plan: 1 of 1
 Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
@@ -49,6 +49,7 @@ v1.2 Progress: [----------] 0/4 phases
 | Phase 15-llm-sidecar P01 | 12 | 1 tasks | 3 files |
 | Phase 15-llm-sidecar P03 | 8 | 2 tasks | 5 files |
 | Phase 15-llm-sidecar P02 | 6min | 2 tasks | 5 files |
+| Phase 16-audit-gap-closure P01 | 15min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 15-llm-sidecar]: K8s initContainer pulls qwen2.5:3b before main container starts — model warm on first request
 - [Phase 15-llm-sidecar]: No CPU limit in K8s or Docker (D-11) — LLM inference is CPU-bursty; limits cause starvation
 - [Phase 15-llm-sidecar]: is_llm_corrected check precedes is_fuzzy in set_by_stage — LLM stage is more specific than fuzzy and takes priority in set_by_stage labeling
+- [Phase 16]: FuzzyMatcher wiring placed after spell_corrector block, before LLM corrector block — no try/except needed since init only stores session_factory
+- [Phase 16]: 5-tuple discard pattern (_, _) used for street_suffix and street_directional in legacy geocode warning block — not needed in log message
 
 ### Phase Ordering Notes
 
@@ -110,6 +113,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Completed 15-02-PLAN.md
+Stopped at: Completed 16-01-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 12`
