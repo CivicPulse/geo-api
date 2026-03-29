@@ -21,6 +21,17 @@ class GeocodeProviderResult(BaseModel):
     longitude: float | None = None
     location_type: str | None = None
     confidence: float | None = None
+    is_outlier: bool = False  # True when > 1km from winning cluster centroid (CONS-03)
+
+
+class CascadeTraceStage(BaseModel):
+    """Single stage entry in cascade_trace array (D-19)."""
+
+    stage: str  # "normalize", "spell_correct", "exact_match", "fuzzy", "consensus", "auto_set"
+    ms: float  # stage duration in milliseconds
+    results_count: int = 0
+    early_exit: bool = False
+    detail: dict | None = None  # stage-specific fields
 
 
 class GeocodeResponse(BaseModel):
@@ -30,6 +41,8 @@ class GeocodeResponse(BaseModel):
     results: list[GeocodeProviderResult]
     local_results: list[GeocodeProviderResult] = []
     official: GeocodeProviderResult | None = None
+    cascade_trace: list[dict] | None = None  # Per-stage trace when trace=True or dry_run=True (D-19)
+    would_set_official: GeocodeProviderResult | None = None  # dry_run only: what would have been set (D-17)
 
 
 class SetOfficialRequest(BaseModel):
