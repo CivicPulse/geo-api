@@ -53,7 +53,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 
 **Milestone Goal:** Harden, deploy, test, and validate geo-api across dev and prod K8s environments with full observability and all 5 providers verified at scale.
 
-- [ ] **Phase 17: Tech Debt Resolution** — Resolve all 4 known defects that corrupt runtime behavior (Tiger timeout, cache_hit hardcode, spell dictionary startup, CLI test failures)
+- [x] **Phase 17: Tech Debt Resolution** — Resolve all 4 known defects that corrupt runtime behavior (Tiger timeout, cache_hit hardcode, spell dictionary startup, CLI test failures) (completed 2026-03-29)
 - [ ] **Phase 18: Code Review** — Parallel security, stability, and performance audit by three independent agent teams; all blocking findings resolved
 - [ ] **Phase 19: Dockerfile and Database Provisioning** — Production multi-stage Docker image pushed to GHCR; dev and prod databases provisioned on shared PostgreSQL instance
 - [ ] **Phase 20: Health, Resilience, and K8s Manifests** — Split health endpoints, graceful shutdown, K8s Deployment with Ollama sidecar, ClusterIP Service, ArgoCD apps, and Kustomize overlays for dev and prod
@@ -75,7 +75,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 **Plans**: 2 plans
 Plans:
 - [x] 17-01-PLAN.md — Fix OA accuracy parser, per-provider timeouts, Tiger optimization, cascade cache-hit early exit
-- [ ] 17-02-PLAN.md — Spell dictionary auto-rebuild at startup
+- [x] 17-02-PLAN.md — Spell dictionary auto-rebuild at startup
 
 ### Phase 18: Code Review
 **Goal**: Codebase passes a thorough three-team audit with all blocking security, stability, and performance findings resolved
@@ -167,7 +167,7 @@ Plans:
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
-| 17. Tech Debt Resolution | v1.3 | 2/2 | In progress | - |
+| 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
 | 18. Code Review | v1.3 | 0/TBD | Not started | - |
 | 19. Dockerfile and Database Provisioning | v1.3 | 0/TBD | Not started | - |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |

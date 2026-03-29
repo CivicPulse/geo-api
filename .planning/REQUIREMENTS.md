@@ -11,7 +11,7 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 
 - [x] **DEBT-01**: Tiger provider responds consistently under load (2000ms timeout resolved)
 - [x] **DEBT-02**: Cascade path uses cached results for repeated calls (cache_hit=False hardcode removed)
-- [ ] **DEBT-03**: Spell dictionary auto-populates at application startup without manual CLI intervention
+- [x] **DEBT-03**: Spell dictionary auto-populates at application startup without manual CLI intervention
 - [x] **DEBT-04**: CLI test failures fixed (test_import_cli.py, test_load_oa_cli.py fixture data resolved)
 
 ### Code Review
@@ -101,7 +101,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | DEBT-01 | Phase 17 | Complete (17-01) |
 | DEBT-02 | Phase 17 | Complete (17-01) |
-| DEBT-03 | Phase 17 | Pending |
+| DEBT-03 | Phase 17 | Complete (17-02) |
 | DEBT-04 | Phase 17 | Complete (17-01) |
 | REVIEW-01 | Phase 18 | Pending |
 | REVIEW-02 | Phase 18 | Pending |
