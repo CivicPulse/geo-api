@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.2 milestone (Cascading Address Resolution) started*
+*Last updated: 2026-03-29 — Phase 12 complete (Correctness Fixes and DB Prerequisites: 5-tuple parse expansion, Tiger county filter, confidence semantics, GIN trigram indexes)*
