@@ -1,7 +1,7 @@
 ---
 phase: 15
 slug: llm-sidecar
-status: draft
+status: approved
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-03-29
@@ -38,14 +38,14 @@ created: 2026-03-29
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 15-01-01 | 01 | 1 | LLM-01 | integration | `python -m pytest tests/test_llm_corrector.py -k ollama_service` | ✅ 15-01-T1 | ⬜ pending |
-| 15-01-02 | 01 | 1 | LLM-01 | integration | `python -m pytest tests/test_llm_corrector.py -k model_available` | ✅ 15-01-T1 | ⬜ pending |
-| 15-02-01 | 02 | 2 | LLM-02 | unit | `python -m pytest tests/test_llm_corrector.py -k structured_json` | ✅ 15-01-T1 | ⬜ pending |
-| 15-02-02 | 02 | 2 | LLM-02 | integration | `python -m pytest tests/test_llm_corrector.py -k reverify` | ✅ 15-01-T1 | ⬜ pending |
-| 15-03-01 | 02 | 2 | LLM-03 | unit | `python -m pytest tests/test_llm_corrector.py -k state_mismatch_reject` | ✅ 15-01-T1 | ⬜ pending |
-| 15-03-02 | 02 | 2 | LLM-03 | unit | `python -m pytest tests/test_llm_corrector.py -k zip_state_guard` | ✅ 15-01-T1 | ⬜ pending |
-| 15-04-01 | 02 | 2 | LLM-04 | integration | `python -m pytest tests/test_llm_corrector.py -k graceful_degradation` | ✅ 15-01-T1 | ⬜ pending |
-| 15-04-02 | 02 | 2 | LLM-04 | integration | `python -m pytest tests/test_llm_corrector.py -k ollama_unavailable` | ✅ 15-01-T1 | ⬜ pending |
+| 15-01-01 | 01 | 1 | LLM-01 | integration | `uv run pytest tests/test_llm_corrector.py -k ollama_model_available -x` | ✅ `test_ollama_model_available_returns_true`, `_false_when_missing`, `_false_on_error` | ✅ green |
+| 15-01-02 | 01 | 1 | LLM-01 | integration | `uv run pytest tests/test_llm_corrector.py -k config -x` | ✅ `test_llm_disabled_when_flag_false`, `test_config_defaults` | ✅ green |
+| 15-02-01 | 02 | 2 | LLM-02 | unit | `uv run pytest tests/test_llm_corrector.py -k structured_result -x` | ✅ `test_corrector_returns_structured_result`, `test_corrector_request_payload_shape` | ✅ green |
+| 15-02-02 | 02 | 2 | LLM-02 | integration | `uv run pytest tests/test_cascade.py -k llm_correction_enters_reverify -x` | ✅ `test_llm_correction_enters_reverify_not_candidates` | ✅ green |
+| 15-03-01 | 02 | 2 | LLM-03 | unit | `uv run pytest tests/test_llm_corrector.py -k rejects_state_change -x` | ✅ `test_guardrail_rejects_state_change` | ✅ green |
+| 15-03-02 | 02 | 2 | LLM-03 | unit | `uv run pytest tests/test_llm_corrector.py -k zip_state_mismatch -x` | ✅ `test_guardrail_rejects_zip_state_mismatch` | ✅ green |
+| 15-04-01 | 02 | 2 | LLM-04 | integration | `uv run pytest tests/test_cascade.py -k llm_stage_timeout -x` | ✅ `test_llm_stage_timeout_degrades_gracefully` | ✅ green |
+| 15-04-02 | 02 | 2 | LLM-04 | integration | `uv run pytest tests/test_llm_corrector.py -k http_error -x` | ✅ `test_corrector_returns_none_on_http_error`, `test_corrector_returns_none_on_malformed_json` | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -72,11 +72,20 @@ created: 2026-03-29
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 45s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (TDD in Plan 15-01)
+- [x] No watch-mode flags
+- [x] Feedback latency < 45s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-29
+
+## Validation Audit 2026-03-29
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+*All LLM tests in `test_llm_corrector.py` (unit) + cascade integration tests in `test_cascade.py`. VALIDATION.md updated retroactively.*
