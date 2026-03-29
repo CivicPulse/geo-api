@@ -542,14 +542,20 @@ class TestCascadeOrchestratorAdminOverride:
             official_with_admin = MagicMock()
             official_with_admin.scalars.return_value.first.return_value = admin_official
 
-            # Load official result at end
-            official_mock = MagicMock()
-            official_mock.scalars.return_value.first.return_value = mock_orm_row
+            # _get_official needs 2 queries: OfficialGeocoding + GeocodingResult
+            official_row_mock = MagicMock()
+            official_row_mock.geocoding_result_id = 20
+            official_og_result = MagicMock()
+            official_og_result.scalars.return_value.first.return_value = official_row_mock
+
+            final_gr_mock = MagicMock()
+            final_gr_mock.scalars.return_value.first.return_value = mock_orm_row
 
             db.execute.side_effect = [
                 addr_res, upsert_res, orm_res,
-                official_with_admin,  # admin override check
-                official_mock, official_mock,  # _get_official
+                official_with_admin,  # admin override check (OfficialGeocoding join)
+                official_og_result,   # _get_official: OfficialGeocoding lookup
+                final_gr_mock,        # _get_official: GeocodingResult lookup
             ]
 
             result = await orchestrator.run(
