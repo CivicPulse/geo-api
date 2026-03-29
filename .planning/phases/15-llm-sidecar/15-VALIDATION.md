@@ -2,8 +2,8 @@
 phase: 15
 slug: llm-sidecar
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-29
 ---
 
@@ -38,14 +38,14 @@ created: 2026-03-29
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 15-01-01 | 01 | 1 | LLM-01 | integration | `python -m pytest tests/test_llm_corrector.py -k ollama_service` | ❌ W0 | ⬜ pending |
-| 15-01-02 | 01 | 1 | LLM-01 | integration | `python -m pytest tests/test_llm_corrector.py -k model_available` | ❌ W0 | ⬜ pending |
-| 15-02-01 | 02 | 2 | LLM-02 | unit | `python -m pytest tests/test_llm_corrector.py -k structured_json` | ❌ W0 | ⬜ pending |
-| 15-02-02 | 02 | 2 | LLM-02 | integration | `python -m pytest tests/test_llm_corrector.py -k reverify` | ❌ W0 | ⬜ pending |
-| 15-03-01 | 02 | 2 | LLM-03 | unit | `python -m pytest tests/test_llm_corrector.py -k state_mismatch_reject` | ❌ W0 | ⬜ pending |
-| 15-03-02 | 02 | 2 | LLM-03 | unit | `python -m pytest tests/test_llm_corrector.py -k zip_state_guard` | ❌ W0 | ⬜ pending |
-| 15-04-01 | 02 | 2 | LLM-04 | integration | `python -m pytest tests/test_llm_corrector.py -k graceful_degradation` | ❌ W0 | ⬜ pending |
-| 15-04-02 | 02 | 2 | LLM-04 | integration | `python -m pytest tests/test_llm_corrector.py -k ollama_unavailable` | ❌ W0 | ⬜ pending |
+| 15-01-01 | 01 | 1 | LLM-01 | integration | `python -m pytest tests/test_llm_corrector.py -k ollama_service` | ✅ 15-01-T1 | ⬜ pending |
+| 15-01-02 | 01 | 1 | LLM-01 | integration | `python -m pytest tests/test_llm_corrector.py -k model_available` | ✅ 15-01-T1 | ⬜ pending |
+| 15-02-01 | 02 | 2 | LLM-02 | unit | `python -m pytest tests/test_llm_corrector.py -k structured_json` | ✅ 15-01-T1 | ⬜ pending |
+| 15-02-02 | 02 | 2 | LLM-02 | integration | `python -m pytest tests/test_llm_corrector.py -k reverify` | ✅ 15-01-T1 | ⬜ pending |
+| 15-03-01 | 02 | 2 | LLM-03 | unit | `python -m pytest tests/test_llm_corrector.py -k state_mismatch_reject` | ✅ 15-01-T1 | ⬜ pending |
+| 15-03-02 | 02 | 2 | LLM-03 | unit | `python -m pytest tests/test_llm_corrector.py -k zip_state_guard` | ✅ 15-01-T1 | ⬜ pending |
+| 15-04-01 | 02 | 2 | LLM-04 | integration | `python -m pytest tests/test_llm_corrector.py -k graceful_degradation` | ✅ 15-01-T1 | ⬜ pending |
+| 15-04-02 | 02 | 2 | LLM-04 | integration | `python -m pytest tests/test_llm_corrector.py -k ollama_unavailable` | ✅ 15-01-T1 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -53,10 +53,10 @@ created: 2026-03-29
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_llm_corrector.py` — stubs for LLM-01, LLM-02, LLM-03, LLM-04
-- [ ] Test fixtures for mocking Ollama HTTP responses (structured JSON, timeout, unavailable)
+- [x] `tests/test_llm_corrector.py` — resolved by Plan 15-01 T1 (tdd=true, creates tests before implementation)
+- [x] Test fixtures for mocking Ollama HTTP responses — resolved by Plan 15-01 T1 TDD task
 
-*Existing pytest infrastructure and httpx mock patterns cover framework needs.*
+*Wave 0 satisfied by TDD approach in Plan 15-01 Task 1 which creates tests/test_llm_corrector.py as part of Wave 1 execution.*
 
 ---
 
