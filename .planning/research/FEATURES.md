@@ -1,21 +1,37 @@
 # Feature Research
 
-**Domain:** Cascading address resolution pipeline (v1.2)
+**Domain:** Python FastAPI microservice — production deployment, observability, CI/CD, E2E and load testing
 **Researched:** 2026-03-29
-**Confidence:** MEDIUM-HIGH (pg_trgm/fuzzystrmatch verified via official PostgreSQL docs; Ollama structured output verified via official docs; consensus scoring patterns from published geocoding research; LLM prompting patterns from current community practice)
+**Confidence:** HIGH (K8s patterns, GitHub Actions/GHCR/ArgoCD workflows, OpenTelemetry FastAPI instrumentation verified against official docs and current community practice; Loguru/OTel friction confirmed via official OTel Python issue tracker; Locust/k6 patterns verified against current docs)
 
 ---
 
 ## Context: What This Milestone Adds
 
-This research covers the v1.2 milestone: transforming the multi-provider lookup into an auto-resolving cascading pipeline. The existing pipeline (v1.1) already handles: USPS normalization via scourgify, exact lookup across 5 providers (Census, OA, Tiger, NAD, Macon-Bibb), and admin override. What it does NOT do: handle degraded input, weight provider results, or auto-set an official geocode.
+This research covers v1.3: hardening and deploying an existing, fully-functional geocoding API to Kubernetes (civpulse-dev + civpulse-prod). The application is already built and tested in Docker Compose with 504 tests.
 
-**The v1.2 pipeline goal:**
-```
-normalize → spell-correct → exact match → fuzzy match → AI correction → re-match → score consensus → auto-set official
-```
+**What already exists (do not rebuild):**
+- Single-stage Dockerfile with uv, GDAL system deps, and `bash scripts/docker-entrypoint.sh` CMD
+- Docker Compose dev environment (PostGIS, optional Ollama sidecar via `--profile llm`)
+- Basic `/health` endpoint (DB connectivity check + git commit + version)
+- Loguru for logging (`LOG_LEVEL` env var)
+- Partial K8s manifests: Ollama Deployment, PVC, Service only
+- 504 unit/integration tests (11 known fixture failures)
+- Pydantic Settings with env-var config
 
-The previous FEATURES.md covered v1.1 (local data source providers). This file supersedes it for the v1.2 milestone.
+**What is missing and must be built:**
+- Multi-stage Dockerfile (production hardening: non-root user, no dev deps, minimal image)
+- K8s manifests for geo-api itself (Deployment, ClusterIP Service, HPA, resource limits)
+- ArgoCD Application manifests
+- GitHub Actions CI/CD pipeline (build → push GHCR → trigger ArgoCD sync)
+- Structured JSON logging with trace-ID correlation
+- OpenTelemetry instrumentation (traces to Tempo, logs to Loki via Alloy)
+- Prometheus metrics endpoint
+- Separate `/health/ready` and `/health/live` endpoints for K8s probes
+- Graceful shutdown with SIGTERM handling
+- E2E test suite against deployed environment (all 5 providers)
+- Load/performance baseline (Locust): P50/P95/P99 targets
+- HPA scaling validation
 
 ---
 
@@ -23,352 +39,352 @@ The previous FEATURES.md covered v1.1 (local data source providers). This file s
 
 ### Table Stakes (Users Expect These)
 
-Features a "cascading resolution" system must deliver. Missing these = the cascade doesn't cascade.
+These are the non-negotiable baseline for any K8s-deployed Python microservice. Missing any of these means the service is not production-ready regardless of what the app logic does.
+
+#### K8s Deployment
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Input normalization before dispatch | Every pipeline needs a clean starting point | LOW | Already partially done via scourgify; v1.2 adds USPS suffix expansion (Road→RD) and state abbreviation canonicalization before provider dispatch — not a new library, just consistent pre-processing |
-| Zip prefix fallback for truncated/mistyped ZIPs | Callers submit 4-digit or transposed ZIPs; pipeline must not fail | LOW | Detect zip len < 5 or >5; try 5-digit prefix match against `zip_code LIKE :prefix%` in OA/NAD PostGIS tables; SQL-level, no new library |
-| pg_trgm fuzzy street name matching | Exact match fails on "Northminstr Dr" → "Northminster Dr" | MEDIUM | `CREATE EXTENSION pg_trgm;` (already available in PostGIS images); `similarity(input_street, street) > 0.7` threshold; GIN index on street column mandatory for acceptable performance at NAD/OA scale; 0.7 is a well-supported practical threshold for street names — lower causes too many false positives on short names |
-| Soundex/Metaphone phonetic fallback | Handles homophones and OCR-style substitutions ("Mane" → "Main") | LOW | `SELECT dmetaphone(street_input) = dmetaphone(street_col)` via `fuzzystrmatch` extension (already in PostGIS image); use as a secondary filter when trigram similarity alone is ambiguous; Double Metaphone preferred over plain Soundex for accuracy |
-| Tiger county disambiguation via spatial boundary | Tiger geocoder returns results 50 miles off because it has no county restriction — it matches the nearest street in any loaded county | MEDIUM | Pass `restrict_region` geometry to Tiger's `geocode()` function — it accepts a `geometry` parameter; get county polygon from PostGIS `tiger.county` table by FIPS or name; this is the documented mitigation and verified against PostGIS Tiger function signature |
-| Confidence semantics fix (validation) | scourgify returning structural parse ≠ delivery point verified; callers are treating `is_valid=True` as authoritative | LOW | Rename/clarify `is_valid` to indicate parse success only; add `address_exists` boolean populated only when a provider confirms the address exists in a dataset; this is a correctness fix, not new behavior |
-| Street name normalization for multi-word streets with USPS suffixes | "Oak Hill Road" fails because scourgify returns "Oak Hill Rd" and the stored value is "OAK HILL RD" — case and full/abbrev mismatch | LOW | Uppercase both sides before compare; maintain a USPS suffix expansion/contraction table (St↔Street, Dr↔Drive, Rd↔Road, Blvd↔Boulevard — ~60 common types); apply both directions in matching |
+| Separate `/health/live` and `/health/ready` endpoints | K8s requires distinct liveness and readiness signals; conflating them causes unnecessary pod restarts during startup or provider initialization | LOW | Current `/health` endpoint mixes DB check with metadata — split it: `/health/live` = always 200 if process is running; `/health/ready` = DB connected + providers loaded. Existing code can be refactored in < 1 hour |
+| K8s readiness probe on `/health/ready` | Without this, pods receive traffic before providers are registered and spell dictionaries are loaded — startup takes ~10s with full provider init | LOW | `initialDelaySeconds: 15`, `periodSeconds: 10`, `failureThreshold: 3`. The existing lifespan handler loads providers, spell correctors, and checks Ollama — this takes time and must block traffic |
+| K8s liveness probe on `/health/live` | Without this, hung or deadlocked pods continue receiving traffic indefinitely | LOW | `initialDelaySeconds: 30`, `periodSeconds: 30`, `failureThreshold: 3`. Must NOT query DB — liveness should only confirm the process responds |
+| Startup probe | Prevents liveness killing a slow-starting pod (GDAL deps + provider init can take 15–30s) | LOW | `failureThreshold: 20`, `periodSeconds: 5` = 100s startup budget. K8s only begins liveness checks after startup probe succeeds |
+| `terminationGracePeriodSeconds` + preStop sleep | Without this, K8s sends SIGTERM and immediately removes the pod from Service endpoints, cutting off in-flight requests | LOW | Set `terminationGracePeriodSeconds: 60`. Add `preStop: exec: command: ["sleep", "10"]` to give the load balancer time to drain connections before uvicorn begins shutdown |
+| Resource requests and limits | Without limits, a single mis-behaving pod can starve other services on the node; without requests, K8s scheduler cannot make good placement decisions | LOW | CPU: request=250m limit=1000m; Memory: request=512Mi limit=1Gi. The cascade pipeline with LLM disabled is CPU-light; LLM-enabled needs more memory headroom. These are starting values — tune from metrics after load testing |
+| Non-root container user | CIS Kubernetes Benchmark and most cluster policies require non-root containers; root containers are a significant security finding | LOW | Add `RUN addgroup --system appuser && adduser --system --group appuser` to Dockerfile, then `USER appuser`. uv's `.venv` must be readable by this user |
+| Multi-stage Dockerfile | Single-stage builds include build tools, uv cache artifacts, and dev dependencies in the final image; this increases attack surface and image size | MEDIUM | Builder stage: install deps with uv. Runtime stage: copy only `.venv` and `src/`. Separate GDAL system libs (needed at runtime by fiona) from build tools (not needed at runtime). Current Dockerfile is single-stage — needs rework |
+| ClusterIP Service manifest | Needed for other cluster services to reach geo-api | LOW | Port 8000. Already planned per PROJECT.md. No Ingress — internal-only |
+| ArgoCD Application manifest | Needed for GitOps-driven deployments | LOW | One Application per environment (civpulse-dev, civpulse-prod). Points at K8s manifests path in git repo |
+
+#### Observability
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Structured JSON logs | Plain text logs are unsearchable at scale in Loki; structured logs with consistent key names enable query filters like `{service="geo-api"} \| json \| level="ERROR"` | LOW | Loguru supports `serialize=True` for JSON output. Configure in the logging setup, keyed on `ENVIRONMENT` — JSON in production, human-readable in dev. Output to stdout only (let Alloy collect) |
+| Log level via env var | Already exists (`LOG_LEVEL`) — keep it. K8s configmap can adjust level without image rebuild | LOW | Already implemented |
+| Request ID / trace ID in every log line | Without this, correlating a specific failed geocode request across log lines is impossible in Loki | MEDIUM | Use OpenTelemetry auto-instrumentation to generate trace IDs per request. Inject trace_id + span_id into Loguru context via middleware. Loguru lacks first-class OTel support — requires a custom FastAPI middleware that extracts `trace_id` from the active span and calls `logger.bind(trace_id=..., span_id=...)` |
+| Prometheus `/metrics` endpoint | Needed for HPA custom metrics, Grafana dashboards, and alerting on request rate / error rate | LOW | Use `prometheus-fastapi-instrumentator` — one-line integration. Exposes `http_requests_total`, `http_request_duration_seconds` labeled by path, method, status. Mount at `/metrics` |
+| Service name + environment labels in logs | Log queries in Loki require label-based filtering; without consistent `service` and `env` labels, multi-service Loki queries are painful | LOW | Add `service`, `environment`, `version`, `git_commit` as structured fields on every log line. Loguru `logger.configure(extra=...)` sets these once at startup |
+
+#### CI/CD
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Automated container build on push to main | Manual image builds are error-prone and prevent reliable deployments | LOW | GitHub Actions workflow: `docker/build-push-action` + `docker/metadata-action` for tag generation |
+| Push to GHCR on merge to main | GHCR is the container registry; ArgoCD watches it | LOW | `ghcr.io/civpulse/geo-api:${{ github.sha }}` as the image tag. Also tag `latest` |
+| Run tests before build | Never push a broken image | LOW | `pytest` step before docker build step in the CI workflow |
+| ArgoCD sync trigger on new image | Closes the CI→CD gap | LOW | Two approaches: (1) ArgoCD Image Updater polls GHCR and updates the manifest in git, or (2) GitHub Actions commits the updated image tag to the manifests repo directly. Option 2 is simpler for a small team |
+
+#### E2E Testing
+
+| Feature | Why Expected | Complexity | Notes |
+|---------|--------------|------------|-------|
+| Provider smoke test (all 5 providers) | Deployment validation must confirm each provider returns results in the deployed environment, since providers are conditionally registered based on loaded data | MEDIUM | pytest-based E2E test suite targeting the deployed API via port-forward or NodePort. Test each provider with a known Macon-Bibb address from the existing E2E test corpus |
+| Single-address geocode E2E (cascade) | Validates the full pipeline in the real environment, including consensus and auto-set behavior | LOW | Use the 4 known-good Macon addresses from Issue #1 corpus |
+| Batch endpoint E2E | Batch endpoint behavior must be validated end-to-end | LOW | Submit a batch of 10 addresses; validate all return results |
+| Validation endpoint E2E | The validation pipeline has a known scourgify limitation; must confirm behavior in production | LOW | Submit known-good and known-malformed addresses; assert response structure |
+
+---
 
 ### Differentiators (Competitive Advantage)
 
-Features that make this pipeline substantially better than a simple ordered fallback.
+Features beyond the bare minimum that significantly improve operational quality, debuggability, or reliability.
+
+#### K8s Deployment
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Spell correction layer (symspellpy) | Fixes common typos before any provider is called — "Nrothminster" → "Northminster" before any DB query; reduces fuzzy match load | MEDIUM | symspellpy supports custom dictionaries; load a frequency dictionary built from the imported NAD/OA street names corpus so domain corrections outrank general English suggestions; max edit distance 2 covers most real typos; do NOT use general English spell checkers (pyspellchecker, TextBlob) for street names — they will incorrectly "correct" proper nouns and place names |
-| Local LLM sidecar for address correction (Ollama) | Handles pathologically broken input that deterministic methods cannot fix — transposed components, wrong city/state, incomplete addresses | HIGH | Ollama supports structured output via JSON schema (verified, v0.5+); use temperature=0 for determinism; Pydantic model as the schema; prompt with: (1) system context about address format, (2) few-shot examples of bad→corrected addresses, (3) explicit instruction to return null fields it cannot determine; only invoke after all deterministic stages fail; set timeout budget (2–5 seconds); model selection: qwen2.5:7b or mistral:7b balances size vs accuracy for structured extraction |
-| Cross-provider consensus scoring | When multiple providers return results, weight them by agreement — providers that cluster together are more likely correct than an outlier (the Tiger-50-miles-off case) | MEDIUM | Score = (number of providers within N meters of this result) × (provider_weight); use 100m as clustering radius for "agreement"; Tiger weighted lower (0.6) when it disagrees with 2+ other providers; Census/OA/NAD weighted higher (0.9) when they agree; outlier = result > 1km from cluster centroid of other providers; this mirrors published multi-provider geocoding optimization approaches |
-| Auto-resolution pipeline: auto-set official geocode | When pipeline produces a high-confidence result, write it as the OfficialGeocoding without requiring admin action | MEDIUM | Only auto-set when: (a) at least 2 providers agree within 100m, OR (b) single provider returns confidence ≥ 0.90; never auto-set from Tiger-only result unless restrict_region filter applied; use the existing `OfficialGeocoding` upsert mechanism — the auto-resolver is just another writer |
-| Pipeline stage telemetry | Which stage resolved the address? "spell_correction", "fuzzy_pg_trgm", "llm_correction", "consensus_score" — critical for debugging and tuning thresholds | LOW | Add `resolution_stage` field to `GeocodingResult` or a parallel metadata object; log at INFO level with address hash, stage name, elapsed ms; no new infrastructure |
+| HPA (Horizontal Pod Autoscaler) | geo-api is I/O-bound during geocoding (DB queries, external Census API calls); HPA on CPU/request-rate allows the cluster to scale under load without manual intervention | MEDIUM | Start with CPU-based HPA: `targetCPUUtilizationPercentage: 70`, `minReplicas: 2`, `maxReplicas: 6`. Two replicas minimum ensures high availability. At 2 replicas and ClusterIP load balancing, request distribution is not perfectly even — acceptable for internal use |
+| Pod Disruption Budget (PDB) | Without a PDB, node maintenance or drain can take down all replicas simultaneously | LOW | `minAvailable: 1`. Simple manifest, high value. Ensures at least one pod is always available during voluntary disruptions |
+| ConfigMap for non-secret settings | Externalizes config for per-environment tuning without image rebuilds | LOW | `cascade_enabled`, `max_batch_size`, `exact_match_timeout_ms`, etc. → ConfigMap. Secrets (DB credentials) → K8s Secret or external secrets operator |
+| Ollama as a sidecar (not a separate Deployment) | For the geocoding use case, the LLM is request-scoped and not shared across geo-api instances; a sidecar model means the LLM is co-located with the consumer, eliminating network latency and auth | HIGH | This is the PROJECT.md requirement. Sidecar container in the geo-api Pod spec. The existing K8s Ollama Deployment manifests should be converted to a sidecar in the geo-api Deployment |
+
+#### Observability
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| OpenTelemetry distributed traces (Tempo) | Traces show the full cascade pipeline as a tree of spans — which provider was called, how long each took, where consensus scoring ran. Essential for diagnosing P95 > 3s cases | MEDIUM | `opentelemetry-instrumentation-fastapi` + `opentelemetry-instrumentation-sqlalchemy` + `opentelemetry-instrumentation-httpx`. Configure OTLP exporter pointing to Grafana Alloy. Alloy forwards to Tempo. The trace_id generated here is the same ID injected into Loguru |
+| Log→Trace correlation (Loki → Tempo) | In Grafana, a log line with a trace_id becomes a clickable link to the full trace — eliminates manual copy-paste of IDs when debugging | MEDIUM | Requires: (1) trace_id in log lines as a structured field; (2) Loki datasource in Grafana configured with a derived field pointing to Tempo. Alloy handles log collection; the trace_id field name must match exactly |
+| Per-provider latency metrics | Prometheus histogram of geocoding duration by provider and stage. Identifies which providers are consistently slow under load | LOW | Custom Prometheus metric: `geocoding_duration_seconds{provider="census", stage="exact_match"}`. Integrate into the cascade orchestrator's existing stage telemetry |
+| Cascade pipeline span per stage | OpenTelemetry spans for each cascade stage (normalize, spell-correct, exact match, fuzzy, LLM, consensus) make it trivial to find which stage caused a slow request | MEDIUM | Wrap each stage in `with tracer.start_as_current_span("cascade.exact_match"):`. The FastAPI auto-instrumentation handles the root span; child spans are manual |
+
+#### CI/CD
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Image vulnerability scan in CI (Trivy) | Catches CVEs in the base image or Python deps before deployment | LOW | `aquasecurity/trivy-action` in GitHub Actions. Run after build, before push. Fail build on CRITICAL severity. This is a 5-line addition to the workflow |
+| Ruff lint + type check gate in CI | Prevents regressions from landing on main without automated enforcement | LOW | Already use ruff locally per global CLAUDE.md conventions. Add `ruff check` + `ruff format --check` as a CI gate before pytest |
+| Separate CI (tests + lint) and CD (build + push) workflows | Decouples test validation from deployment; CI can run on PRs while CD only runs on merge to main | LOW | Two `.github/workflows/` files: `ci.yml` (lint + test, runs on all PRs and pushes) and `cd.yml` (build + push + deploy, runs on merge to main only) |
+| Environment-specific ArgoCD Applications | Separate ArgoCD Applications for dev and prod with different resource limits, replica counts, and image tags; prod requires manual sync approval | MEDIUM | ArgoCD `syncPolicy: automated` for dev (auto-sync on image update); `syncPolicy: {} + spec.sync.automated: false` for prod (manual promotion required). This is a GitOps best practice, not just a nice-to-have for a production service |
+
+#### E2E and Load Testing
+
+| Feature | Value Proposition | Complexity | Notes |
+|---------|-------------------|------------|-------|
+| Performance baseline establishment (P50/P95/P99) | Without a baseline, you cannot detect regressions or validate HPA effectiveness; the P95 < 3s pipeline target from v1.2 needs production validation | MEDIUM | Use Locust for load generation. Establish baseline at: 10 concurrent users, 30 concurrent users, 60 concurrent users. Record P50/P95/P99 per endpoint. Target: single-address geocode P95 < 3s at 30 concurrent users |
+| HPA scaling validation under load | Must confirm HPA triggers and new pods come up before the cluster saturates | MEDIUM | Run Locust ramp test while watching `kubectl get hpa -w`. Confirm pod count increases from 2 → 4+ as load rises. Confirm pod count decreases after load drops. This validates both the HPA config and the readiness probe timing |
+| Provider-specific E2E with known fixtures | Five providers must each resolve known addresses independently; cascade masking a broken individual provider is a real risk | MEDIUM | Bypass the cascade for these tests using a provider-specific query parameter (if available) or by directly calling the provider health/debug endpoints. If no bypass exists, add a `?provider=census` debug parameter — internal-only, not part of the public API contract |
+| Monitoring validation under load | Confirm that Grafana dashboards show correct metrics during load test | LOW | Run Locust for 5 minutes at 30 users; check Grafana manually (or via Playwright MCP) to confirm request rate, latency histograms, and error rate are updating correctly |
+
+---
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| General English spell checker for addresses | Obvious first choice for "fixing typos" | General dictionaries actively harm address correction — "Main" gets corrected to "Maine", "Peach" to "Peace", "Bibb" (a county) has no English context; edit distance alone without domain frequency data produces wrong corrections | Use symspellpy with a custom frequency dictionary built from the actual address corpus (NAD/OA street names) |
-| Running LLM on every address | Seems like it would maximize accuracy | LLM latency (500ms–2s per call) makes it unusable in the hot path; cost for self-hosted models is GPU/CPU time per request; most addresses resolve correctly at the normalization or exact-match stage | LLM is a last-resort fallback only — after normalization, spell correction, exact match, and fuzzy match all fail |
-| Parallel LLM + provider dispatch | Seems like it saves time | Wastes GPU/CPU resources on addresses that would resolve deterministically; burns the LLM budget on addresses that don't need it; muddies which result to trust | Sequential pipeline with early-exit; LLM only invoked when earlier stages fail |
-| Fuzzy matching at similarity threshold < 0.5 | More permissive = more matches | At < 0.6, trigram similarity on short strings (3–5 char street names) produces too many false positive matches; "Oak" has similarity 0.5 with "Oak" but also with other 3-gram clusters; creates wrong geocodes that are harder to detect than no result | Keep threshold at 0.65–0.75; prefer "no match" over "wrong match" for geocoding |
-| Consensus scoring that averages all provider coordinates | Seems like a middle ground | Averaging a correct result (32.87°N, -83.69°W) with an outlier (33.42°N, -83.51°W — 55 miles off) produces a result that is wrong for everyone; the averaged point corresponds to no real address | Detect and exclude outliers before averaging; use cluster-based approach (majority vote within radius) not arithmetic mean |
-| Auto-set official from any single-provider result | Simplest auto-resolution | Single provider can be wrong — especially Tiger on streets near county boundaries; auto-setting a wrong OfficialGeocoding is worse than leaving it unset because it poisons downstream callers | Require multi-provider agreement OR a high-confidence single result (≥ 0.90, from a rooftop-accuracy source) before auto-setting |
-| Spell-correcting city and state fields | Seems consistent with street correction | City and state corrections require geographic validation (is "Macoon, GA" → "Macon, GA" correct? only if zip confirms it) — general spell correction gets these wrong; city names are proper nouns with low general frequency | Limit spell correction to street name token only; validate city/state against zip-code centroid data if needed |
+| Public Ingress / IngressRoute | Seems obvious for an API | geo-api is internal-only per PROJECT.md; adding Ingress expands the attack surface for a service with no auth layer; it would be accessible from the internet with no authentication | Stick with ClusterIP. Debug access via `kubectl port-forward` or a dedicated NodePort. This is explicit in PROJECT.md |
+| Authentication layer | "Every API should have auth" | PROJECT.md explicitly excludes auth as out of scope; adding it now means every consumer (run-api, vote-api) must be updated; it is a cross-cutting concern that should be addressed at the service mesh or network policy level, not application level | Network-level security (K8s NetworkPolicy) to restrict which namespaces can reach geo-api |
+| Sidecar proxy (Istio, Linkerd) | "Service mesh gives you tracing for free" | Service mesh adds significant operational complexity, CPU overhead per pod, and a new failure domain; for a small internal deployment with one team, it is over-engineering; OpenTelemetry instrumentation provides equivalent tracing without the sidecar overhead | Manual OTel instrumentation. Lower complexity, equivalent observability |
+| Distributed tracing on every DB query | "Maximum visibility" | SQLAlchemy instrumentation creates a span for every query, including the background health checks that run every 30s; this floods Tempo with low-value spans and significantly increases trace storage cost | Instrument SQLAlchemy, but use a sampling rate (e.g., 10%) for routine queries; sample 100% of failed requests and requests with P95+ latency |
+| Separate log aggregation stack per environment | "Dev and prod logs should not mix" | A single Loki instance with `environment` label filtering is sufficient; separate stacks double the operational surface and cost for a small deployment with low log volume | Use Grafana Alloy with `environment` labels. Filter by `{env="prod"}` in Loki queries |
+| k6 for load testing (over Locust) | k6 is more efficient for very high concurrency | geo-api is I/O-bound and unlikely to need 100k+ virtual users; Locust's Python-based user scripts are simpler to write and maintain by developers already working in Python; k6 requires JavaScript/TypeScript scripting | Locust. If throughput requirements exceed what Locust can generate on a single machine, switch to distributed Locust mode (Locust has native K8s distributed mode) |
+| Canary or blue-green deployments | "Zero-downtime deployments" | K8s rolling update strategy with minReadySeconds and appropriate readiness probes already provides near-zero-downtime deployments without additional tooling; canary deployments require traffic splitting infrastructure that does not exist yet | Use K8s `strategy: RollingUpdate` with `maxUnavailable: 0` and `maxSurge: 1`. Combined with readiness probes, this is effectively zero-downtime |
+| Secrets management via external secrets operator (Vault, AWS SSM) | "Production secrets should not be in K8s Secrets" | Valid long-term concern, but adding an external secrets operator before the service is deployed at all is premature; K8s Secrets with etcd encryption-at-rest is sufficient for an internal API | Use K8s Secrets for v1.3. Document this as a v2 item if the cluster adds stricter compliance requirements |
+| Grafana alerting rules | "Alerts when the service goes down" | Defining meaningful alert thresholds requires post-deployment baseline data; alerting on CPU > 80% before you know what normal CPU looks like produces false positives and alert fatigue | Establish baselines first (from load testing). Define alert thresholds in a subsequent phase |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Cascading Resolution Pipeline]
-    └──requires──> [Input Normalization (USPS suffix expansion)]
-                       └──uses──> [scourgify (already built)]
-    └──requires──> [Zip Prefix Fallback]
-                       └──uses──> [OA + NAD PostGIS tables (v1.1)]
-    └──requires──> [Exact Match across all providers (v1.0 + v1.1)]
-    └──requires──> [Fuzzy Street Matching (pg_trgm + Soundex)]
-                       └──requires──> [pg_trgm extension (in PostGIS image)]
-                       └──requires──> [fuzzystrmatch extension (in PostGIS image)]
-                       └──requires──> [GIN index on OA/NAD street columns]
-    └──requires──> [Spell Correction Layer (symspellpy)]
-                       └──requires──> [Street name corpus dictionary (from NAD/OA data)]
-    └──optional──> [LLM Address Correction (Ollama sidecar)]
-                       └──requires──> [Ollama service running with a suitable model]
-                       └──requires──> [Structured output schema (Pydantic)]
-    └──requires──> [Cross-Provider Consensus Scoring]
-                       └──requires──> [Results from 2+ providers]
-                       └──requires──> [ST_Distance (PostGIS — already available)]
-    └──requires──> [Auto-Set Official Geocode]
-                       └──requires──> [OfficialGeocoding upsert (already built, v1.0)]
-                       └──requires──> [Consensus score above threshold]
+[Structured JSON Logging]
+    └──requires──> [Loguru serialize=True config]
+    └──enhances──> [Grafana Alloy log collection]
 
-[Tiger County Disambiguation]
-    └──requires──> [Tiger geocoder provider (v1.1)]
-    └──requires──> [tiger.county table with polygon geometry (loaded with TIGER/LINE data)]
-    └──uses──> [restrict_region parameter on geocode() SQL function]
+[Trace ID in Logs]
+    └──requires──> [OpenTelemetry instrumentation (FastAPI, SQLAlchemy, httpx)]
+    └──requires──> [Custom Loguru middleware to inject trace_id per request]
+    └──enables──> [Log→Trace correlation in Grafana (Loki → Tempo)]
 
-[Validation Confidence Semantics Fix]
-    └──requires──> [Understanding of current scourgify provider behavior]
-    └──enhances──> [All existing validation providers]
+[OpenTelemetry traces]
+    └──requires──> [opentelemetry-instrumentation-fastapi]
+    └──requires──> [opentelemetry-instrumentation-sqlalchemy]
+    └──requires──> [opentelemetry-instrumentation-httpx]
+    └──requires──> [OTLP exporter → Grafana Alloy → Tempo]
+    └──enables──> [Cascade pipeline spans (child spans per stage)]
 
-[Street Name Normalization Fix]
-    └──requires──> [USPS suffix lookup table (St↔Street, Dr↔Drive, etc.)]
-    └──enhances──> [OA, NAD, Tiger providers]
-    └──conflicts──> [Current scourgify pre-normalization if suffix expansion not bidirectional]
+[Prometheus /metrics endpoint]
+    └──requires──> [prometheus-fastapi-instrumentator]
+    └──enables──> [HPA on custom request-rate metric]
+    └──enables──> [Grafana dashboards for request rate, latency]
 
-[Pipeline Stage Telemetry]
-    └──enhances──> [All pipeline stages above]
-    └──uses──> [Loguru (already in stack)]
+[/health/live + /health/ready split]
+    └──requires──> [Refactor existing /health endpoint]
+    └──enables──> [K8s liveness probe]
+    └──enables──> [K8s readiness probe]
+    └──enables──> [Startup probe]
+
+[Graceful shutdown]
+    └──requires──> [preStop hook in K8s Deployment spec]
+    └──requires──> [terminationGracePeriodSeconds: 60]
+    └──requires──> [Uvicorn JSON exec CMD (not shell form) in Dockerfile]
+
+[Multi-stage Dockerfile]
+    └──requires──> [Non-root user creation in builder stage]
+    └──enables──> [Reduced image size and attack surface]
+    └──enables──> [Trivy vulnerability scan in CI]
+
+[K8s Deployment manifest (geo-api)]
+    └──requires──> [Multi-stage Dockerfile]
+    └──requires──> [/health/live + /health/ready endpoints]
+    └──requires──> [GHCR image available]
+    └──requires──> [K8s Secrets for DB credentials]
+    └──includes──> [Ollama sidecar container]
+    └──includes──> [Resource requests + limits]
+
+[HPA]
+    └──requires──> [K8s metrics-server installed in cluster]
+    └──requires──> [Resource requests defined in Deployment]
+    └──optionally-requires──> [/metrics endpoint for custom metric scaling]
+
+[ArgoCD Application]
+    └──requires──> [K8s manifests committed to git]
+    └──requires──> [ArgoCD installed in cluster]
+    └──enables──> [GitOps deployment workflow]
+
+[GitHub Actions CD workflow]
+    └──requires──> [GHCR credentials (GITHUB_TOKEN)]
+    └──requires──> [Multi-stage Dockerfile]
+    └──triggers──> [ArgoCD sync (via Image Updater or manifest commit)]
+
+[GitHub Actions CI workflow]
+    └──requires──> [ruff, pytest]
+    └──includes──> [Trivy scan after build]
+    └──must-pass-before──> [CD workflow]
+
+[E2E test suite]
+    └──requires──> [Deployed environment accessible via port-forward or NodePort]
+    └──requires──> [All 5 providers' data loaded in target environment]
+    └──uses──> [httpx or pytest + requests against real deployment]
+
+[Load testing (Locust)]
+    └──requires──> [Deployed environment accessible]
+    └──requires──> [/metrics endpoint for correlation]
+    └──enables──> [HPA scaling validation]
+    └──enables──> [P50/P95/P99 baseline documentation]
+
+[Monitoring validation under load]
+    └──requires──> [Load testing running]
+    └──requires──> [Grafana dashboards configured]
+    └──uses──> [Playwright MCP for dashboard screenshot verification]
 ```
 
 ### Dependency Notes
 
-- **Fuzzy matching requires GIN indexes before use in production:** Trigram similarity without an index performs a full sequential scan of the OA/NAD PostGIS tables. At 60k+ (OA) and 80M+ (NAD) rows, this is unusable. `CREATE INDEX idx_oa_street_trgm ON openaddresses USING GIN (street gin_trgm_ops);` is a prerequisite step, not a runtime dependency.
+- **Health endpoint split is a prerequisite for everything K8s:** The current `/health` endpoint does a DB query — using it as a liveness probe means a DB outage kills all pods (liveness probe fails → restart loop). Split into `/health/live` (no DB check) and `/health/ready` (DB check + provider check) before any K8s deployment.
 
-- **Spell correction dictionary must be built from the address corpus:** The symspellpy dictionary should be generated from the street names in the loaded NAD/OA data — not from a general English corpus. This means the CLI that imports NAD/OA data should optionally produce the frequency dictionary, or a separate build step generates it. The dictionary file is an artifact of the import, not a static resource.
+- **Graceful shutdown requires exec form CMD in Dockerfile:** The current Dockerfile uses `CMD ["bash", "scripts/docker-entrypoint.sh"]`. If the entrypoint script invokes uvicorn via shell form (`uvicorn ...`) rather than exec form (`exec uvicorn ...`), SIGTERM goes to bash (PID 1) not uvicorn. Bash does not forward signals. The entrypoint script must use `exec uvicorn ...` as its last line.
 
-- **LLM sidecar is optional infrastructure:** The Ollama service is an optional component. If it is not running, the pipeline skips the LLM stage and proceeds to consensus scoring with whatever results the deterministic stages produced. The pipeline must not fail when Ollama is unavailable — treat as a graceful no-op.
+- **OTel trace ID injection into Loguru requires custom middleware:** Loguru does not automatically pick up OTel trace context. Unlike Python's `logging` module (which OTel patches to add trace_id to LogRecords automatically), Loguru requires a FastAPI middleware that extracts the current span's trace_id and calls `logger.bind(trace_id=..., span_id=...)` for the duration of each request. This is a known gap in the OTel Python ecosystem (confirmed in opentelemetry-python issue #3615).
 
-- **Consensus scoring requires 2+ provider results to be meaningful:** If only one provider returns a result, scoring is trivially 1.0. Consensus is only meaningful when multiple providers have results — the scoring logic must handle the single-result case by passing it through unchanged.
+- **Ollama sidecar conversion:** The existing `k8s/ollama-deployment.yaml` is a standalone Deployment. For v1.3, it must become a sidecar container in the geo-api Deployment spec. The sidecar shares the Pod's network namespace, so the `OLLAMA_URL=http://localhost:11434` config works without change. The PVC for model storage must move to a volumeMount in the geo-api Pod.
 
-- **Tiger county disambiguation is an improvement to the existing Tiger provider:** It is not a new provider. It adds a `restrict_region` geometry argument to the Tiger SQL call. Requires that the `tiger.county` table is populated (loaded with TIGER/LINE data). If TIGER/LINE data is not loaded, the Tiger provider is already unavailable — this is a non-issue.
+- **HPA requires metrics-server:** CPU-based HPA depends on `metrics-server` being installed in the cluster. If the cluster does not have it, HPA will not work. Verify `kubectl top pods` works before adding HPA manifests.
 
-- **Auto-set official geocode reuses the v1.0 OfficialGeocoding upsert:** The existing `ON CONFLICT DO UPDATE` logic in the OfficialGeocoding upsert must be changed from `DO NOTHING` to `DO UPDATE` for auto-resolution to work — or a separate "cascade auto-resolve" write path that only fires under the confidence threshold condition. This interacts with the v1.0 "first-writer-wins" decision; the v1.2 pipeline needs to explicitly supersede it.
+- **E2E test suite requires data to be pre-loaded:** The E2E tests assume that OA, NAD, and Macon-Bibb data are loaded in the target environment. Provider availability is conditional on data presence (`_oa_data_available`, `_nad_data_available`, etc.). E2E tests must either skip gracefully when a provider is not registered, or there must be a data loading step as part of the deployment runbook.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1.2 milestone — all required)
+### Launch With (v1.3 milestone — all required before "production-ready")
 
-- [ ] Input normalization fix (USPS suffix expansion both directions, uppercase normalize) — prerequisite for everything else; fixes known provider defects from E2E testing
-- [ ] Validation confidence semantics fix — correctness fix; scourgify `is_valid=True` currently misleads callers
-- [ ] Street name normalization mismatch fix — correctness fix; multi-word streets with USPS suffixes fail
-- [ ] Zip prefix fallback matching — low complexity; recovers truncated/mistyped ZIPs without new libraries
-- [ ] Tiger county disambiguation via `restrict_region` — directly fixes the Tiger-50-miles-off defect identified in E2E testing; uses existing PostGIS infrastructure
-- [ ] pg_trgm fuzzy street matching (threshold 0.65–0.70) — core fuzzy capability; needs GIN index creation
-- [ ] Soundex/Double Metaphone phonetic fallback — complements trigrams for phonetic variants; same `fuzzystrmatch` extension
-- [ ] Spell correction layer (symspellpy + domain dictionary) — improves input quality before any DB query; offline, no service dependency
-- [ ] Cross-provider consensus scoring (cluster-based, 100m radius) — enables outlier exclusion; prerequisite for trustworthy auto-resolution
-- [ ] Auto-set official geocode from consensus — closes the pipeline loop; only fires at high confidence threshold
-- [ ] Pipeline stage telemetry — needed for threshold tuning after deployment
+- [ ] Multi-stage Dockerfile with non-root user and exec-form CMD — prerequisite for K8s security and graceful shutdown
+- [ ] Split `/health/live` and `/health/ready` endpoints — prerequisite for K8s probes
+- [ ] K8s Deployment manifest for geo-api with readiness + liveness + startup probes, resource limits, terminationGracePeriodSeconds, preStop hook — without this there is no K8s deployment
+- [ ] Ollama sidecar in the geo-api Deployment spec — PROJECT.md requirement
+- [ ] K8s ClusterIP Service manifest for geo-api — without this other services cannot reach it
+- [ ] K8s Secrets for DB credentials (dev + prod) — prerequisite for Deployment
+- [ ] ArgoCD Application manifests (dev + prod) — prerequisite for GitOps workflow
+- [ ] GitHub Actions CI workflow (lint + test) — prevents broken deployments
+- [ ] GitHub Actions CD workflow (build + GHCR push + ArgoCD trigger) — enables repeatable deployments
+- [ ] Structured JSON logging (Loguru serialize=True, production env only) — prerequisite for Loki queries
+- [ ] Service/environment labels in all logs — prerequisite for multi-service Loki filtering
+- [ ] Prometheus `/metrics` endpoint — prerequisite for Grafana dashboards and HPA
+- [ ] E2E smoke test suite (all 5 providers, cascade, batch, validation) — validates deployment is functional
+- [ ] Load test baseline (Locust, P50/P95/P99 at 30 concurrent users) — validates the service is performant
 
-### Add After Validation (v1.x)
+### Add After Deployment Validated (v1.3 hardening)
 
-- [ ] Local LLM sidecar (Ollama) for pathological cases — trigger: measurement shows what percentage of addresses fail all deterministic stages; only worth adding if failure rate is > 1–2%
-- [ ] Per-provider confidence weight tuning — trigger: telemetry shows which providers are systematically biased; adjust weights based on observed error patterns
-- [ ] Spell correction dictionary refresh from updated NAD/OA imports — trigger: operational issue with stale dictionary after data refresh
+- [ ] OpenTelemetry traces (FastAPI + SQLAlchemy + httpx instrumentation) — trigger: first time debugging a production issue; traces make root cause analysis much faster
+- [ ] Trace ID injection into Loguru (custom middleware) — trigger: OTel instrumentation is in place; adds the correlation between logs and traces
+- [ ] HPA (Horizontal Pod Autoscaler) — trigger: load testing shows the service can benefit from horizontal scaling; HPA without a baseline is guesswork
+- [ ] Pod Disruption Budget — trigger: node maintenance or cluster upgrade causes availability issue without it
+- [ ] Per-provider latency custom Prometheus metrics — trigger: baseline metrics show need for provider-granular visibility
+- [ ] Cascade pipeline child spans (OTel) — trigger: OTel is in place; adds pipeline-stage visibility
 
 ### Future Consideration (v2+)
 
-- [ ] ML-based address confidence scoring — replaces heuristic weights with a trained model; trigger: enough labeled data to train; high effort
-- [ ] Real-time address validation via USPS API — provides actual DPV; trigger: a downstream service needs mail-deliverable confirmation; has cost implications
+- [ ] ArgoCD Image Updater — trigger: manual ArgoCD sync becomes a bottleneck; low priority while team is small
+- [ ] KEDA event-driven autoscaling — trigger: CPU-based HPA proves insufficient (e.g., need to scale on request queue depth); over-engineering for current load
+- [ ] External secrets operator (Vault or AWS SSM) — trigger: compliance requirement; current K8s Secrets with etcd encryption is sufficient for internal API
+- [ ] Network policy restricting geo-api ingress to specific namespaces — trigger: cluster grows to include untrusted workloads; currently unnecessary in a single-team cluster
+- [ ] Grafana alerting rules — trigger: after 2 weeks of production baseline data; alerting before you know normal behavior produces alert fatigue
 
 ---
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Validation confidence semantics fix | HIGH | LOW | P1 |
-| Street name normalization mismatch fix | HIGH | LOW | P1 |
-| Input normalization (USPS suffix expansion) | HIGH | LOW | P1 |
-| Zip prefix fallback | HIGH | LOW | P1 |
-| Tiger county disambiguation (restrict_region) | HIGH | LOW | P1 |
-| pg_trgm fuzzy street matching + GIN index | HIGH | MEDIUM | P1 |
-| Soundex/Double Metaphone phonetic fallback | MEDIUM | LOW | P1 |
-| Cross-provider consensus scoring | HIGH | MEDIUM | P1 |
-| Auto-set official geocode from consensus | HIGH | MEDIUM | P1 |
-| Spell correction (symspellpy + domain dict) | HIGH | MEDIUM | P1 |
-| Pipeline stage telemetry | MEDIUM | LOW | P1 |
-| Local LLM sidecar (Ollama) | MEDIUM | HIGH | P2 |
-| Per-provider weight tuning | LOW | LOW | P2 |
-| ML-based confidence scoring | MEDIUM | HIGH | P3 |
+| Feature | User/Ops Value | Implementation Cost | Priority |
+|---------|----------------|---------------------|----------|
+| Health endpoint split (live/ready) | HIGH | LOW | P1 |
+| Multi-stage Dockerfile + non-root | HIGH | MEDIUM | P1 |
+| K8s Deployment manifest (geo-api + Ollama sidecar) | HIGH | MEDIUM | P1 |
+| K8s ClusterIP Service | HIGH | LOW | P1 |
+| K8s Secrets (dev + prod) | HIGH | LOW | P1 |
+| ArgoCD Application manifests | HIGH | LOW | P1 |
+| GitHub Actions CI (lint + test) | HIGH | LOW | P1 |
+| GitHub Actions CD (build + push + deploy) | HIGH | MEDIUM | P1 |
+| Structured JSON logging | HIGH | LOW | P1 |
+| Prometheus /metrics endpoint | HIGH | LOW | P1 |
+| E2E smoke test suite | HIGH | MEDIUM | P1 |
+| Load test baseline (Locust) | HIGH | MEDIUM | P1 |
+| OpenTelemetry traces (FastAPI + SQLAlchemy + httpx) | HIGH | MEDIUM | P2 |
+| Trace ID in Loguru (custom middleware) | HIGH | MEDIUM | P2 |
+| HPA (CPU-based) | MEDIUM | LOW | P2 |
+| Pod Disruption Budget | MEDIUM | LOW | P2 |
+| Per-provider latency Prometheus metrics | MEDIUM | LOW | P2 |
+| Cascade pipeline OTel child spans | MEDIUM | MEDIUM | P2 |
+| ArgoCD Image Updater | LOW | MEDIUM | P3 |
+| KEDA event-driven autoscaling | LOW | HIGH | P3 |
+| External secrets operator | LOW | HIGH | P3 |
+| Network policy | LOW | LOW | P3 |
+| Grafana alerting rules | MEDIUM | LOW | P3 — after baseline established |
 
 **Priority key:**
-- P1: Required for v1.2 milestone
-- P2: Add after validation once failure-rate data available
-- P3: Future consideration; defer until need demonstrated
+- P1: Required for the v1.3 milestone to be called "production-ready"
+- P2: Add after core deployment is validated; makes the service production-grade
+- P3: Defer; requires baseline data or addresses speculative future concerns
 
 ---
 
-## Capability Deep Dives
+## Complexity and Effort Notes
 
-### Fuzzy Address Matching: What "Good" Looks Like
+### LOW complexity (< 1 day each)
+- Health endpoint split: refactor existing `/health` function into two routes
+- Structured JSON logging: `logger.configure(sink=sys.stdout, serialize=True)` gated on `ENVIRONMENT`
+- Service labels in logs: `logger.configure(extra={"service": "geo-api", ...})`
+- Prometheus metrics: `prometheus-fastapi-instrumentator`, 3 lines of code
+- K8s ClusterIP Service manifest: 15 lines YAML
+- K8s Secrets manifests: straightforward, with a note to never commit secret values to git
+- ArgoCD Application manifests: standard template
+- Ruff + pytest CI workflow: GitHub Actions boilerplate
+- Pod Disruption Budget: 10 lines YAML
 
-**What works at the DB layer:**
+### MEDIUM complexity (1–3 days each)
+- Multi-stage Dockerfile: significant rework of existing single-stage file; must preserve GDAL deps, uv venv, scripts, non-root user setup, exec-form CMD
+- K8s Deployment manifest: readiness/liveness/startup probes, preStop hook, resource limits, Ollama sidecar conversion from standalone Deployment
+- GitHub Actions CD workflow: GHCR auth, docker build-push-action, image tag strategy, ArgoCD sync step
+- E2E test suite: write 20–30 pytest tests covering all 5 providers, cascade, batch, validation against real deployment; requires the deployed environment to be accessible
+- Load test baseline (Locust): write locustfile.py covering geocode and batch endpoints; run at multiple concurrency levels; document P50/P95/P99 results
+- OpenTelemetry instrumentation: install 3–4 packages, configure OTLP exporter, instrument app startup
+- Trace ID Loguru middleware: custom FastAPI middleware to extract OTel span context and bind to Loguru
 
-pg_trgm similarity threshold of **0.65–0.70** is the right range for US street names. The default (0.3) is too permissive and will match unrelated streets. 0.80+ is too strict and misses real typos. The sweet spot for multi-word street names (where trigrams accumulate quickly) is 0.70. For short single-token names (Oak, Elm), drop to 0.65.
-
-**Combine trigram + phonetic:** Use trigram similarity as primary filter (`similarity(street, :input) > 0.65`), then rank results using Double Metaphone agreement as a tiebreaker. This handles both character-level typos ("Northminstr") and phonetic substitutions ("Mane St" → "Main St").
-
-**GIN vs GiST index:** Use GIN for static data (OA, NAD — loaded once, rarely updated). GIN is faster for read-heavy workloads. GiST is better for frequently updated tables and smaller index size. At NAD scale (80M rows), GIN build time is significant (30–60 min) but query performance is milliseconds.
-
-**Threshold tuning approach:** Run the pipeline against known-bad inputs from the E2E test cases; adjust threshold per provider if needed. Lower threshold is acceptable for NAD (80M rows, high coverage) than for OA (county-level file, lower coverage). Emit `resolution_stage=fuzzy_trgm` and `similarity_score` in telemetry to measure.
-
-**What "good" looks like:** Fuzzy matching resolves "Northminstr Dr" → "Northminster Dr" with a score of ~0.76. It does NOT resolve "Oak St" → "Elm St" (score ~0.14 — correctly rejected). It does NOT resolve street numbers — number matching remains exact; only the street name token is fuzzy-matched.
-
----
-
-### Spell Correction: What "Good" Looks Like
-
-**Why general spell checkers fail for addresses:**
-
-pyspellchecker and TextBlob use general English word frequency. Street names like "Northminster", "Napier", "Shurling", "Zebulon" are rare in English corpora and will be "corrected" to random common words. This produces wrong results that are harder to detect than no result.
-
-**The right approach — symspellpy with domain dictionary:**
-
-1. Extract all unique street name tokens from the loaded OA and NAD PostGIS tables (post-import).
-2. Build a frequency dictionary: term → count (use actual occurrence count from the dataset).
-3. Load this dictionary into symspellpy instead of the default English dictionary.
-4. Max edit distance = 2 (covers single transpositions and common typos; distance 3 produces too many false positives).
-5. Only apply spell correction to the **street name token**, not the full address string. House numbers, unit designators, ZIP codes, and state abbreviations must not be spell-corrected.
-
-**What "good" looks like:** "Northminstr Dr" → spell correction unchanged (trigrams handle this better than edit distance); "Rosevelt Ave" → "Roosevelt Ave" (edit distance 2, present in corpus). "123 Mane St Macon GA 31204" → spell corrects "Mane" to "Main" (if Main St exists in corpus) but does not touch "123", "Macon", "GA", or "31204".
-
-**What "good" does NOT look like:** Correcting city names, correcting state abbreviations, correcting cardinal directions (N/S/E/W), correcting house numbers with alpha suffixes ("123A" stays "123A").
+### HIGH complexity (3–5 days each)
+- Ollama sidecar: converting the existing Ollama Deployment + PVC to a sidecar within the geo-api Pod is non-trivial; the init container model-pull pattern must be preserved; PVC attachment changes; the Ollama K8s manifests already exist but need significant rework
+- HPA scaling validation: requires both the HPA manifest and load testing to run simultaneously; must observe pod scaling behavior; timing and cluster behavior can be unpredictable
 
 ---
 
-### LLM Address Correction: What "Good" Looks Like
+## Known Existing Issues (Tech Debt — Must Resolve Before Deployment)
 
-**When to invoke:**
+These are known defects documented in PROJECT.md that must be fixed in v1.3 before the system is deployed:
 
-LLM is a last-resort fallback. Only invoke after: (1) input normalization, (2) spell correction, (3) exact match across all providers, and (4) fuzzy match — all fail to produce a result with confidence ≥ 0.40. In practice, this is pathological input like transposed components ("Macon GA 1234 Northminster Dr") or incomplete addresses ("1234 Northminster, 31204").
+- **Tiger timeout:** Tiger provider has known timeout issues — need to investigate and set appropriate query timeouts before deploying
+- **`cache_hit` hardcode:** A field in the geocoding response is hardcoded; needs to reflect actual cache state
+- **Empty spell dictionary:** The spell corrector silently fails if no dictionary entries are loaded; needs graceful degradation and clear log warning
+- **CLI test failures:** 11 known pre-existing failures in CLI fixture tests; must be resolved or explicitly skipped with documented reason before CI gate is enforced
+- **Thorough code review needed:** Security (SQL injection risk in raw SQL queries?), stability (unhandled exceptions in provider dispatch?), performance (N+1 queries in batch endpoints?), logic errors, uncaught exceptions in cascade pipeline
 
-**Prompting pattern (verified working with Ollama structured output):**
-
-```
-System: You are an address parser for US postal addresses in Macon-Bibb County, Georgia.
-        Extract the components from malformed or incomplete address input.
-        Return only what you can determine with confidence; use null for fields you cannot determine.
-
-User: Parse this address: "{raw_input}"
-
-Schema: {
-  "house_number": "string or null",
-  "street_name": "string or null",
-  "street_suffix": "string or null",
-  "unit": "string or null",
-  "city": "string or null",
-  "state": "string or null",
-  "zip_code": "string or null"
-}
-```
-
-Few-shot examples in system prompt improve accuracy significantly. Include 2–3 examples of bad input → correct structured output.
-
-**What "good" looks like:** Given "1234 Northminster, Bibb County GA 31204", the LLM returns `{"house_number": "1234", "street_name": "Northminster", "street_suffix": null, "city": "Macon", "state": "GA", "zip_code": "31204"}`. The returned partial address is then fed back into the pipeline for a new exact/fuzzy match pass.
-
-**What "good" does NOT look like:** The LLM inventing a street that doesn't exist in the corpus ("Northminster Drive" when the correct address is "Northminster Boulevard"), or returning coordinates directly (LLMs are unreliable for this). The LLM's job is **address component extraction and completion**, not geocoding.
-
-**Infrastructure note:** Ollama structured output requires `format` parameter set to the JSON schema. Pydantic `model_json_schema()` produces a compatible schema. Use `temperature=0` for determinism. Implement a 3-second timeout; treat timeout as LLM-unavailable and skip stage.
-
----
-
-### Consensus Scoring: What "Good" Looks Like
-
-**The Tiger-50-miles-off problem:**
-
-Tiger geocodes without a county restriction can return a result in an adjacent county or state that happens to have a street with the same name. The result is geometrically far from the expected location (often 30–80 miles). Cross-provider consensus scoring should detect and down-weight this.
-
-**Cluster-based approach (not averaging):**
-
-1. Collect all provider results with confidence > 0.0.
-2. Group results by spatial cluster: results within 100m of each other form a cluster.
-3. The winning cluster is the one with the highest aggregate weight (sum of per-provider weights).
-4. Results outside the winning cluster are flagged as outliers.
-5. The consensus result is the centroid of the winning cluster (not the arithmetic mean of all results).
-
-**Provider weights (starting values — tune with telemetry):**
-
-| Provider | Weight | Rationale |
-|----------|--------|-----------|
-| Macon-Bibb GIS | 1.0 | Authoritative local source; highest trust |
-| OpenAddresses | 0.9 | Community-collected rooftop points; high accuracy |
-| NAD | 0.85 | E911 source data; reliable but placement varies |
-| Census Geocoder | 0.80 | Interpolated; accurate but not rooftop |
-| Tiger (restricted) | 0.75 | PostGIS Tiger with restrict_region applied |
-| Tiger (unrestricted) | 0.40 | Unrestricted Tiger; outlier candidate |
-
-**Confidence output:**
-
-```
-consensus_confidence = (winning_cluster_weight_sum / total_weight_sum) × max_cluster_confidence
-```
-
-If winning cluster has weight 2.65 (OA + NAD + Census) out of total 3.25 (all providers), consensus confidence = 0.815 × 0.95 (OA confidence) ≈ 0.77.
-
-**What "good" looks like:** Three providers agree within 100m → high consensus confidence → auto-set OfficialGeocoding. Tiger returns a point 55 miles away → outlier flagged → Tiger excluded from consensus → pipeline warns in logs but still produces a good result from the agreeing providers.
-
-**What "good" does NOT look like:** A single provider result with confidence=0.95 being treated as consensus. Single-provider results must be marked as `consensus_method=single_provider` and only auto-set official if confidence ≥ 0.90 and provider is a rooftop-accuracy source.
-
----
-
-### Cascading Pipeline: What Ordering Matters
-
-**The correct ordering:**
-
-```
-Stage 1: Input normalization
-  - Lowercase, strip punctuation, expand USPS suffix abbreviations
-  - Canonicalize state to 2-letter; zero-pad zip to 5 digits
-  - EXIT if address is structurally unparseable (return validation error)
-
-Stage 2: Zip prefix recovery
-  - If zip < 5 digits, try prefix match
-  - Mutate the parsed address zip before further stages
-
-Stage 3: Spell correction (symspellpy, domain dictionary)
-  - Only on street name token
-  - Store original; record correction applied
-  - CONTINUE with corrected form; keep original as fallback
-
-Stage 4: Exact match across all providers
-  - Dispatch in priority order: Macon-Bibb → OA → NAD → Census → Tiger(restricted)
-  - Collect ALL results that return confidence > 0.0
-  - If 2+ providers agree within 100m → run consensus scoring → EXIT with result
-  - If 1 provider returns confidence ≥ 0.90 (rooftop source) → EXIT with result
-
-Stage 5: Fuzzy match (pg_trgm similarity on street name)
-  - Run against OA and NAD PostGIS tables (they support SQL-level fuzzy)
-  - threshold = 0.70 for multi-word streets, 0.65 for single-word
-  - Collect candidates; re-run consensus scoring
-  - If consensus passes threshold → EXIT with result
-
-Stage 6: Phonetic fallback (Double Metaphone)
-  - Combine with trigram: dmetaphone agreement breaks ties between trigram candidates
-  - Run against OA and NAD PostGIS tables
-  - Collect candidates; re-run consensus scoring
-  - If consensus passes threshold → EXIT with result
-
-Stage 7: LLM address correction (optional, if Ollama available)
-  - Only if stages 1–6 produced no result with confidence ≥ 0.40
-  - LLM returns corrected address components
-  - Feed corrected components back into stages 4–6
-  - Record resolution_stage = "llm_correction"
-
-Stage 8: Final scoring and auto-set
-  - Best available result from highest-confidence stage
-  - If confidence ≥ threshold AND meets provider agreement rule → auto-set OfficialGeocoding
-  - Otherwise → return result without auto-setting (admin action required)
-  - Always return best available result; never return empty when a partial result exists
-```
-
-**Why this order:**
-
-- Normalization first eliminates the largest class of mismatches (suffix mismatch, case) before any DB query.
-- Spell correction before DB dispatch means the DB sees a cleaner string; avoids needing fuzzy indexes on all providers.
-- Exact match before fuzzy: exact is fast (indexed B-tree); fuzzy scan is more expensive even with GIN index. Try cheap paths first.
-- Tiger restricted comes before Tiger unrestricted — always; the unrestricted call is purely a fallback.
-- LLM last: highest latency, highest infrastructure dependency; only justified when all deterministic methods fail.
-- Consensus scoring at each exit point, not just the end: early consensus detection enables early exit, which is critical for batch throughput.
+These are not new features — they are blockers that prevent a confident production deployment. They belong in the first phases of v1.3 before any deployment work begins.
 
 ---
 
 ## Sources
 
-- PostgreSQL pg_trgm official docs: [postgresql.org/docs/current/pgtrgm.html](https://www.postgresql.org/docs/current/pgtrgm.html)
-- PostgreSQL fuzzystrmatch (Soundex/Metaphone): [postgresql.org/docs/current/fuzzystrmatch.html](https://www.postgresql.org/docs/current/fuzzystrmatch.html)
-- Neon pg_trgm extension guide: [neon.com/docs/extensions/pg_trgm](https://neon.com/docs/extensions/pg_trgm)
-- symspellpy (Python SymSpell port): [pypi.org/project/symspellpy](https://pypi.org/project/symspellpy/)
-- libpostal address normalization reference: [github.com/openvenues/libpostal](https://github.com/openvenues/libpostal)
-- Ollama structured outputs (v0.5+): [docs.ollama.com/capabilities/structured-outputs](https://docs.ollama.com/capabilities/structured-outputs)
-- Ollama structured outputs blog: [ollama.com/blog/structured-outputs](https://ollama.com/blog/structured-outputs)
-- Multi-provider geocoding optimization (POI-constrained): [tandfonline.com/doi/full/10.1080/17538947.2025.2578735](https://www.tandfonline.com/doi/full/10.1080/17538947.2025.2578735)
-- EarthDaily Geocoding Consensus Algorithm: [earthdaily.com/blog/geocoding-consensus-algorithm](https://earthdaily.com/blog/geocoding-consensus-algorithm-a-foundation-for-accurate-risk-assessment)
-- Geocoding systematic review (2025): [arxiv.org/pdf/2503.18888](https://arxiv.org/pdf/2503.18888)
-- PostGIS geocode() function (restrict_region): [postgis.net/docs/Geocode.html](https://postgis.net/docs/Geocode.html)
-- Crunchydata address matching with libpostal: [crunchydata.com/blog/quick-and-dirty-address-matching-with-libpostal](https://www.crunchydata.com/blog/quick-and-dirty-address-matching-with-libpostal)
-- Incognia messy address pipeline: [medium.com/incognia-tech/handling-messy-address-data](https://medium.com/incognia-tech/handling-messy-address-data-4d51bbb7e8e3)
-- Cascading geocoding success rates: [coordable.co — Geocoding Orchestrator](https://coordable.co/)
-- Address normalization state of the field: [medium.com/@albamus/the-state-of-address-normalisation](https://medium.com/@albamus/the-state-of-address-normalisation-9c41a20a638a)
+- Kubernetes liveness/readiness/startup probes: [kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+- Google Cloud K8s health check best practices: [cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-setting-up-health-checks](https://cloud.google.com/blog/products/containers-kubernetes/kubernetes-best-practices-setting-up-health-checks-with-readiness-and-liveness-probes)
+- FastAPI + K8s graceful shutdown (uvicorn SIGTERM): [github.com/fastapi/fastapi/discussions/10609](https://github.com/fastapi/fastapi/discussions/10609)
+- Graceful pod termination with preStop hook: [minhpn.com/index.php/2025/02/26/graceful-pod-termination](https://minhpn.com/index.php/2025/02/26/graceful-pod-termination-by-fixing-sigterm-handling-and-using-prestop-hook/)
+- Production-ready Python Docker images with uv: [hynek.me/articles/docker-uv](https://hynek.me/articles/docker-uv/)
+- Multi-stage Python Dockerfiles with uv (2025): [digon.io/en/blog/2025_07_28_python_docker_images_with_uv](https://digon.io/en/blog/2025_07_28_python_docker_images_with_uv)
+- FastAPI + GitHub Actions + GHCR CI/CD: [pyimagesearch.com/2024/11/11/fastapi-with-github-actions-and-ghcr](https://pyimagesearch.com/2024/11/11/fastapi-with-github-actions-and-ghcr-continuous-delivery-made-simple/)
+- ArgoCD + GitHub Actions GitOps workflow: [medium.com/@mehmetkanus17/argocd-github-actions](https://medium.com/@mehmetkanus17/argocd-github-actions-a-complete-gitops-ci-cd-workflow-for-kubernetes-applications-ed2f91d37641)
+- ArgoCD Image Updater docs: [argocd-image-updater.readthedocs.io](https://argocd-image-updater.readthedocs.io/)
+- OpenTelemetry FastAPI instrumentation: [opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/fastapi](https://opentelemetry-python-contrib.readthedocs.io/en/latest/instrumentation/fastapi/fastapi.html)
+- fastapi-observability reference (Traces+Metrics+Logs): [github.com/blueswen/fastapi-observability](https://github.com/blueswen/fastapi-observability)
+- Loguru + OTel trace_id gap (issue #3615): [github.com/open-telemetry/opentelemetry-python/issues/3615](https://github.com/open-telemetry/opentelemetry-python/issues/3615)
+- FastAPI logging complete guide: [apitally.io/blog/fastapi-logging-guide](https://apitally.io/blog/fastapi-logging-guide)
+- Grafana Alloy sending OTel logs to Loki: [grafana.com/docs/loki/latest/send-data/alloy/examples/alloy-otel-logs](https://grafana.com/docs/loki/latest/send-data/alloy/examples/alloy-otel-logs/)
+- Loki + Tempo log/trace correlation: [oneuptime.com/blog/post/2026-01-21-loki-tempo-traces-correlation](https://oneuptime.com/blog/post/2026-01-21-loki-tempo-traces-correlation/view)
+- prometheus-fastapi-instrumentator: [github.com/trallnag/prometheus-fastapi-instrumentator](https://github.com/trallnag/prometheus-fastapi-instrumentator)
+- HPA autoscaling tactics for FastAPI: [medium.com/@Nexumo_/8-hpa-autoscaling-tactics-for-fastapi-on-k8s](https://medium.com/@Nexumo_/8-hpa-autoscaling-tactics-for-fastapi-on-k8s-d67635bdf8cc)
+- Distributed load testing Locust + K8s + FastAPI: [medium.com/@subhraj07/distributed-load-testing-using-locust-kubernetes-and-fastapi](https://medium.com/@subhraj07/distributed-load-testing-using-locust-kubernetes-and-fastapi-88008d42f13e)
+- K8s security hardening 2025: [sealos.io/blog/a-practical-guide-to-kubernetes-security-hardening](https://sealos.io/blog/a-practical-guide-to-kubernetes-security-hardening-your-cluster-in-2025/)
+- Kubernetes security checklist: [kubernetes.io/docs/concepts/security/security-checklist](https://kubernetes.io/docs/concepts/security/security-checklist/)
+- Trivy container scanning: [github.com/aquasecurity/trivy-action](https://github.com/aquasecurity/trivy-action)
 
 ---
 
-*Feature research for: cascading address resolution pipeline (v1.2)*
+*Feature research for: Python FastAPI microservice production deployment, observability, CI/CD, and E2E testing (v1.3)*
 *Researched: 2026-03-29*

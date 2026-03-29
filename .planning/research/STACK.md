@@ -1,8 +1,500 @@
 # Technology Stack
 
-**Project:** CivPulse Geo API — v1.1 Local Data Source Providers
-**Researched:** 2026-03-20
-**Confidence:** HIGH — all findings verified against actual data files in `data/` and installed packages in the project virtualenv. Previous entries below the divider are preserved from v1.0 research.
+**Project:** CivPulse Geo API — v1.3 Production Readiness & Deployment
+**Researched:** 2026-03-29
+**Confidence:** HIGH (OpenTelemetry SDK — PyPI + official docs), HIGH (Locust — PyPI), HIGH (Dockerfile pattern — official uv docs), MEDIUM (Loguru+OTel integration — community pattern, no official first-party support), MEDIUM (observability infrastructure versions — Helm chart changelogs + community sources)
+
+---
+
+## v1.3 Milestone: Stack Additions for Production Deployment, Observability, and Testing
+
+**Research date:** 2026-03-29
+**Scope:** New capabilities only. Everything from v1.0–v1.2 is unchanged and validated. This section covers: OpenTelemetry SDK + instrumentation, Loguru/trace-context integration, Prometheus metrics endpoint, Dockerfile hardening, K8s deployment patterns, CI/CD (GitHub Actions → GHCR → ArgoCD), and load/E2E testing.
+
+### Executive Finding
+
+**Six Python packages are required. No existing packages are replaced.** Loguru is retained as-is; trace context is injected via a lightweight FastAPI middleware patcher, not by replacing Loguru with stdlib logging. The observability stack (Alloy, Loki, Tempo, VictoriaMetrics) is infrastructure running in the cluster — not Python dependencies. ArgoCD and GitHub Actions are CI/CD infrastructure, not application code.
+
+---
+
+### OpenTelemetry SDK and Instrumentation
+
+The OpenTelemetry Python SDK is at stable 1.40.0 (API + SDK) and 0.61b0 (contrib/instrumentation packages). The 0.x beta version numbering for contrib is the project's permanent release cadence — these are production-ready despite the beta label. All packages released 2026-03-04.
+
+| Package | Version | Purpose | Why Recommended |
+|---------|---------|---------|-----------------|
+| `opentelemetry-api` | 1.40.0 | OTel API primitives — tracer, span, context | Stable API layer; required by all instrumentation packages. Zero-overhead no-op when no SDK configured. |
+| `opentelemetry-sdk` | 1.40.0 | SDK implementation — TracerProvider, SpanProcessor, Sampler | Stable. Provides BatchSpanProcessor for async-safe span export without blocking the event loop. |
+| `opentelemetry-exporter-otlp-proto-http` | 1.40.0 | Export traces and metrics via OTLP/HTTP to Grafana Alloy | HTTP/protobuf preferred over gRPC for this stack — avoids grpcio binary dependency (~10 MB), Alloy's OTLP receiver supports HTTP natively, firewall-friendlier. |
+| `opentelemetry-instrumentation-fastapi` | 0.61b0 | Auto-instrument FastAPI: creates spans for every HTTP request, propagates W3C traceparent headers | Zero application code changes. Records request method, route, status code, duration. Integrates with existing Starlette middleware stack. |
+| `opentelemetry-instrumentation-httpx` | 0.61b0 | Auto-instrument httpx: creates child spans for outbound HTTP calls (Census Geocoder, Ollama) | Traces external provider calls as child spans within the geocoding request span. No code changes needed beyond one-time `HTTPXClientInstrumentor().instrument()` call. |
+| `opentelemetry-instrumentation-sqlalchemy` | 0.61b0 | Auto-instrument SQLAlchemy: creates spans for all DB queries | Use `SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)` — asyncpg via SQLAlchemy's async engine exposes the sync engine for instrumentation. Traces query latency, table, operation for every ORM call. |
+
+**Why not `opentelemetry-instrumentation-asyncpg` separately:** `opentelemetry-instrumentation-sqlalchemy` instruments at the SQLAlchemy layer, which covers all asyncpg calls already. Adding asyncpg instrumentation on top creates duplicate spans. Use SQLAlchemy instrumentation only.
+
+**Why OTLP/HTTP not gRPC:** The `grpc` transport requires `grpcio`, a native binary extension with a large install footprint and frequent version conflicts. The HTTP exporter uses the already-present `httpx` transport model and sends to the same Alloy receiver endpoint.
+
+**Why OpenTelemetry not a commercial APM agent:** OpenTelemetry is the CNCF standard, vendor-neutral, and works with Grafana Alloy → Tempo (the chosen stack). APM agents (Datadog, New Relic) require managed cloud accounts and send data off-premises — incompatible with the internal-only network constraint.
+
+**Installation:**
+```bash
+uv add opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-http
+uv add opentelemetry-instrumentation-fastapi opentelemetry-instrumentation-httpx opentelemetry-instrumentation-sqlalchemy
+```
+
+---
+
+### Loguru + OpenTelemetry Trace Context Integration
+
+**Critical finding: Loguru has no official first-party OpenTelemetry integration.** The `opentelemetry-instrumentation-logging` package patches stdlib `logging` only — it does NOT patch Loguru. Do not replace Loguru with stdlib logging; Loguru is a hard project constraint.
+
+**Recommended pattern: FastAPI middleware patcher using `logger.contextualize()`**
+
+```python
+from opentelemetry import trace
+from loguru import logger
+from starlette.middleware.base import BaseHTTPMiddleware
+
+class TraceContextMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        span = trace.get_current_span()
+        ctx = span.get_span_context()
+        trace_id = format(ctx.trace_id, "032x") if ctx.is_valid else "0" * 32
+        span_id = format(ctx.span_id, "016x") if ctx.is_valid else "0" * 16
+        with logger.contextualize(trace_id=trace_id, span_id=span_id):
+            return await call_next(request)
+```
+
+This middleware runs after `FastAPIInstrumentor` has created and activated the span for the request, so `get_current_span()` returns a valid span. The `contextualize()` context manager binds `trace_id` and `span_id` to all Loguru log calls within the request's async scope. No Loguru replacement required.
+
+**Structured JSON logging for Loki:** Loguru's JSON serialization is enabled at startup, not per-request:
+```python
+import sys
+logger.remove()
+logger.add(sys.stdout, serialize=True)  # emits newline-delimited JSON
+```
+Grafana Alloy's `loki.source.kubernetes` component discovers container stdout logs automatically. No file sink, no file path configuration needed in K8s.
+
+**Confidence:** MEDIUM. This pattern is validated by community implementations (Dash0 guide, OpenTelemetry GitHub issue #3615) and leverages Loguru's documented `contextualize()` API. The Loguru maintainer is considering native OTel support but it is not yet merged.
+
+---
+
+### Prometheus Metrics Endpoint (for VictoriaMetrics scraping)
+
+| Package | Version | Purpose | Why Recommended |
+|---------|---------|---------|-----------------|
+| `prometheus-fastapi-instrumentator` | 7.1.0 | Exposes `/metrics` endpoint in Prometheus exposition format for VictoriaMetrics scraping | The standard approach for FastAPI + Prometheus. Automatically instruments all routes with request count, duration histograms, and in-flight gauge. Single `Instrumentator().instrument(app).expose(app)` call. Released March 19, 2025. Python 3.8–3.13. |
+
+**Why this over bare `prometheus_client`:** The bare client requires manual middleware boilerplate to collect per-route latency histograms. `prometheus-fastapi-instrumentator` wraps this correctly and matches FastAPI's route-grouping semantics (routes with path parameters like `/geocode/{id}` are correctly labeled, not exploded into per-ID metrics).
+
+**Why Prometheus format (not OTLP metrics):** VictoriaMetrics scrapes Prometheus exposition format via its built-in Prometheus-compatible scraper. This is simpler than configuring an OTLP metrics pipeline through Alloy. The OpenTelemetry SDK metrics pipeline is available if needed later but adds complexity for minimal gain at this stage.
+
+**Installation:**
+```bash
+uv add prometheus-fastapi-instrumentator
+```
+
+---
+
+### Dockerfile Hardening (Multi-Stage + Non-Root + uv)
+
+The existing Dockerfile is a single-stage image that runs as root. For K8s production deployment the recommended pattern is two-stage (builder + runtime) with a non-root user. No new Python packages are needed — this is a Dockerfile change.
+
+**Recommended pattern (from Hynek Schlawack's "Production-Ready Python Docker Containers with uv"):**
+
+```dockerfile
+# Stage 1: Build
+FROM python:3.12-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+WORKDIR /app
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+# Install system build deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgdal-dev libexpat1 && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies (cached until lockfile changes)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=uv.lock,target=uv.lock \
+    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+    uv sync --locked --no-install-project --no-dev
+
+# Install project
+COPY . /app
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev
+
+# Stage 2: Runtime
+FROM python:3.12-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgdal-dev libexpat1 postgis postgresql-client unzip wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r appuser && useradd -r -d /app -g appuser -N appuser \
+    && mkdir -p /gisdata/temp && chown -R appuser:appuser /gisdata
+
+COPY --from=builder --chown=appuser:appuser /app /app
+
+ENV PATH="/app/.venv/bin:$PATH"
+USER appuser
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+
+CMD ["bash", "scripts/docker-entrypoint.sh"]
+```
+
+**Key improvements over current Dockerfile:**
+- `UV_COMPILE_BYTECODE=1`: pre-compiles `.pyc` files at build time → faster container startup
+- `UV_LINK_MODE=copy`: copies files instead of hardlinks (required when build/runtime differ)
+- `UV_PYTHON_DOWNLOADS=never`: uses system Python, no Astral download at build time
+- Non-root `appuser`: K8s security best practice; many clusters enforce non-root via PodSecurityAdmission
+- Build tools (`libgdal-dev`) stay in builder stage; runtime stage installs only shared libs, not headers
+- `--no-dev` in sync: excludes pytest/debugpy from production image
+
+**Important: do NOT use `FROM ghcr.io/astral-sh/uv AS uv` base image for the runtime stage** — it's Debian-based and larger. Copy only the `/uv` binary and keep `python:3.12-slim` as the base.
+
+---
+
+### K8s Deployment Patterns
+
+No new Python packages. Infrastructure manifest patterns only.
+
+**API Deployment configuration:**
+- Single Uvicorn process per pod (not Gunicorn workers) — K8s HPA handles horizontal scaling
+- `replicas: 1` initially, HPA target at 70% CPU
+- `resources.requests`: 256m CPU / 512Mi RAM; `resources.limits`: 1000m CPU / 1Gi RAM
+- Liveness probe: `GET /health` (implement if not present)
+- Readiness probe: `GET /health` with `initialDelaySeconds: 5`
+- `terminationGracePeriodSeconds: 30` — allows in-flight requests to complete
+
+**Service:** ClusterIP only (per PROJECT.md constraint). Port 8000. No Ingress.
+
+**Access:** `kubectl port-forward svc/geo-api 8000:8000` for debugging. No NodePort required given k3s environment.
+
+**Namespace strategy:** `civpulse-dev` and `civpulse-prod` namespaces. Use `kustomize` overlays (base + dev overlay + prod overlay) rather than separate manifests — reduces drift between environments.
+
+**ConfigMap vs Secrets:** Database DSN, API keys → K8s Secrets. Non-sensitive config (log level, provider toggles) → ConfigMap. Mount as env vars, not files, for this use case.
+
+---
+
+### CI/CD: GitHub Actions → GHCR → ArgoCD
+
+No new Python packages. Infrastructure/workflow patterns only.
+
+**GitHub Actions workflow structure:**
+
+```yaml
+# .github/workflows/deploy.yml
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+      sha_short: ${{ steps.sha.outputs.sha_short }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ghcr.io/civpulse/geo-api:${{ steps.sha.outputs.sha_short }}
+          build-args: GIT_COMMIT=${{ steps.sha.outputs.sha_short }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  update-manifests:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: civpulse/k8s-manifests  # separate GitOps repo
+          token: ${{ secrets.GITOPS_TOKEN }}
+      - name: Update image tag
+        run: |
+          sed -i "s|image: ghcr.io/civpulse/geo-api:.*|image: ghcr.io/civpulse/geo-api:${{ needs.build.outputs.sha_short }}|" \
+            apps/geo-api/dev/deployment.yaml
+      - uses: actions/create-github-app-token@v1  # or use PAT
+      - run: |
+          git config user.email "ci@civpulse.org"
+          git config user.name "CivPulse CI"
+          git commit -am "chore: update geo-api to ${{ needs.build.outputs.sha_short }}"
+          git push
+```
+
+**Image tagging:** Use 7-char commit SHA as immutable tag. Never use `:latest` in K8s manifests. SHA tags are traceable and support rollback via ArgoCD.
+
+**ArgoCD version:** 3.3.x (latest as of March 2026). ArgoCD 3.0 is EOL. Use 3.1 or higher. v3.1+ supports native OCI registry for Helm charts.
+
+**ArgoCD Application pattern:**
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: geo-api-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/civpulse/k8s-manifests
+    targetRevision: HEAD
+    path: apps/geo-api/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: civpulse-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+**Secret strategy:** Never commit plaintext secrets to the GitOps repo. Use K8s Secrets created out-of-band (via `kubectl create secret`) or Sealed Secrets for encrypted-in-Git approach. ExternalSecrets requires a secrets backend (Vault, cloud SM) — overkill for this deployment scale.
+
+---
+
+### Observability Infrastructure (Cluster-Level, Not Python Packages)
+
+These run in the K8s cluster. No Python dependencies added to the geo-api.
+
+#### Grafana Alloy (Log + Trace Collector)
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `grafana/alloy` Helm chart | v1.14.x (app version) / chart 0.x | DaemonSet (log collection) + Deployment (OTLP receiver) | Collects container stdout logs via `loki.source.kubernetes`, receives OTLP traces from geo-api, forwards to Loki and Tempo |
+
+**Why Alloy not Promtail:** Alloy is Grafana's official replacement for Promtail (now deprecated). Alloy handles both logs and traces in a single agent, reducing the number of components to manage.
+
+**Why DaemonSet for logs:** `loki.source.kubernetes` uses the Kubernetes API to tail pod logs without requiring node-level file access — runs as DaemonSet with `spec.nodeName` selector to collect only local node logs.
+
+**Alloy OTLP receiver config for traces:**
+```alloy
+otelcol.receiver.otlp "default" {
+  http { endpoint = "0.0.0.0:4318" }
+  output {
+    traces = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+```
+
+#### Grafana Loki (Log Aggregation)
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `grafana/loki` Helm chart | 6.x (single-binary mode) | StatefulSet | Receives structured JSON logs from Alloy, queryable from Grafana |
+
+**Why single-binary mode:** The microservices (distributed) mode requires 5+ separate StatefulSets. Single-binary (`loki.deploymentMode: SingleBinary`) runs all components in one pod — appropriate for internal, low-volume geo-api log traffic.
+
+**Note (March 2026):** The OSS Loki Helm chart has moved from `grafana/helm-charts` to `grafana-community/helm-charts` at chart version 6.55.0. Use `helm repo add grafana-community https://grafana.github.io/helm-charts` when installing.
+
+#### Grafana Tempo (Distributed Tracing Backend)
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `grafana/tempo` Helm chart | latest stable | Deployment | Receives OTLP traces from Alloy, stores and queries spans |
+
+**Why Tempo not Jaeger:** Tempo is the native Grafana Labs tracing backend with built-in Grafana datasource integration (TraceQL, span linking to logs). Jaeger requires separate UI and storage configuration. Tempo also supports parquet-based object storage backends for long retention.
+
+#### VictoriaMetrics (Metrics Storage)
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `victoria-metrics-k8s-stack` Helm chart | 0.72.5 (March 16, 2026) | Includes VMSingle, VMAgent, VMAlert, Grafana, node-exporter, kube-state-metrics | Prometheus-compatible metrics storage + K8s cluster monitoring in one chart |
+
+**Why VictoriaMetrics not Prometheus:** VictoriaMetrics uses 5–10x less RAM than Prometheus for equivalent retention. VMSingle (single-node) scales vertically and is simpler to operate than Prometheus with Thanos. PromQL-compatible — all existing Prometheus dashboards work unchanged.
+
+**Why `victoria-metrics-k8s-stack` not just VMSingle:** The all-in-one chart installs node-exporter, kube-state-metrics, VMAgent (scrape layer), and Grafana together — significantly reduces bootstrap effort. VictoriaMetrics components updated to v1.138.0 in chart 0.72.5.
+
+**geo-api metrics scraping:** VMAgent discovers geo-api pods via Prometheus annotations (`prometheus.io/scrape: "true"`, `prometheus.io/port: "8000"`, `prometheus.io/path: "/metrics"`). No additional ServiceMonitor CRDs needed for basic scraping.
+
+#### ArgoCD
+
+| Component | Version | Notes |
+|-----------|---------|-------|
+| ArgoCD | 3.3.x | Latest as of March 2026. v3.0 EOL Feb 2026. v3.1+ required. |
+
+---
+
+### Load Testing
+
+| Package | Version | Purpose | Why Recommended |
+|---------|---------|---------|-----------------|
+| `locust` | 2.43.3 | HTTP load testing with configurable user tasks and ramp-up profiles | Python-native (tasks written as Python classes), built-in web UI for real-time P50/P95/P99 visualization, supports `--headless` mode for CI execution, CSV export for baseline comparison. No JVM/Go toolchain required. Released Feb 12, 2026. Python 3.10–3.14. |
+
+**Why Locust not k6:** k6 requires a separate JavaScript/TypeScript toolchain and binary. Locust test scripts are Python — consistent with the rest of the CivPulse project. Locust also supports distributed load generation on K8s (master + worker pods) if single-node capacity is insufficient.
+
+**Why Locust not Gatling/JMeter:** JVM-based, require Java, not Python. Heavier operational overhead for a Python shop.
+
+**Locust test structure for geo-api:**
+```python
+from locust import HttpUser, task, between
+
+class GeoApiUser(HttpUser):
+    wait_time = between(0.1, 0.5)
+
+    @task(3)
+    def geocode_single(self):
+        self.client.post("/geocode", json={"address": "123 Elm St, Macon GA 31201"})
+
+    @task(1)
+    def geocode_batch(self):
+        self.client.post("/geocode/batch", json={"addresses": [
+            "100 Cherry St, Macon GA 31201",
+            "200 Forsyth St, Macon GA 31201",
+        ]})
+```
+
+**Baseline targets (from PROJECT.md):** P50 < 500ms, P95 < 3s (established in v1.2 cascade research). Load test must verify these hold under concurrent load.
+
+**Installation (dev dependency):**
+```bash
+uv add --dev locust
+```
+
+---
+
+### E2E Testing
+
+**Recommended approach: pytest + httpx.AsyncClient against deployed cluster (via port-forward)**
+
+No new testing frameworks are needed beyond Locust. The existing `pytest` + `pytest-asyncio` + `httpx` dev stack is sufficient for E2E integration tests that validate all 5 providers in the deployed environment.
+
+**Pattern:**
+```python
+import httpx
+import pytest
+
+BASE_URL = "http://localhost:8000"  # via kubectl port-forward
+
+@pytest.mark.asyncio
+async def test_census_provider_e2e():
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
+        resp = await client.post("/geocode", json={"address": "100 Cherry St Macon GA 31201"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["official"]["latitude"] is not None
+        assert any(r["provider"] == "census" for r in data["results"])
+```
+
+**Why not Playwright for API E2E:** Playwright is a browser automation tool — not appropriate for a headless REST API. `httpx.AsyncClient` is already in the project's test stack and is the correct tool for async API integration tests.
+
+**Why not a separate E2E framework (RestAssured, Karate):** All would require additional language runtimes (Java/Kotlin). Python + httpx + pytest is idiomatic for this project.
+
+**No additional packages required for E2E.** `httpx` and `pytest-asyncio` are already in `[dependency-groups.dev]`.
+
+---
+
+### New Packages Summary (v1.3)
+
+| Package | Version | Install Command | Category |
+|---------|---------|----------------|----------|
+| `opentelemetry-api` | 1.40.0 | `uv add opentelemetry-api` | Runtime |
+| `opentelemetry-sdk` | 1.40.0 | `uv add opentelemetry-sdk` | Runtime |
+| `opentelemetry-exporter-otlp-proto-http` | 1.40.0 | `uv add opentelemetry-exporter-otlp-proto-http` | Runtime |
+| `opentelemetry-instrumentation-fastapi` | 0.61b0 | `uv add opentelemetry-instrumentation-fastapi` | Runtime |
+| `opentelemetry-instrumentation-httpx` | 0.61b0 | `uv add opentelemetry-instrumentation-httpx` | Runtime |
+| `opentelemetry-instrumentation-sqlalchemy` | 0.61b0 | `uv add opentelemetry-instrumentation-sqlalchemy` | Runtime |
+| `prometheus-fastapi-instrumentator` | 7.1.0 | `uv add prometheus-fastapi-instrumentator` | Runtime |
+| `locust` | 2.43.3 | `uv add --dev locust` | Dev only |
+
+**Total new runtime packages: 7. One new dev package: 1.**
+
+---
+
+### What NOT to Add (v1.3)
+
+| Do Not Add | Why | Use Instead |
+|------------|-----|-------------|
+| `opentelemetry-instrumentation-logging` | Patches stdlib `logging` only — has no effect on Loguru. Replacing Loguru with stdlib logging is a hard constraint violation. | `logger.contextualize()` in FastAPI middleware (custom pattern) |
+| `opentelemetry-instrumentation-asyncpg` | Duplicates spans already created by SQLAlchemy instrumentation — creates nested duplicate DB spans | `opentelemetry-instrumentation-sqlalchemy` only |
+| `opentelemetry-exporter-otlp-proto-grpc` | Requires `grpcio` native binary (~10 MB, frequent install issues). HTTP exporter reaches the same Alloy endpoint. | `opentelemetry-exporter-otlp-proto-http` |
+| `gunicorn` in K8s | Multiple Uvicorn workers per pod conflicts with K8s HPA scaling model. HPA scales pods, not processes. | Single Uvicorn process per pod + HPA |
+| `prometheus_client` (bare) | Requires manual middleware for per-route metrics. Does not handle path-parameter route grouping. | `prometheus-fastapi-instrumentator` |
+| `structlog` | Would require replacing Loguru, which is a project constraint. Structlog's JSON output is equivalent to Loguru's `serialize=True`. | Loguru `serialize=True` + `contextualize()` |
+| `k6` or `JMeter` | Require non-Python runtimes (Go/Java). Locust achieves equivalent load generation in Python. | `locust` |
+| Playwright for API E2E | Browser automation tool — inappropriate for headless REST API testing. | `httpx.AsyncClient` + `pytest` (already in stack) |
+| Jaeger | Separate UI, storage config overhead. Grafana has native Tempo datasource with TraceQL. | Grafana Tempo |
+| Promtail | Deprecated by Grafana Labs in favor of Alloy. No future development. | Grafana Alloy |
+| Grafana Mimir | Enterprise-scale distributed metrics — overkill for single internal API. Higher operational complexity. | VictoriaMetrics VMSingle |
+| `:latest` image tag in K8s manifests | Not immutable — rollback impossible, pod restarts can change behavior silently | Git SHA-based tag (e.g., `geo-api:a3f7b12`) |
+| Sealed Secrets (if out-of-band K8s Secrets suffice) | Adds controller dependency and key management overhead. Only needed if Secrets must live in Git. | `kubectl create secret` out-of-band |
+
+---
+
+### Loguru JSON Output Format for Loki
+
+When Loguru emits JSON (`serialize=True`), the output structure is:
+```json
+{
+  "text": "Geocoding request completed",
+  "record": {
+    "level": {"name": "INFO"},
+    "time": {"timestamp": 1711728000.0},
+    "message": "Geocoding request completed",
+    "extra": {"trace_id": "4bf92f3577b34da6...", "span_id": "00f067aa0ba902b7..."}
+  }
+}
+```
+
+Alloy's `loki.process` pipeline stage extracts `record.level.name` as the log level label and `record.extra.trace_id` for Loki-to-Tempo trace linking. Configure the Loki datasource in Grafana with a "Derived Field" that matches the `trace_id` pattern and links to the Tempo datasource.
+
+---
+
+### Version Compatibility (v1.3 Additions)
+
+| Package | Compatible With | Notes |
+|---------|----------------|-------|
+| `opentelemetry-api==1.40.0` | Python 3.9–3.14 | No conflict with existing stack |
+| `opentelemetry-sdk==1.40.0` | Python 3.9–3.14 | Requires opentelemetry-api ~= 1.40.0 |
+| `opentelemetry-exporter-otlp-proto-http==1.40.0` | opentelemetry-sdk ~= 1.40.0; httpx (already present) | Uses httpx transport internally — verify httpx >= 0.26.0 (project has 0.28.1 — compatible) |
+| `opentelemetry-instrumentation-fastapi==0.61b0` | FastAPI >= 0.51.0 (project has 0.135.1 — compatible); opentelemetry-api ~= 1.40 | |
+| `opentelemetry-instrumentation-httpx==0.61b0` | httpx >= 0.23.0 (project has 0.28.1 — compatible) | |
+| `opentelemetry-instrumentation-sqlalchemy==0.61b0` | SQLAlchemy >= 1.4 (project has 2.0.x — compatible); GeoAlchemy2 unaffected (uses same engine) | |
+| `prometheus-fastapi-instrumentator==7.1.0` | FastAPI >= 0.51.0; Python >= 3.8; prometheus-client auto-installed | |
+| `locust==2.43.3` | Python >= 3.10 (project uses 3.12 — compatible) | Dev-only; no runtime footprint |
+
+---
+
+### Sources (v1.3)
+
+- [opentelemetry-sdk on PyPI](https://pypi.org/project/opentelemetry-sdk/) — version 1.40.0, released March 4, 2026 (HIGH confidence, verified)
+- [opentelemetry-exporter-otlp-proto-http on PyPI](https://pypi.org/project/opentelemetry-exporter-otlp-proto-http/) — version 1.40.0, March 4, 2026 (HIGH confidence, verified)
+- [opentelemetry-instrumentation-fastapi on PyPI](https://pypi.org/project/opentelemetry-instrumentation-fastapi/) — version 0.61b0, March 4, 2026, Python 3.9–3.14 (HIGH confidence, verified)
+- [opentelemetry-python GitHub releases](https://github.com/open-telemetry/opentelemetry-python/releases) — confirmed 1.40.0/0.61b0 release date (HIGH confidence)
+- [OpenTelemetry Python instrumentation docs](https://opentelemetry.io/docs/languages/python/) — stable traces/metrics, dev logs (HIGH confidence)
+- [OpenTelemetry SQLAlchemy async engine pattern](https://oneuptime.com/blog/post/2026-02-06-instrument-async-sqlalchemy-2-opentelemetry/view) — `engine.sync_engine` pattern for async SQLAlchemy (MEDIUM confidence)
+- [Loguru + OpenTelemetry GitHub issue #3615](https://github.com/open-telemetry/opentelemetry-python/issues/3615) — confirmed no official Loguru integration; `contextualize()` workaround community pattern (MEDIUM confidence)
+- [Production-Grade Python Logging Made Easier with Loguru · Dash0](https://www.dash0.com/guides/python-logging-with-loguru) — `logger.contextualize()` + FastAPI middleware pattern (MEDIUM confidence)
+- [prometheus-fastapi-instrumentator on PyPI](https://pypi.org/project/prometheus-fastapi-instrumentator/) — version 7.1.0, March 19, 2025 (HIGH confidence, verified)
+- [locust on PyPI](https://pypi.org/project/locust/) — version 2.43.3, Feb 12, 2026, Python >= 3.10 (HIGH confidence, verified)
+- [Grafana Alloy Kubernetes log collection docs](https://grafana.com/docs/alloy/latest/collect/logs-in-kubernetes/) — v1.14, DaemonSet deployment, `loki.source.kubernetes` component (HIGH confidence, official docs)
+- [Grafana Alloy OTLP → Tempo docs](https://grafana.com/docs/tempo/latest/set-up-for-tracing/instrument-send/set-up-collector/grafana-alloy/) — Alloy as OTLP receiver (HIGH confidence, official docs)
+- [VictoriaMetrics K8s stack Helm chart docs](https://docs.victoriametrics.com/helm/victoria-metrics-k8s-stack/) — chart 0.72.5 released March 16, 2026 (HIGH confidence, official docs)
+- [ArgoCD releases](https://github.com/argoproj/argo-cd/releases) — v3.3.6 latest as of March 27, 2026; v3.0 EOL Feb 2026 (HIGH confidence)
+- [FastAPI Kubernetes deployment — single uvicorn per pod](https://fastapi.tiangolo.com/deployment/server-workers/) — official FastAPI docs recommending single process per K8s pod (HIGH confidence)
+- [Production-ready Python Docker containers with uv](https://hynek.me/articles/docker-uv/) — multi-stage pattern, `UV_COMPILE_BYTECODE`, non-root user (HIGH confidence, authoritative uv article)
+- [GitHub Actions + GHCR + ArgoCD GitOps pattern](https://medium.com/@nathanieldarko100/building-a-kubernetes-ci-cd-pipeline-with-github-actions-argocd-and-github-container-registry-236fcc58601e) — SHA-tag pattern, GitOps repo update step (MEDIUM confidence)
+- [Grafana Loki Helm chart move to grafana-community](https://grafana.com/docs/helm-charts/) — chart 6.55.0 moved repo March 2026 (MEDIUM confidence, official Grafana docs)
 
 ---
 
@@ -484,5 +976,5 @@ The entries below document the validated v1.0 stack. No changes are required for
 | fiona | 1.10.1 | Spatial file I/O (SHP, GDB, KML) | Used in GIS import CLI; OpenFileGDB driver for NAD FGDB |
 
 ---
-*Stack research for: CivPulse Geo API v1.2 Cascading Address Resolution — new capabilities*
+*Stack research for: CivPulse Geo API v1.3 Production Readiness & Deployment — new capabilities*
 *Researched: 2026-03-29*

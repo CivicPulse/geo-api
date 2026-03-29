@@ -1,233 +1,215 @@
 # Project Research Summary
 
-**Project:** CivPulse Geo API — v1.2 Cascading Address Resolution
-**Domain:** Multi-provider geocoding pipeline with fuzzy/phonetic fallback, LLM correction, and consensus scoring
+**Project:** CivPulse Geo API — v1.3 Production Readiness & Deployment
+**Domain:** Python FastAPI microservice — K8s deployment, observability, CI/CD, E2E and load testing
 **Researched:** 2026-03-29
 **Confidence:** HIGH
 
 ## Executive Summary
 
-The v1.2 milestone transforms an existing multi-provider exact-match geocoding API (v1.1) into a self-healing cascade that handles degraded address input. The pipeline stages are: input normalization, spell correction (symspellpy with a domain dictionary bootstrapped from the local address corpus), exact provider dispatch, fuzzy SQL matching via pg_trgm and Double Metaphone, optional LLM correction via an Ollama sidecar, cross-provider consensus scoring, and auto-set of the official geocode. The recommended approach is strictly sequential with early-exit at each stage — cheap deterministic stages first, expensive probabilistic stages only as fallback. The critical architectural decision is that all new logic lives in a `correction/` package and a `CascadeOrchestrator` service; the existing `providers/` package is frozen and requires zero changes.
+The CivPulse Geo API (geo-api) is a fully-functional, multi-provider geocoding service with a 7-stage cascading address resolution pipeline (spell correction → normalization → cache → exact providers → fuzzy matching → LLM sidecar correction → consensus scoring). The v1.2 application logic is complete with 504 tests. The v1.3 milestone is entirely about hardening and deploying this existing application to a k3s Kubernetes cluster — not about new application features. The correct approach is well-understood: multi-stage Dockerfile with non-root user, split health endpoints, K8s Deployment with Ollama sidecar, GitOps CI/CD via GitHub Actions → GHCR → ArgoCD, and observability through the OpenTelemetry + Grafana stack (Alloy, Loki, Tempo, VictoriaMetrics).
 
-The stack impact is minimal: only one new Python library (`symspellpy 6.9.0`) is required. PostgreSQL extensions `pg_trgm` and `fuzzystrmatch` are already bundled in the `postgis/postgis:17-3.5` Docker image. The Ollama sidecar is a Docker Compose addition, not a Python dependency, and is feature-flagged off by default (`CASCADE_LLM_ENABLED=false`). Consensus scoring uses PostGIS spatial functions and stdlib math — no new libraries. The net result is a meaningfully more capable pipeline with an extremely contained dependency footprint.
+The recommended stack adds exactly 7 runtime Python packages and 1 dev package to the existing project. No existing packages are replaced. OpenTelemetry (6 packages at stable 1.40.0 / 0.61b0 contrib) handles distributed tracing; `prometheus-fastapi-instrumentator` (7.1.0) exposes `/metrics`; `locust` (2.43.3) drives load testing. Cluster-level observability infrastructure (Grafana Alloy, Loki, Tempo, VictoriaMetrics) runs as Helm-deployed K8s workloads and is not a Python dependency. The one notable friction point is Loguru's lack of native OpenTelemetry support — trace context injection requires a custom FastAPI middleware using `logger.contextualize()`, not the standard `opentelemetry-instrumentation-logging` package which only patches stdlib logging.
 
-The most significant risks are not technical: they are operational. The Tiger geocoder has a documented wrong-county bug (Issue #1) that causes ~50% error rates when no county boundary restriction is applied. This bug must be fixed before any cascade auto-set logic is enabled, or the pipeline will auto-promote wrong official geocodes at batch scale. Confidence semantics are also currently broken — `scourgify` returns `confidence=1.0` for structural parse success, which is not the same as geocode verification. This semantic issue must be resolved in Phase 1 before any downstream consensus scoring or auto-set logic is built, or those systems will be built on a corrupted confidence scale.
+The primary risks are operational rather than architectural: asyncpg prepared statement conflicts if a connection pooler sits in front of PostgreSQL; connection pool exhaustion during rolling updates; the Ollama sidecar starting before its model is available; read-only filesystem errors from symspellpy dictionary writes and Alembic `__pycache__`; and k3s CoreDNS failing to resolve internal PostgreSQL hostnames. All risks are well-documented and have specific, low-complexity mitigations. The phase ordering must address infrastructure prerequisites (DNS, secrets, DB connectivity) before application deployment — skipping this order is the most common cause of stalled K8s first-deploy attempts.
 
 ## Key Findings
 
 ### Recommended Stack
 
-The v1.2 stack additions are minimal by design. All four new capabilities (spell correction, fuzzy SQL matching, LLM correction, consensus scoring) are implemented using the existing dependency footprint plus one new Python library and one Docker sidecar.
+The v1.3 stack adds minimal Python dependencies. All observability infrastructure is cluster-level Helm charts, not application code. The Loguru + OpenTelemetry integration requires a custom middleware pattern (MEDIUM confidence) due to Loguru's bypass of stdlib logging — this is the only non-standard integration in the stack. All other packages have HIGH confidence based on official docs and stable release versions.
 
-**Core new technologies:**
-- `symspellpy 6.9.0`: Symmetric Delete spell correction — 1M+ words/second, custom dictionary support via `create_dictionary_entry()`, compound multi-word correction via `lookup_compound()`. MIT license. The only new Python dependency.
-- `pg_trgm` (PostgreSQL contrib): Trigram-based fuzzy string similarity. `word_similarity()` is the correct function for matching a short street name token against a stored value (not `similarity()` which scores poorly when the query is a small fraction of the target). Requires a GIN index per table; without it, trigram scans are unusable at NAD scale (80M rows).
-- `fuzzystrmatch` (PostgreSQL contrib): Already enabled as a Tiger prerequisite. `dmetaphone()` and `dmetaphone_alt()` preferred over `soundex()` — Soundex collapses "Main" and "Macon" to the same 4-character code.
-- `ollama/ollama` (Docker, `qwen2.5:3b` model): Structured JSON output via REST API. `qwen2.5:3b` (~1.9 GB, ~2.5 GB RAM) is the correct size for CPU-only address string correction. Invoked via existing `httpx.AsyncClient` — no new Python client required.
-- Consensus scoring: Custom implementation using PostGIS `ST_Distance(Geography, Geography)` and stdlib `math`. No new library.
+**Core technologies added in v1.3:**
+- `opentelemetry-api` / `opentelemetry-sdk` 1.40.0: Distributed tracing primitives — stable CNCF standard, vendor-neutral, works with Grafana Alloy → Tempo
+- `opentelemetry-exporter-otlp-proto-http` 1.40.0: OTLP/HTTP trace export to Alloy — chosen over gRPC to avoid `grpcio` native binary dependency
+- `opentelemetry-instrumentation-fastapi/httpx/sqlalchemy` 0.61b0: Auto-instrumentation of all HTTP requests, outbound calls, and DB queries with zero application code changes
+- `prometheus-fastapi-instrumentator` 7.1.0: Single-call `/metrics` endpoint with correct route-grouping for path parameters
+- `locust` 2.43.3 (dev): Python-native load testing; consistent with project's Python toolchain
+- Grafana Alloy (DaemonSet + Deployment): Unified log + trace collector, replaces deprecated Promtail
+- Grafana Loki 6.x (single-binary): Structured log aggregation; JSON logs from Loguru with `trace_id` field enable Loki → Tempo correlation
+- Grafana Tempo: Distributed tracing backend with native Grafana TraceQL datasource
+- VictoriaMetrics `victoria-metrics-k8s-stack` 0.72.5: Prometheus-compatible metrics stack with 5–10x less RAM than Prometheus; scrapes geo-api `/metrics` via pod annotations
+- ArgoCD 3.3.x: GitOps deployment controller; v3.0 is EOL — must use 3.1+
 
-**Critical version notes:**
-- `httpx==0.28.1` must be >= 0.26.0 for `ollama==0.6.1` (optional package if httpx direct calls are sufficient).
-- GIN indexes on `openaddresses_points.street` and `nad_points.street_name` are a prerequisite, not optional — add via Alembic migration.
-- `pg_trgm.word_similarity_threshold` default is 0.6; raise to 0.65–0.75 for street name matching.
+**Do not add:**
+- `opentelemetry-instrumentation-logging`: Has no effect on Loguru
+- `opentelemetry-instrumentation-asyncpg`: Creates duplicate spans over SQLAlchemy instrumentation
+- Gunicorn in K8s: Conflicts with HPA scaling model (use single Uvicorn per pod + HPA)
+- `k6` or JMeter: Non-Python runtimes; Locust is equivalent for this workload
+- `:latest` image tag in K8s manifests: Use immutable SHA-based tags
 
 ### Expected Features
 
-The v1.2 pipeline has 11 required features (P1) and 3 deferred features (P2/P3). All P1 features are needed for the milestone to deliver a functional cascade.
+The v1.3 feature set is binary: either the service is production-ready or it is not. The feature research identified a clear MVP gate and a validated post-launch hardening set.
 
-**Must have (table stakes — P1):**
-- Validation confidence semantics fix: add `confidence_basis` field to `GeocodingResult` distinguishing `STRUCTURAL_PARSE` from `GEOCODED_MATCH` from `FUZZY_MATCH` from `LLM_SUGGESTION`. Without this, consensus scoring operates on corrupted confidence values.
-- Street name normalization mismatch fix: USPS suffix expansion applied right-to-left (find last valid suffix token); bidirectional St/Street, Dr/Drive etc. Both sides of any comparison must be normalized identically.
-- Input normalization (USPS suffix expansion both directions, uppercase normalize, state canonicalization, zero-pad zip): prerequisite for all provider dispatch.
-- Zip prefix fallback: `zip_code LIKE :prefix%` for truncated/4-digit ZIP input; only when street+number match is otherwise unambiguous.
-- Tiger county disambiguation via `restrict_region`: pass county polygon from `tiger.county` to `geocode()` to fix the wrong-county bug. This is a hard gate — Tiger results must not feed into auto-set logic until this fix is deployed.
-- pg_trgm fuzzy street matching with GIN index (threshold 0.65–0.75 on street_name field).
-- Double Metaphone phonetic fallback as tiebreaker when trigram similarity is ambiguous.
-- Spell correction layer (symspellpy + domain dictionary bootstrapped from NAD/OA street names corpus).
-- Cross-provider consensus scoring (cluster-based, 100m–200m radius, outlier flagging).
-- Auto-set official geocode from consensus (confidence >= 0.8 + spatial plausibility `ST_Within` county boundary check; audit metadata required).
-- Pipeline stage telemetry (`resolution_stage`, `similarity_score`, elapsed ms per stage, logged via Loguru).
+**Must have (table stakes — gates production-readiness):**
+- Split `/health/live` and `/health/ready` endpoints — K8s probes require distinct signals; current `/health` conflates DB check with liveness
+- Startup probe (in addition to liveness + readiness) — GDAL deps + provider init takes 15–30s; startup probe prevents liveness killing a slow-starting pod
+- Multi-stage Dockerfile with non-root user and exec-form CMD — prerequisite for K8s security and graceful SIGTERM forwarding
+- K8s Deployment manifest (geo-api + Ollama sidecar, resource limits, probes, terminationGracePeriodSeconds, preStop hook)
+- K8s ClusterIP Service, K8s Secrets, ArgoCD Application manifests (dev + prod)
+- GitHub Actions CI workflow (lint + test) and CD workflow (build + GHCR push + ArgoCD trigger)
+- Structured JSON logging (Loguru `serialize=True`) with `service`, `environment`, `version`, `git_commit` fields
+- Prometheus `/metrics` endpoint — prerequisite for Grafana dashboards and HPA
+- E2E smoke test suite (all 5 providers, cascade, batch, validation endpoints)
+- Locust load test baseline (P50/P95/P99 at 30 concurrent users, cold-cache run)
 
-**Should have (differentiators — P2, after validation):**
-- Local LLM sidecar (Ollama + qwen2.5:3b): only after telemetry shows >1–2% of addresses fail all deterministic stages. Feature-flagged off (`CASCADE_LLM_ENABLED=false`).
-- Per-provider confidence weight tuning: adjust starting weights (Macon-Bibb 1.0, OA 0.9, NAD 0.85, Census 0.80, Tiger-restricted 0.75, Tiger-unrestricted 0.40) based on observed error patterns from telemetry.
-- Spell correction dictionary refresh from updated NAD/OA imports.
+**Should have (post-deploy hardening):**
+- OpenTelemetry distributed traces (FastAPI + SQLAlchemy + httpx auto-instrumentation)
+- Trace ID injection into Loguru via custom middleware (enables Loki → Tempo log correlation)
+- HPA — trigger after load test shows scaling benefit; guesswork without a baseline
+- Pod Disruption Budget (`minAvailable: 1`)
+- Per-provider latency custom Prometheus metrics and cascade pipeline child spans
 
-**Defer (v2+):**
-- ML-based address confidence scoring (requires labeled data).
-- Real-time USPS DPV validation via USPS API (cost implications).
+**Defer to v2+:**
+- ArgoCD Image Updater — low priority while team is small
+- External secrets operator (Vault/AWS SSM) — K8s Secrets with etcd encryption sufficient for internal API
+- KEDA event-driven autoscaling — CPU-based HPA sufficient for current load
+- Grafana alerting rules — define after 2 weeks of baseline data to avoid alert fatigue
+- Network policy restricting geo-api ingress to specific namespaces
+
+**Anti-features confirmed (explicitly excluded):**
+- Public Ingress / IngressRoute — geo-api is internal-only per PROJECT.md, no auth layer
+- Service mesh (Istio/Linkerd) — over-engineering; manual OTel provides equivalent tracing
+- Separate log aggregation stack per environment — single Loki with `env` label filter is sufficient
 
 ### Architecture Approach
 
-The cascade is implemented as a 7-stage pipeline coordinated by a new `CascadeOrchestrator` service. The `providers/` package is frozen — all new logic lives in a new `correction/` package. `GeocodingService` delegates to `CascadeOrchestrator` when `CASCADE_ENABLED=true`; behavior is unchanged for deployments without the feature flag. All stages implement early-exit: if a stage produces a result with sufficient confidence (e.g., 2+ providers agree within 100m), subsequent stages are skipped.
+The v1.3 architecture adds no new application components — the 7-stage cascade pipeline (SpellCorrector, FuzzyMatcher, LLMAddressCorrector, ConsensusScorer, CascadeOrchestrator) was designed and implemented in v1.2. The v1.3 architecture changes are entirely in infrastructure: Dockerfile, K8s manifests, CI/CD workflows, and observability wiring. The Ollama standalone Deployment from v1.1 must be converted to a sidecar container in the geo-api Deployment spec (shares Pod network namespace, enabling `http://localhost:11434` communication). Kustomize base + dev/prod overlays is the correct manifest strategy to avoid environment drift.
 
-**Major components:**
-1. `SpellCorrector` (`correction/spell.py`) — symspellpy token correction on `StreetName` tokens only, before scourgify, using a domain dictionary bootstrapped from NAD/OA at startup.
-2. `FuzzyMatcher` (`correction/fuzzy.py`) — pg_trgm + Metaphone SQL against `openaddresses_points` and `nad_points`; NOT a provider subclass; called only by the orchestrator after all exact providers return `confidence == 0.0`.
-3. `LLMAddressCorrector` (`correction/llm.py`) — thin async httpx client to Ollama; structured JSON output; maximum one re-attempt; 10-second hard timeout; graceful skip when Ollama unavailable.
-4. `ConsensusScorer` (`correction/consensus.py`) — pairwise Haversine distance, cluster-based agreement at configurable distance threshold (default 200m), provider weighting, outlier flagging.
-5. `CascadeOrchestrator` (`services/cascade.py`) — coordinates all 7 stages; owns early-exit logic, latency budgets, and audit metadata.
-6. Modified `GeocodingService` — delegates to `CascadeOrchestrator`; `OfficialGeocoding` upsert changed from `DO NOTHING` to `DO UPDATE` on the cascade path only.
-7. Ollama Docker Compose sidecar — model storage on named volume (ZFS/NFS PVC in K8s production); default off via `CASCADE_LLM_ENABLED` env var.
+**Major components (v1.3 infrastructure):**
+1. Multi-stage Dockerfile — builder stage (uv + build tools) / runtime stage (non-root appuser, no dev deps, pre-compiled bytecode)
+2. K8s Deployment (geo-api + Ollama sidecar) — startup/liveness/readiness probes, preStop hook, resource limits, PVC for Ollama model weights
+3. GitHub Actions CI/CD — `ci.yml` (lint + test, all PRs) / `cd.yml` (build + GHCR push + ArgoCD trigger, merge to main only)
+4. ArgoCD Applications (dev + prod) — automated sync for dev, manual promotion gate for prod
+5. Observability wiring — OTel SDK + Loguru trace context middleware + Prometheus endpoint in app; Alloy + Loki + Tempo + VictoriaMetrics in cluster
+6. Kustomize overlays — base manifests + dev overlay + prod overlay
 
 ### Critical Pitfalls
 
-1. **Confidence semantics conflation** — `scourgify` returns `confidence=1.0` for structural parse; Tiger returns `confidence=1.0` for normalized geocode. These are different concepts. Fix by adding `confidence_basis` enum field to `GeocodingResult` before building any consensus or auto-set logic. Only `GEOCODED_MATCH` and `FUZZY_MATCH` results contribute to spatial consensus. Avoid by treating `STRUCTURAL_PARSE` results as normalization artifacts, not spatial evidence.
+1. **asyncpg + PgBouncer prepared statement conflicts** — Confirm PostgreSQL is accessed directly (no transaction-mode pooler). If unavoidable, set `prepared_statement_cache_size=0` in `create_async_engine(connect_args=...)`. Verify before any load test.
 
-2. **Tiger wrong-county bug auto-sets bad official records at scale** — Tiger without `restrict_region` returns results in neighboring counties (Issue #1 ~50% error rate). If Tiger feeds into cascade auto-set before the county disambiguation fix, wrong official geocodes are written at batch scale and poison downstream vote-api and run-api district assignments. Tiger county disambiguation is a hard gate: Tiger results may not contribute to auto-set logic until `restrict_region` is deployed and verified.
+2. **Connection pool exhaustion during rolling updates** — Size pool conservatively (`min_size=2, max_size=10` per pod). Set `maxSurge: 1, maxUnavailable: 0` in Deployment strategy. Size PostgreSQL `max_connections` to `(pod_count * max_pool_size * 2) + 20`.
 
-3. **Fuzzy threshold miscalibration** — threshold too low (< 0.65) matches different streets with similar names ("CHERRY ST" vs "CHERRY LN" at similarity ~0.57); threshold too high (> 0.85) catches nothing beyond exact match. Calibrate against the known-bad inputs from the E2E test suite (Issue #1 cases) before wiring downstream auto-set logic. Log raw similarity scores on every fuzzy match for empirical tuning.
+3. **Loguru does not auto-propagate OTel trace context** — `opentelemetry-instrumentation-logging` only patches stdlib logging. Must implement a `logger.configure(patcher=...)` that calls `trace.get_current_span()` on every log record, plus a FastAPI middleware to ensure a valid span exists before any log call.
 
-4. **Spell correction "corrects" valid street names** — general English dictionaries correct "MERCER" to "MERCY", "LANEY" to "LANE". Use symspellpy with a domain dictionary bootstrapped from the local address corpus. Only apply spell correction to tokens classified as `StreetName` by `usaddress.tag()`. Treat corrections as candidates — if the corrected form still fails exact and fuzzy match, abandon and proceed with original input.
+4. **Ollama sidecar ready before model is available** — `/api/tags` returns HTTP 200 with empty model list during pull. Replace HTTP-ping check with body-parsing check that confirms the model name is present in the response. Use init container or postStart hook to pre-pull the model. Store model weights on a PVC (not emptyDir).
 
-5. **Cascade latency explosion** — sequential stages with no early-exit or per-stage timeouts accumulate: LLM alone is 1–10 seconds on CPU. Define a total budget (3s P95 for single address) before implementing any stage. Implement early-exit at each stage, LLM trigger threshold (only when fuzzy confidence < 0.6), and per-stage timeouts (LLM: 10s, pg_trgm: 500ms statement_timeout). Run local providers concurrently via `asyncio.gather()`.
+5. **k3s CoreDNS does not resolve internal PostgreSQL hostname** — k3s CoreDNS defaults to forwarding to `8.8.8.8`, bypassing internal DNS. Patch CoreDNS ConfigMap to forward to the internal nameserver. Validate with `kubectl run dns-test` before deploying the app.
+
+6. **Read-only root filesystem breaks symspellpy and Alembic** — Set `PYTHONDONTWRITEBYTECODE=1` and `PYTHONPYCACHEPREFIX=/tmp/pycache`. Mount `emptyDir` at `/tmp` and `/app/data/`. Bake spell dictionary into the Docker image rather than writing it at runtime.
+
+7. **Graceful shutdown race — SIGTERM before kube-proxy endpoint removal** — Add `preStop: exec: command: ["sleep", "5"]` lifecycle hook. Set `terminationGracePeriodSeconds: 60`. Ensure entrypoint script uses `exec uvicorn ...` (not shell-form invocation) so SIGTERM reaches uvicorn, not bash.
+
+8. **Load test cache bias inflates P95 numbers** — Run two explicit modes: cold-cache baseline (clear `geocoding_results` before run) and warm-cache steady-state. Use 500+ unique addresses. Report both P95 values; the cold-cache P95 is the authoritative performance baseline.
+
+9. **Alembic migration race condition with multi-replica init containers** — Two pods starting simultaneously both run `alembic upgrade head`. Use PostgreSQL advisory locks in `env.py`, or run migrations as a K8s Job with `parallelism: 1` before the Deployment starts.
 
 ## Implications for Roadmap
 
-Based on research, the natural phase structure follows the dependency order of the cascade: correctness fixes before new capabilities, foundational DB changes before query logic, deterministic stages before probabilistic stages.
+Based on combined research, the phase structure must respect hard dependency chains. Infrastructure prerequisites (DNS, secrets, DB connectivity) must be validated before any application deployment. The observability stack should be split into a baseline tier (JSON logs, `/metrics`) that ships with the initial deployment, and an advanced tier (OTel traces, log-trace correlation) that is added after the base deployment is validated.
 
-### Phase 1: Foundation Fixes and Schema Prerequisites
+### Phase 1: Infrastructure Prerequisites
+**Rationale:** CoreDNS patching, K8s Secrets creation, and PostgreSQL connectivity validation must be confirmed before any application pod can start. These are cluster-level operations that unblock everything downstream. Skipping this phase is the most common cause of stalled K8s first-deploys.
+**Delivers:** Cluster ready to receive geo-api workloads; DB hostname resolves from inside pods; Secrets exist in both namespaces; asyncpg pool mode confirmed (no transaction-mode pooler in front of PG); k3s StorageClass verified for Ollama PVC
+**Addresses:** `K8s Secrets` prerequisite from FEATURES.md
+**Avoids:** Pitfalls 1 (asyncpg pooler), 8 (k3s CoreDNS)
 
-**Rationale:** Three correctness bugs from Issue #1 E2E testing must be fixed before any new cascade logic is built. Confidence semantics corruption and the Tiger wrong-county bug are systemic defects that corrupt every downstream stage if not resolved first. The pg_trgm schema migration (GIN indexes) must also land here — fuzzy matching cannot run at production scale without it.
+### Phase 2: Dockerfile Hardening
+**Rationale:** The multi-stage Dockerfile is a prerequisite for K8s security policies and for GHCR image availability. It establishes the non-root user and exec-form CMD required for graceful shutdown. Cannot deploy to K8s without a production image.
+**Delivers:** Production Docker image pushed to GHCR; non-root `appuser`; no dev deps in runtime stage; pre-compiled bytecode; `exec uvicorn` entrypoint
+**Uses:** uv multi-stage Dockerfile pattern from STACK.md (Hynek Schlawack canonical pattern, with `UV_COMPILE_BYTECODE=1`, `UV_LINK_MODE=copy`, `UV_PYTHON_DOWNLOADS=never`)
+**Avoids:** Pitfalls 5 (read-only FS — `PYTHONDONTWRITEBYTECODE=1`, emptyDir mounts), 7 (graceful shutdown — exec-form CMD)
 
-**Delivers:**
-- `confidence_basis` field on `GeocodingResult` distinguishing parse quality from geocode quality
-- USPS suffix normalization applied right-to-left, bidirectional (fixes multi-word suffix mismatch)
-- Tiger `restrict_region` county boundary filter (fixes wrong-county bug — hard gate for auto-set)
-- Alembic migration: `CREATE EXTENSION pg_trgm`, GIN index on `openaddresses_points.street`, GIN index on `nad_points.street_name`
+### Phase 3: Health Endpoints + Core Application Manifests
+**Rationale:** Split health endpoints are the prerequisite for K8s probes. The K8s Deployment (with probes, sidecar, resource limits, preStop hook) is the core deliverable of this milestone. Ollama sidecar conversion from standalone Deployment to sidecar happens here.
+**Delivers:** `/health/live` and `/health/ready` endpoints; K8s Deployment manifest with startup + liveness + readiness probes; Ollama sidecar with PVC for model weights (body-parsing availability check); ClusterIP Service; Kustomize overlays (dev + prod)
+**Addresses:** All P1 K8s deployment table-stakes features from FEATURES.md
+**Avoids:** Pitfalls 2 (pool exhaustion — `min_size=2, max_size=10`, `maxSurge: 1`), 4 (Ollama model readiness — parse `/api/tags` body), 6 (SIGTERM race — preStop sleep hook), 9 (provider registration timing — startup probe), 12 (Alembic race — advisory lock or K8s Job)
 
-**Addresses:** Validation confidence semantics fix, street name normalization mismatch fix, Tiger county disambiguation
-**Avoids:** Pitfall 7 (auto-sets wrong official at scale), Pitfall 8 (corrupted confidence), Pitfall 9 (normalization mismatch)
-**Research flag:** Standard patterns — well-documented; no phase-level research needed
+### Phase 4: CI/CD Pipeline
+**Rationale:** Repeatable automated deployments are the production operations foundation. Cannot run E2E or load tests against a deployed environment without this. The ArgoCD Image Updater vs. manifest-commit decision must be made here to avoid the git push race condition.
+**Delivers:** `ci.yml` (ruff + pytest, all PRs), `cd.yml` (build + GHCR push + ArgoCD trigger, merge to main only), ArgoCD Application manifests (dev auto-sync, prod manual gate), Trivy vulnerability scan in CI
+**Addresses:** All CI/CD table-stakes and differentiator features from FEATURES.md
+**Avoids:** Pitfall 7 (ArgoCD + CI race condition — use ArgoCD Image Updater or PR-based manifest commit, not concurrent direct pushes)
 
----
+### Phase 5: Baseline Observability (JSON Logs + Metrics)
+**Rationale:** Structured JSON logging and the Prometheus `/metrics` endpoint are prerequisites for Grafana dashboards, HPA, and meaningful load test analysis. These are low-complexity changes that ship with the initial deployment — adding them here means load test results in Phase 6 are immediately visible in Grafana without a second deploy cycle.
+**Delivers:** JSON logs in production (Loguru `serialize=True`), `service`/`env`/`version`/`git_commit` fields on every log line, `/metrics` endpoint, VictoriaMetrics scraping via pod annotations, Grafana dashboards for request rate and latency
+**Uses:** `prometheus-fastapi-instrumentator` 7.1.0 (single `Instrumentator().instrument(app).expose(app)` call)
 
-### Phase 2: Input Pre-Processing (Normalization + Spell Correction)
+### Phase 6: E2E and Load Testing
+**Rationale:** Validates the deployed service works end-to-end against all 5 providers in the real K8s environment and establishes the authoritative performance baseline. Must run after the full deployment (Phases 1–5) is stable.
+**Delivers:** pytest E2E suite (all 5 providers, cascade, batch, validation); Locust cold-cache P50/P95/P99 baseline at 10/30/60 concurrent users; HPA scaling validation; monitoring validation via Grafana dashboard screenshot (Playwright MCP)
+**Addresses:** All E2E and load testing features from FEATURES.md
+**Avoids:** Pitfall 10 (cache bias — explicit cold-cache methodology, 500+ unique address corpus, `cache_hit` as a Grafana label)
 
-**Rationale:** Normalization and spell correction run before any provider is dispatched. Fixing input quality at this layer reduces failure load on every downstream stage. Both are low-complexity and use existing or minimal new dependencies. The domain dictionary bootstrap requires the NAD/OA data to already be imported (v1.1 milestone complete).
-
-**Delivers:**
-- Input normalization: USPS suffix expansion both directions, uppercase normalize, zero-pad zip, state canonicalization
-- Zip prefix fallback matching (`LIKE :prefix%` with unambiguous-match guard)
-- `SpellCorrector` with symspellpy + domain dictionary bootstrapped from NAD/OA street names at startup
-- `usaddress.tag()` scope constraint: spell correction only on `StreetName` tokens
-- Correction audit logging (original input, corrected form, canonical normalized — as separate traceable fields)
-
-**Uses:** `symspellpy 6.9.0` (only new Python dependency for the entire milestone)
-**Implements:** Architecture Pattern 1 (spell correction before scourgify)
-**Avoids:** Pitfall 3 (general dictionary corrects valid street names), Pitfall 10 (zip prefix wrong-city match)
-**Research flag:** Standard patterns for symspellpy; no phase-level research needed
-
----
-
-### Phase 3: Fuzzy and Phonetic Matching
-
-**Rationale:** This is the primary recovery mechanism for typo-laden input that exact match cannot handle. It depends on Phase 1 (GIN indexes must exist, normalization must be consistent on both sides of the comparison) and Phase 2 (spell correction primes input). The `FuzzyMatcher` component is architecturally a service-layer component, not a provider — this boundary must be established before implementation.
-
-**Delivers:**
-- `FuzzyMatcher` (`correction/fuzzy.py`): pg_trgm `word_similarity()` on `street_name` field (threshold 0.65–0.75)
-- Double Metaphone phonetic fallback as tiebreaker when trigram ambiguous
-- Fuzzy confidence assignment: `similarity_score * 0.8`, capped at 0.8 (ensures fuzzy ranks below exact in consensus)
-- Query order: `openaddresses_points` first (denser for Macon-Bibb), then `nad_points`
-- Threshold calibration against E2E test suite (Issue #1 known-bad inputs) before wiring to auto-set
-
-**Implements:** Architecture Pattern 2 (FuzzyMatcher as service-layer component)
-**Avoids:** Pitfall 1 (threshold too low — cross-match different streets), Pitfall 2 (threshold too high — no improvement over exact)
-**Research flag:** Threshold calibration is empirical — requires testing against Issue #1 E2E corpus; no external research needed
-
----
-
-### Phase 4: CascadeOrchestrator and Consensus Scoring
-
-**Rationale:** All individual correction components (Phases 1–3) exist; this phase wires them into the coordinated pipeline. Consensus scoring cannot be built meaningfully until both exact providers (v1.1) and fuzzy matching (Phase 3) can contribute results. The OfficialGeocoding `DO NOTHING` vs. `DO UPDATE` database change lands here and requires the audit metadata fields from Phase 1.
-
-**Delivers:**
-- `CascadeOrchestrator` (`services/cascade.py`): 7-stage pipeline with early-exit, per-stage timeouts, total latency budget (3s P95 single address)
-- `ConsensusScorer` (`correction/consensus.py`): pairwise Haversine clustering, provider weighting, outlier flagging, `ST_Within` spatial plausibility check
-- Provider weights: Macon-Bibb 1.0, OA 0.9, NAD 0.85, Census 0.80, Tiger-restricted 0.75, Tiger-unrestricted 0.40
-- Auto-set OfficialGeocoding: `ON CONFLICT DO UPDATE` on cascade path; audit metadata (`set_by_stage`, `winning_confidence`); minimum confidence 0.8; spatial plausibility check
-- Dry-run mode (`dry_run=True`) flag for batch validation before production use
-- `GeocodingService` modified to delegate to `CascadeOrchestrator` when `CASCADE_ENABLED=true`
-- Pipeline stage telemetry: `resolution_stage`, `similarity_score`, elapsed ms per stage
-
-**Implements:** Architecture Patterns 4 (ConsensusScorer) + Stage 7 (OfficialGeocoding auto-set)
-**Avoids:** Pitfall 5 (consensus where all providers share same data lineage — weight by independence), Pitfall 6 (latency explosion), Pitfall 7 (auto-sets wrong records at scale)
-**Research flag:** Needs code inspection of `ON CONFLICT DO UPDATE` cascade path interaction with v1.0 admin override mechanism; 200m consensus distance threshold should be validated against Macon-Bibb address distribution before setting as default
-
----
-
-### Phase 5: LLM Sidecar (Optional, Data-Driven)
-
-**Rationale:** Gated behind Phase 4 telemetry. Only proceed if >1–2% of addresses fail all deterministic stages. If that threshold is not reached, Phase 5 is not needed. This is not a speculative build — it is an evidence-based decision.
-
-**Delivers (if triggered):**
-- `LLMAddressCorrector` (`correction/llm.py`): async httpx client to Ollama; `qwen2.5:3b`; structured JSON via Pydantic schema; temperature=0; 10-second timeout; graceful skip when unavailable
-- Docker Compose `ollama` service with named volume (ZFS/NFS PVC in K8s production on thor)
-- Re-entry rule: max one LLM re-attempt; re-enter at Stage 1 on corrected input
-- Post-LLM verification: corrected form must pass exact or fuzzy match; never auto-set from LLM suggestion alone
-- Hard reject heuristics: state code change, zip/state mismatch
-
-**Implements:** Architecture Pattern 3 (LLM sidecar with graceful degradation)
-**Avoids:** Pitfall 4 (LLM hallucinating plausible-but-wrong addresses)
-**Research flag:** If triggered, research the `qwen2.5:3b` model pull behavior and K8s PVC configuration for the bare-metal thor cluster storage class.
-
----
+### Phase 7: Advanced Observability (OTel Traces + Log Correlation)
+**Rationale:** OpenTelemetry instrumentation and the Loguru trace context middleware are placed after the base deployment is validated. The Loguru + OTel integration uses a community-pattern (MEDIUM confidence) — safer to add after simpler observability is confirmed working. Traces are most valuable when debugging production issues surfaced by baseline metrics.
+**Delivers:** OTel SDK + auto-instrumentation (FastAPI, SQLAlchemy, httpx), Loguru trace context patcher middleware, Grafana Loki → Tempo log correlation (clickable trace links), cascade pipeline child spans
+**Uses:** All 6 OTel packages from STACK.md; Loguru `configure(patcher=...)` pattern (custom, not `opentelemetry-instrumentation-logging`)
+**Avoids:** Pitfall 3 (Loguru/OTel disconnect — custom `logger.configure(patcher=add_otel_context)` approach, validated by checking `trace_id` in Loki before marking complete)
 
 ### Phase Ordering Rationale
 
-- Phase 1 must precede all others: confidence semantics corruption and Tiger wrong-county bug are systemic defects that corrupt every downstream stage if not fixed first. The pg_trgm GIN indexes are also a hard prerequisite for Phase 3.
-- Phase 2 before Phase 3: spell correction primes input quality; fuzzy matching should see spell-corrected input to produce accurate similarity scores and avoid wasting GIN index scans on corrupted tokens.
-- Phase 3 before Phase 4: the orchestrator and consensus scorer need fuzzy results to be meaningful; building consensus scoring against exact-match-only results is a partial implementation requiring rework.
-- Phase 5 is optional and data-driven: never build the LLM sidecar speculatively; build Phase 4 telemetry first and let observed failure rates decide.
+- **Infrastructure before application:** CoreDNS and DB connectivity must be confirmed before application pods can start. This dependency (Pitfall 8) is frequently skipped and causes hours of debugging on first K8s deploys.
+- **Dockerfile before manifests:** The K8s Deployment references the GHCR image. The production image must exist before manifests can be tested.
+- **Health endpoints before probes:** K8s probes reference `/health/live` and `/health/ready`. These must exist in the application before the Deployment manifests are applied.
+- **Baseline observability with initial deploy (not after):** JSON logs and `/metrics` are trivial changes. Shipping them in Phase 5 (before load testing) means Phase 6 results are immediately visible in Grafana — no second deploy cycle needed.
+- **OTel last:** The custom Loguru/OTel middleware is the most complex integration and is MEDIUM confidence. Deferring it to Phase 7 avoids blocking the core deployment on a non-standard pattern.
+- **CI/CD before E2E:** E2E tests run against a deployed environment. The CI/CD pipeline is the mechanism for deploying; Phase 4 must precede Phase 6.
 
 ### Research Flags
 
 Phases likely needing deeper research during planning:
-- **Phase 4:** The interaction between the cascade `ON CONFLICT DO UPDATE` path and the existing admin override mechanism needs explicit code inspection. The v1.0 first-writer-wins semantics must be preserved for admin overrides while the cascade path uses update-if-higher-confidence semantics.
-- **Phase 5 (if triggered):** K8s PVC configuration for Ollama model storage on the ZFS/NFS fileserver (bare-metal thor cluster) needs verification against the available storage class.
+- **Phase 4 (CI/CD):** The decision between ArgoCD Image Updater and direct manifest commit strategy must be made explicitly — they are mutually exclusive for the same image. Team size and concurrent build frequency should drive the decision. Needs a decision point documented before implementation.
+- **Phase 7 (Advanced Observability):** The Loguru + OTel custom middleware is MEDIUM confidence (community pattern, no official first-party support). During planning, verify the `logger.configure(patcher=...)` approach against the Loguru version in use and plan a verification step (confirm `trace_id` in Loki before marking phase complete).
 
-Phases with standard patterns (skip research):
-- **Phase 1:** PostgreSQL `CREATE EXTENSION` migrations and Tiger `restrict_region` parameter are fully documented in official PostGIS docs.
-- **Phase 2:** symspellpy API patterns are verified against official docs; normalization logic is algorithmic with no external dependencies.
-- **Phase 3:** pg_trgm and fuzzystrmatch SQL patterns are verified against official PostgreSQL 17 docs.
+Phases with standard patterns (skip research-phase):
+- **Phase 2 (Dockerfile):** Well-documented uv multi-stage pattern. The exact Dockerfile template is already specified in STACK.md.
+- **Phase 3 (K8s Manifests):** Standard FastAPI + K8s probe patterns. All resource limit values, probe timing, and sidecar config are specified in FEATURES.md and PITFALLS.md.
+- **Phase 5 (Baseline Observability):** `prometheus-fastapi-instrumentator` is a single-call integration. Loguru `serialize=True` is a one-line config change.
+- **Phase 6 (E2E/Load Testing):** Locust test structure and cold-cache methodology are fully specified in STACK.md and PITFALLS.md respectively.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | All new dependencies verified against official docs and actual project venv/lock file. Single new Python library. PostgreSQL extensions confirmed bundled in existing Docker image. |
-| Features | MEDIUM-HIGH | Feature requirements derived from known defects (Issue #1 E2E failures) and official geocoding research. Fuzzy thresholds (0.65–0.75) are empirically-supported recommendations, not verified values — calibration against the actual corpus is required in Phase 3. |
-| Architecture | HIGH | Based on direct codebase inspection of v1.1 implementation. Provider ABCs, OfficialGeocoding upsert pattern, and service layer structure confirmed from existing code. Component boundaries are clear and non-invasive to existing providers. |
-| Pitfalls | HIGH | Structural pitfalls (Tiger bug, confidence semantics, latency explosion, auto-set at scale) are all drawn from existing Issue #1 defects and verified code behavior. Threshold-specific pitfalls (fuzzy calibration, spell correction proper-noun collisions) are MEDIUM — empirical risk, not verifiable in advance. |
+| Stack | HIGH | OTel packages: official PyPI + docs. Locust: official docs. Dockerfile: Hynek Schlawack's canonical uv guide. Exception: Loguru/OTel integration is MEDIUM (community pattern, no official first-party support) |
+| Features | HIGH | K8s patterns, GitHub Actions/GHCR/ArgoCD verified against current docs. Loguru/OTel friction confirmed via official OTel Python issue tracker (#3615) |
+| Architecture | HIGH | Based on direct codebase inspection. v1.2 pipeline is implemented and tested. v1.3 is infrastructure-only |
+| Pitfalls | HIGH | asyncpg/K8s lifecycle: official asyncpg FAQ + post-mortems. Graceful shutdown: well-documented K8s pattern. Exceptions: ArgoCD race (MEDIUM — GitHub issue + community), Ollama startup (MEDIUM — community patterns), cache bias (LOW — general load testing literature) |
 
-**Overall confidence:** HIGH for structural decisions; MEDIUM for threshold values requiring empirical calibration against real address data.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Fuzzy threshold calibration**: Recommended range 0.65–0.75 for `street_name` field. Actual calibration must be done during Phase 3 against the Issue #1 E2E corpus. Define a test fixture of known-bad to known-good address pairs; measure false positive and false negative rates; adjust threshold in 0.05 steps. Do not wire auto-set logic until calibration is complete.
-- **Consensus distance threshold (200m)**: Starting value from published geocoding consensus research. Validate against the Macon-Bibb address distribution before setting as default — in dense downtown neighborhoods, 200m may be too permissive and collapse distinct street intersections into a single cluster.
-- **LLM decision gate**: Phase 5 trigger depends on Phase 4 telemetry. No commitment on whether Phase 5 is needed until at least 2–4 weeks of production telemetry from the Phase 4 cascade is available.
-- **OfficialGeocoding audit metadata schema**: `set_by_stage`, `winning_confidence`, `alternatives_considered` fields need to be added to the `official_geocodings` table in the Phase 4 Alembic migration. Schema must support bulk rollback queries if a batch auto-set produces incorrect results.
+- **PostgreSQL connection mode:** Research assumes no transaction-mode PgBouncer in front of PostgreSQL. Must be confirmed in Phase 1. If a pooler is present, `prepared_statement_cache_size=0` is required before any load testing.
+- **Loguru + OTel patcher implementation:** Verify the `logger.configure(patcher=add_otel_context)` pattern against the specific Loguru version in use during Phase 7. Test end-to-end by confirming `trace_id` appears in Loki-captured logs for a traced request.
+- **Ollama model pre-pull strategy:** The init container vs. postStart hook decision for model pre-pull is left to Phase 3 planning. Both work; the K8s Job approach is more robust for initial cluster setup.
+- **ArgoCD Image Updater vs. manifest commit:** Must be decided explicitly in Phase 4 planning. They are mutually exclusive and the choice affects CI workflow structure.
+- **k3s StorageClass for Ollama PVC:** Assumed to be `local-path` (k3s default). Verify with `kubectl get storageclass` during Phase 1 before writing PVC manifests.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- [PostgreSQL 17 pg_trgm official docs](https://www.postgresql.org/docs/current/pgtrgm.html) — all operators, functions, GIN vs GiST index types, threshold tuning
-- [PostgreSQL 17 fuzzystrmatch official docs](https://www.postgresql.org/docs/17/fuzzystrmatch.html) — dmetaphone, soundex, levenshtein function signatures and encoding caveats
-- [symspellpy GitHub](https://github.com/mammothb/symspellpy) — `load_dictionary()`, `load_bigram_dictionary()`, `create_dictionary_entry()`, `lookup_compound()` API
-- [Ollama structured outputs official docs](https://docs.ollama.com/capabilities/structured-outputs) — `format` parameter JSON schema, structured output behavior
-- [PostGIS geocode() function docs](https://postgis.net/docs/Geocode.html) — `restrict_region` parameter, return type, rating semantics
-- Direct codebase inspection — provider ABCs, OfficialGeocoding upsert pattern, GeocodingService structure, v1.1 implementation
+- OpenTelemetry Python SDK — PyPI stable releases 1.40.0 / 0.61b0; official OTel Python docs
+- Locust 2.43.3 — official Locust docs (Feb 12, 2026 release)
+- uv multi-stage Dockerfile — Hynek Schlawack's "Production-Ready Python Docker Containers with uv" (official uv docs reference)
+- asyncpg prepared statement caching — official asyncpg FAQ + GitHub issues
+- VictoriaMetrics — `victoria-metrics-k8s-stack` Helm chart 0.72.5 (March 16, 2026 release notes)
+- ArgoCD 3.3.x — official docs; v3.0 EOL confirmed Feb 2026
+- prometheus-fastapi-instrumentator 7.1.0 — PyPI + official README
+- Grafana Loki 6.x Helm chart — `grafana-community/helm-charts` (chart moved from `grafana/helm-charts` at 6.55.0)
 
 ### Secondary (MEDIUM confidence)
-- [EarthDaily Geocoding Consensus Algorithm](https://earthdaily.com/blog/geocoding-consensus-algorithm-a-foundation-for-accurate-risk-assessment) — cluster-based spatial agreement approach
-- [Multi-provider geocoding optimization research](https://www.tandfonline.com/doi/full/10.1080/17538947.2025.2578735) — provider weighting approaches
-- [Geocoding systematic review 2025](https://arxiv.org/pdf/2503.18888) — LLM hallucination on rural address geocoding
-- [Ollama Docker Hub](https://hub.docker.com/r/ollama/ollama) — container environment variables, model storage
-- [Qwen2.5-3B hardware specs](https://apxml.com/models/qwen2-5-3b) — quantization sizes, RAM requirements, CPU inference speed
+- Loguru + OTel trace context integration — Dash0 community guide; OpenTelemetry Python GitHub issue #3615; Loguru `contextualize()` documented API
+- ArgoCD Image Updater vs. CI manifest commit race condition — ArgoCD GitHub issue + community patterns
+- Ollama K8s startup readiness — community K8s deployment guides for Ollama sidecar patterns
+- Grafana Alloy `loki.source.kubernetes` — Grafana Alloy docs (replaces deprecated Promtail)
 
 ### Tertiary (LOW confidence)
-- LLM trigger threshold (fuzzy confidence < 0.6) — derived from architectural reasoning; needs empirical validation from Phase 4 telemetry before treating as a fixed value
+- Geocoding load test cache bias methodology — general load testing literature; geocoding-specific pattern based on caching architecture review (not external benchmark source)
 
 ---
 *Research completed: 2026-03-29*
