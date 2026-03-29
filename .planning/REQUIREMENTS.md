@@ -12,7 +12,7 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 - [x] **FIX-01**: Tiger geocode results are filtered by expected county/city boundary via PostGIS `restrict_region` parameter, discarding wrong-county matches
 - [x] **FIX-02**: Local providers (OA, Macon-Bibb) fall back to zip prefix matching (`LIKE '3120%'`) when input zip is < 5 digits, instead of exact equality
 - [x] **FIX-03**: Street name matching includes `street_suffix` in the query to prevent multi-word street names (e.g., "Beaver Falls") from failing when scourgify extracts the suffix token
-- [x] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.3; Tiger validation confidence reduced to 0.4 — reflecting "structurally parsed but not address-verified" semantics (per locked decisions D-09, D-10)
+- [x] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.3; Tiger validation confidence reduced from 1.0 to 0.4 — reflecting "structurally parsed but not address-verified" semantics (per locked decisions D-09, D-10)
 
 ### Spell Correction
 
@@ -23,9 +23,9 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 ### Fuzzy Matching
 
 - [x] **FUZZ-01**: pg_trgm extension enabled via Alembic migration with GIN trigram indexes on `openaddresses_points.street` and `nad_points.street_name`
-- [x] **FUZZ-02**: FuzzyMatcher service uses `word_similarity()` with threshold 0.65-0.70 for street name matching as fallback when all exact providers return NO_MATCH
-- [x] **FUZZ-03**: Double Metaphone (`dmetaphone()` from fuzzystrmatch) used as secondary phonetic fallback when trigram similarity is below threshold
-- [x] **FUZZ-04**: Fuzzy match thresholds calibrated against Issue #1 E2E test corpus (4 addresses with known ground truth)
+- [ ] **FUZZ-02**: FuzzyMatcher service uses `word_similarity()` with threshold 0.65-0.70 for street name matching as fallback when all exact providers return NO_MATCH
+- [ ] **FUZZ-03**: Double Metaphone (`dmetaphone()` from fuzzystrmatch) used as secondary phonetic fallback when trigram similarity is below threshold
+- [ ] **FUZZ-04**: Fuzzy match thresholds calibrated against Issue #1 E2E test corpus (4 addresses with known ground truth)
 
 ### Cascade Pipeline
 
@@ -88,9 +88,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPELL-01 | Phase 13 | Complete |
 | SPELL-02 | Phase 13 | Complete |
 | SPELL-03 | Phase 13 | Complete |
-| FUZZ-02 | Phase 13 | Complete |
-| FUZZ-03 | Phase 13 | Complete |
-| FUZZ-04 | Phase 13 | Complete |
+| FUZZ-02 | Phase 16 (gap closure; code in Phase 13) | Pending |
+| FUZZ-03 | Phase 16 (gap closure; code in Phase 13) | Pending |
+| FUZZ-04 | Phase 16 (gap closure; code in Phase 13) | Pending |
 | CASC-01 | Phase 14 | Complete |
 | CASC-02 | Phase 14 | Complete |
 | CASC-03 | Phase 14 | Complete |
@@ -110,6 +110,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 - v1.2 requirements: 25 total
 - Mapped to phases: 25
 - Unmapped: 0 ✓
+- Pending (gap closure): 3 (FUZZ-02, FUZZ-03, FUZZ-04 → Phase 16)
 
 ---
 *Requirements defined: 2026-03-29*

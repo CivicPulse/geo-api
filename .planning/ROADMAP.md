@@ -4,7 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 1-6 (shipped 2026-03-19)
 - ✅ **v1.1 Local Data Sources** — Phases 7-11 (shipped 2026-03-29)
-- 🔄 **v1.2 Cascading Address Resolution** — Phases 12-15 (active)
+- 🔄 **v1.2 Cascading Address Resolution** — Phases 12-16 (active)
 
 ## Phases
 
@@ -35,12 +35,13 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 
 </details>
 
-### v1.2 Cascading Address Resolution (Phases 12-15)
+### v1.2 Cascading Address Resolution (Phases 12-16)
 
 - [x] **Phase 12: Correctness Fixes and DB Prerequisites** — Fix 4 known provider defects and add GIN trigram indexes before any cascade logic is built (completed 2026-03-29)
 - [x] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching (completed 2026-03-29)
 - [x] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode (completed 2026-03-29)
 - [x] **Phase 15: LLM Sidecar** — Local Ollama sidecar for address correction when deterministic stages fail (data-driven: execute only if Phase 14 telemetry shows > 1-2% unresolved) (completed 2026-03-29)
+- [ ] **Phase 16: Audit Gap Closure** — Fix FuzzyMatcher startup wiring, legacy 5-tuple unpack, Phase 13 verification, and documentation cleanup (gap closure)
 
 ## Phase Details
 
@@ -111,6 +112,22 @@ Plans:
 - [x] 15-02-PLAN.md — Cascade stage 4 integration, GeocodingService threading, API routes, and startup wiring
 - [x] 15-03-PLAN.md — Docker Compose Ollama service and K8s manifests for production deployment
 
+### Phase 16: Audit Gap Closure
+**Goal**: All v1.2 milestone audit gaps are resolved — FuzzyMatcher fires at runtime, legacy path handles 5-tuple correctly, Phase 13 is formally verified, and documentation reflects implementation
+**Depends on**: Phase 15
+**Requirements**: FUZZ-02, FUZZ-03, FUZZ-04 (unsatisfied → satisfied), FIX-01, FIX-02, FIX-03, FIX-04, FUZZ-01, SPELL-01, SPELL-02, SPELL-03 (partial → satisfied)
+**Gap Closure**: Closes gaps from v1.2 milestone audit (2026-03-29)
+**Success Criteria** (what must be TRUE):
+  1. `app.state.fuzzy_matcher` is assigned a `FuzzyMatcher` instance during app startup — cascade stage 3 fires for addresses that fail exact match
+  2. `_legacy_geocode` unpacks `_parse_input_address` as a 5-tuple — no `ValueError` when `CASCADE_ENABLED=false` and all local providers return NO_MATCH
+  3. Phase 13 has a VERIFICATION.md confirming SPELL-01/02/03 and FUZZ-02/03/04 are implemented and tested
+  4. REQUIREMENTS.md FIX-04 text reflects actual confidence values (scourgify=0.3, Tiger=0.4 per D-09/D-10)
+  5. Full test suite passes with no new failures
+**Plans**: 1 plan
+
+Plans:
+- [ ] 16-01-PLAN.md — FuzzyMatcher startup wiring, legacy 5-tuple fix, Phase 13 verification, doc cleanup
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -130,3 +147,4 @@ Plans:
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete    | 2026-03-29 |
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete    | 2026-03-29 |
+| 16. Audit Gap Closure | v1.2 | 0/1 | Pending | — |
