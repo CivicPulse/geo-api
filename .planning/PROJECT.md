@@ -30,7 +30,37 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-(None — next milestone requirements defined via `/gsd:new-milestone`)
+<!-- Current scope — v1.3 Production Readiness & Deployment -->
+
+- [ ] Resolve all known tech debt and errors
+- [ ] Thorough code review (security, stability, performance, logic, exceptions)
+- [ ] Structured logging and distributed tracing for AI-assisted debugging
+- [ ] K8s deployment to civpulse-dev and civpulse-prod (internal ClusterIP only)
+- [ ] Ollama LLM sidecar in both environments
+- [ ] Database provisioning (dev + prod)
+- [ ] CI/CD pipeline (GitHub Actions → GHCR → ArgoCD)
+- [ ] E2E testing of all 5 providers in deployed prod
+- [ ] Performance/load baselines and scaling validation
+- [ ] Monitoring/logging validation under load
+- [ ] Iterative bug-fix phases until clean final pass
+
+## Current Milestone: v1.3 Production Readiness & Deployment
+
+**Goal:** Harden, deploy, test, and validate the geo-api across dev and prod K8s environments with full observability, ensuring all providers work correctly at scale.
+
+**Target features:**
+- Resolve all known tech debt and errors (Tiger timeout, cache_hit hardcode, empty spell dictionary, CLI test failures)
+- Thorough code review for security, stability, performance, logic errors, uncaught exceptions
+- Structured logging and distributed tracing (Grafana Alloy → Loki, OTLP → Tempo) for AI-assisted debugging
+- Multi-stage Dockerfile, K8s manifests (Deployment + ClusterIP Service), ArgoCD apps, CI/CD pipeline
+- Ollama LLM sidecar deployed alongside geo-api in both environments
+- Database provisioning on shared PostgreSQL instance (dev + prod)
+- Internal ClusterIP service only — no Ingress/IngressRoute
+- Debugging/testing access via kubectl port-forward and/or NodePort
+- Extensive E2E testing: all 5 providers, performance baselines (P50/P95/P99), load/scaling
+- Monitoring/logging validation under load
+- Iterative bug-fix phases: blockers resolved in-phase, non-blockers logged for subsequent phases
+- Final top-to-bottom validation pass repeating all checks until clean
 
 ### Validated (v1.2)
 
@@ -59,6 +89,8 @@ Provide a single, reliable source of geocoded and validated address data across 
 - Collection ZIP multi-state import — single county files sufficient for now
 - NAD FGDB import — TXT format preferred for bulk loading
 - Real-time Tiger data updates — census-cycle data; manual refresh sufficient
+- Tailscale controller for internal user access — future milestone
+- Public Ingress/IngressRoute — geo-api is internal-only, accessed by in-cluster services
 
 ## Context
 
@@ -130,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.2 milestone*
+*Last updated: 2026-03-29 after v1.3 milestone started*
