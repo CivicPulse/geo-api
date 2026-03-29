@@ -30,15 +30,15 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-- [ ] Cascading resolution pipeline that auto-sets official geocode from best available result
-- [ ] Tiger county disambiguation via PostGIS spatial boundary post-filter
-- [ ] Zip prefix fallback matching for truncated/mistyped zip codes in local providers
-- [ ] Fuzzy/phonetic street matching (pg_trgm, Soundex/Metaphone) as exact-match fallback
-- [ ] Spell correction layer for address input before provider dispatch
+- ✓ Cascading resolution pipeline that auto-sets official geocode from best available result — Phase 14
+- ✓ Tiger county disambiguation via PostGIS spatial boundary post-filter — Phase 12
+- ✓ Zip prefix fallback matching for truncated/mistyped zip codes in local providers — Phase 12
+- ✓ Fuzzy/phonetic street matching (pg_trgm, Soundex/Metaphone) as exact-match fallback — Phase 13, wired Phase 16
+- ✓ Spell correction layer for address input before provider dispatch — Phase 13
 - ✓ Local LLM sidecar for address correction/completion when deterministic methods fail — Phase 15
-- [ ] Cross-provider consensus scoring to flag outliers and weight agreement
-- [ ] Validation confidence semantics fix (structural parse ≠ address-verified)
-- [ ] Street name normalization mismatch fix for multi-word street names with USPS suffixes
+- ✓ Cross-provider consensus scoring to flag outliers and weight agreement — Phase 14
+- ✓ Validation confidence semantics fix (structural parse ≠ address-verified) — Phase 12
+- ✓ Street name normalization mismatch fix for multi-word street names with USPS suffixes — Phase 12
 
 ## Current Milestone: v1.2 Cascading Address Resolution
 
@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 — Phase 15 complete (LLM Sidecar: Ollama-powered address correction via LLMAddressCorrector with temperature=0 structured JSON, zip/state guardrails, re-verification through providers, graceful degradation, Docker Compose + K8s manifests)*
+*Last updated: 2026-03-29 — Phase 16 complete (Audit Gap Closure: FuzzyMatcher wired to app startup, legacy 5-tuple unpack fix, Phase 13 formal verification, all v1.2 requirements satisfied)*
