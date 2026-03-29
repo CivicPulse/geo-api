@@ -7,6 +7,7 @@ from civpulse_geo.models.openaddresses import OpenAddressesPoint
 from civpulse_geo.models.nad import NADPoint
 from civpulse_geo.models.parcels import OpenAddressesParcel
 from civpulse_geo.models.macon_bibb import MaconBibbPoint
+from civpulse_geo.models.spell_dictionary import SpellDictionary
 
 __all__ = [
     "Base",
@@ -21,4 +22,5 @@ __all__ = [
     "NADPoint",
     "OpenAddressesParcel",
     "MaconBibbPoint",
+    "SpellDictionary",
 ]
