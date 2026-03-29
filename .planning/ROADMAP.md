@@ -58,7 +58,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 
 Plans:
 - [ ] 12-01-PLAN.md — Parse expansion (5-tuple), suffix matching, and zip prefix fallback across OA/NAD/Macon-Bibb
-- [ ] 12-02-PLAN.md — Tiger county spatial post-filter, confidence constants, and GIN trigram migration
+- [x] 12-02-PLAN.md — Tiger county spatial post-filter, confidence constants, and GIN trigram migration
 
 ### Phase 13: Spell Correction and Fuzzy/Phonetic Matching
 **Goal**: Addresses with typoed or phonetically misspelled street names are recovered before they reach the cascade orchestrator
@@ -112,7 +112,7 @@ Plans:
 | 9. Tiger Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 10. NAD Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
-| 12. Correctness Fixes and DB Prerequisites | v1.2 | 0/2 | Planning | - |
+| 12. Correctness Fixes and DB Prerequisites | v1.2 | 1/2 | In Progress|  |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 0/? | Not started | - |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
