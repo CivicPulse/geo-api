@@ -1,7 +1,7 @@
 """CascadeOrchestrator: staged resolution pipeline with consensus scoring.
 
-Implements the Phase 14 cascade:
-    normalize → spell-correct → exact match → fuzzy → consensus → auto-set official
+Implements the Phase 14/15 cascade:
+    normalize → spell-correct → exact match → fuzzy → LLM correction → consensus → auto-set official
 
 Key design decisions (from 14-CONTEXT.md):
 - D-05: All providers (local + remote) called in parallel in exact-match stage
@@ -32,6 +32,11 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from civpulse_geo.config import settings
 from civpulse_geo.models.address import Address
+from civpulse_geo.services.llm_corrector import (
+    LLMAddressCorrector,
+    AddressCorrection,
+    _passes_guardrails,
+)
 from civpulse_geo.models.geocoding import (
     GeocodingResult as GeocodingResultORM,
     OfficialGeocoding,
@@ -107,6 +112,7 @@ class ProviderCandidate:
     location_type: str | None = None
     raw_response: dict | None = None
     is_fuzzy: bool = False
+    is_llm_corrected: bool = False
     is_outlier: bool = False
     source_result: Any = None   # original GeocodingResultSchema or FuzzyMatchResult
     geocoding_result_id: int | None = None  # set after DB upsert for remote providers
@@ -237,7 +243,7 @@ def run_consensus(
 class CascadeOrchestrator:
     """Staged cascade resolution pipeline (CASC-01).
 
-    Stages: normalize → spell-correct → exact match → fuzzy → consensus → auto-set
+    Stages: normalize → spell-correct → exact match → fuzzy → LLM correction → consensus → auto-set
 
     Designed to be instantiated per-request (stateless like GeocodingService).
     """
@@ -250,6 +256,7 @@ class CascadeOrchestrator:
         http_client: httpx.AsyncClient,
         spell_corrector: SpellCorrector | None = None,
         fuzzy_matcher: FuzzyMatcher | None = None,
+        llm_corrector: LLMAddressCorrector | None = None,
         dry_run: bool = False,
         trace: bool = False,
     ) -> CascadeResult:
@@ -262,6 +269,7 @@ class CascadeOrchestrator:
             http_client: Shared httpx.AsyncClient.
             spell_corrector: Optional SpellCorrector for stage 1.
             fuzzy_matcher: Optional FuzzyMatcher for stage 3.
+            llm_corrector: Optional LLMAddressCorrector for stage 4 (LLM-02, D-05).
             dry_run: If True, run full cascade but don't write OfficialGeocoding.
             trace: If True, populate cascade_trace in result.
 
@@ -523,7 +531,118 @@ class CascadeOrchestrator:
                     })
 
         # ----------------------------------------------------------------
-        # Stage 4: Consensus scoring (CONS-01) — always runs (D-13)
+        # Stage 4: LLM correction (LLM-02, D-05) — only when all prior stages produced zero candidates
+        # ----------------------------------------------------------------
+        t_stage = time.monotonic()
+
+        if (
+            settings.cascade_llm_enabled
+            and llm_corrector is not None
+            and not skip_fuzzy  # if exact match already produced high-confidence, skip
+            and len(candidates) == 0  # D-05: only fires when all deterministic stages failed
+        ):
+            try:
+                # Extract original state from freeform for guardrail check
+                _components = parse_address_components(freeform)
+                _original_state = _components.get("state")
+
+                correction = await asyncio.wait_for(
+                    llm_corrector.correct_address(freeform, http_client),
+                    timeout=settings.llm_timeout_ms / 1000,  # D-07: 5000ms
+                )
+                if correction is not None and _passes_guardrails(correction, _original_state):
+                    # Build corrected address string for re-verification (D-17)
+                    parts = []
+                    if correction.street_number:
+                        parts.append(correction.street_number)
+                    if correction.street_name:
+                        parts.append(correction.street_name)
+                    if correction.street_suffix:
+                        parts.append(correction.street_suffix)
+                    corrected_street = " ".join(parts)
+                    city_state_zip = []
+                    if correction.city:
+                        city_state_zip.append(correction.city)
+                    if correction.state:
+                        city_state_zip.append(correction.state)
+                    if correction.zip:
+                        city_state_zip.append(correction.zip)
+                    corrected_str = corrected_street
+                    if city_state_zip:
+                        corrected_str += ", " + " ".join(city_state_zip)
+
+                    # Re-verify corrected address through providers (D-17: never add LLM output directly)
+                    async def _reverify_provider(
+                        provider_name: str, provider: GeocodingProvider
+                    ) -> tuple[str, GeocodingResultSchema | None]:
+                        try:
+                            result = await asyncio.wait_for(
+                                provider.geocode(corrected_str, http_client=http_client),
+                                timeout=settings.exact_match_timeout_ms / 1000,
+                            )
+                            return provider_name, result
+                        except (asyncio.TimeoutError, Exception) as exc:
+                            logger.warning(
+                                "CascadeOrchestrator: LLM re-verify {} failed: {}",
+                                provider_name, exc,
+                            )
+                            return provider_name, None
+
+                    reverify_results = await asyncio.gather(
+                        *[_reverify_provider(name, prov) for name, prov in all_provider_items],
+                        return_exceptions=True,
+                    )
+
+                    for item in reverify_results:
+                        if isinstance(item, Exception):
+                            continue
+                        prov_name, schema_result = item
+                        if schema_result is None or schema_result.confidence <= 0.0:
+                            continue
+                        # Add to candidates with is_llm_corrected=True (D-06: normal provider weights)
+                        candidates.append(ProviderCandidate(
+                            provider_name=prov_name,
+                            lat=schema_result.lat,
+                            lng=schema_result.lng,
+                            confidence=schema_result.confidence,
+                            weight=get_provider_weight(prov_name),
+                            location_type=schema_result.location_type,
+                            raw_response=schema_result.raw_response,
+                            is_llm_corrected=True,
+                            source_result=schema_result,
+                        ))
+
+                    if trace or dry_run:
+                        cascade_trace.append({
+                            "stage": "llm_correction",
+                            "correction": correction.model_dump() if correction else None,
+                            "corrected_address": corrected_str,
+                            "reverified_count": sum(1 for c in candidates if c.is_llm_corrected),
+                            "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                        })
+                else:
+                    if trace or dry_run:
+                        cascade_trace.append({
+                            "stage": "llm_correction",
+                            "correction": correction.model_dump() if correction else None,
+                            "guardrail_rejected": correction is not None,
+                            "skipped": correction is None,
+                            "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                        })
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "CascadeOrchestrator: LLM stage timed out after {}ms",
+                    settings.llm_timeout_ms,
+                )
+                if trace or dry_run:
+                    cascade_trace.append({
+                        "stage": "llm_correction",
+                        "timeout": True,
+                        "ms": settings.llm_timeout_ms,
+                    })
+
+        # ----------------------------------------------------------------
+        # Stage 5: Consensus scoring (CONS-01) — always runs (D-13)
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
@@ -538,6 +657,8 @@ class CascadeOrchestrator:
         if winning_cluster is not None:
             if len(scored_candidates) == 1:
                 set_by_stage = "single_provider"
+            elif any(m.is_llm_corrected for m in winning_cluster.members):
+                set_by_stage = "llm_correction_consensus"
             elif any(m.is_fuzzy for m in winning_cluster.members):
                 set_by_stage = "fuzzy_consensus"
             else:
@@ -555,7 +676,7 @@ class CascadeOrchestrator:
             })
 
         # ----------------------------------------------------------------
-        # Stage 5: Auto-set official (CONS-04)
+        # Stage 6: Auto-set official (CONS-04)
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
@@ -691,7 +812,7 @@ class CascadeOrchestrator:
             })
 
         # ----------------------------------------------------------------
-        # Stage 6: Commit and return
+        # Stage 7: Commit and return
         # ----------------------------------------------------------------
         await db.commit()
 
