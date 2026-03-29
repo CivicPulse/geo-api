@@ -99,13 +99,44 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| (populated by roadmapper) | | |
+| DEBT-01 | Phase 17 | Pending |
+| DEBT-02 | Phase 17 | Pending |
+| DEBT-03 | Phase 17 | Pending |
+| DEBT-04 | Phase 17 | Pending |
+| REVIEW-01 | Phase 18 | Pending |
+| REVIEW-02 | Phase 18 | Pending |
+| REVIEW-03 | Phase 18 | Pending |
+| DEPLOY-01 | Phase 19 | Pending |
+| DEPLOY-08 | Phase 19 | Pending |
+| RESIL-01 | Phase 20 | Pending |
+| RESIL-02 | Phase 20 | Pending |
+| RESIL-03 | Phase 20 | Pending |
+| RESIL-04 | Phase 20 | Pending |
+| DEPLOY-02 | Phase 20 | Pending |
+| DEPLOY-03 | Phase 20 | Pending |
+| DEPLOY-04 | Phase 20 | Pending |
+| DEPLOY-05 | Phase 20 | Pending |
+| DEPLOY-07 | Phase 20 | Pending |
+| DEPLOY-06 | Phase 21 | Pending |
+| OBS-01 | Phase 22 | Pending |
+| OBS-02 | Phase 22 | Pending |
+| OBS-03 | Phase 22 | Pending |
+| OBS-04 | Phase 22 | Pending |
+| TEST-01 | Phase 23 | Pending |
+| TEST-02 | Phase 23 | Pending |
+| TEST-03 | Phase 23 | Pending |
+| TEST-04 | Phase 23 | Pending |
+| TEST-05 | Phase 23 | Pending |
+| TEST-06 | Phase 23 | Pending |
+| VAL-01 | Phase 23 | Pending |
+| VAL-02 | Phase 23 | Pending |
+| VAL-03 | Phase 23 | Pending |
 
 **Coverage:**
 - v1.3 requirements: 30 total
-- Mapped to phases: 0
-- Unmapped: 30 ⚠️
+- Mapped to phases: 30
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-29*
-*Last updated: 2026-03-29 after initial definition*
+*Last updated: 2026-03-29 after roadmap creation*
