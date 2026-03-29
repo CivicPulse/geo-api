@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 — Phase 12 complete (Correctness Fixes and DB Prerequisites: 5-tuple parse expansion, Tiger county filter, confidence semantics, GIN trigram indexes)*
+*Last updated: 2026-03-29 — Phase 14 complete (Cascade Orchestrator and Consensus Scoring: 6-stage cascade pipeline, greedy consensus clustering, provider trust weights, dry_run/trace modes, auto-set OfficialGeocoding with audit trail)*
