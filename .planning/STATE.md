@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
-status: executing
-stopped_at: Completed 13-01-PLAN.md
-last_updated: "2026-03-29T13:59:54.432Z"
+status: verifying
+stopped_at: Completed 13-02-PLAN.md
+last_updated: "2026-03-29T14:12:18.426Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
 ---
 
 # Project State
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 13 (spell-correction-and-fuzzy-phonetic-matching) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 
 ```
@@ -43,6 +43,7 @@ v1.2 Progress: [----------] 0/4 phases
 | Phase 12-correctness-fixes-and-db-prerequisites P01 | 470 | 2 tasks | 6 files |
 | Phase 12-correctness-fixes-and-db-prerequisites P02 | 15 | 2 tasks | 5 files |
 | Phase 13-spell-correction-and-fuzzy-phonetic-matching P01 | 7 | 3 tasks | 11 files |
+| Phase 13-spell-correction-and-fuzzy-phonetic-matching P02 | 9 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -57,6 +58,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 13]: symspellpy Verbosity.TOP returns single top candidate per token; tokens < 4 chars bypass correction to avoid over-correcting short street names
 - [Phase 13]: rebuild_dictionary uses TRUNCATE + unnest(string_to_array) for per-word tokenization; Tiger featnames included with bare except guard (SPELL-02)
 - [Phase 13]: SpellCorrector uses sync engine at API startup for SymSpell.create_dictionary_entry (D-09); graceful fallback sets app.state.spell_corrector = None on error
+- [Phase 13]: UNION ALL across OA/NAD/Macon-Bibb staging tables in single query (D-06) for FuzzyMatcher
+- [Phase 13]: dmetaphone() SQL tiebreaker as second query when candidates within 0.05 gap (D-12)
+- [Phase 13]: Calibration corpus uses mock session for CI-compatible D-15 regression testing
 
 ### Phase Ordering Notes
 
@@ -90,6 +94,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Completed 13-01-PLAN.md
+Stopped at: Completed 13-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 12`

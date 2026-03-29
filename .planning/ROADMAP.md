@@ -38,7 +38,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 ### v1.2 Cascading Address Resolution (Phases 12-15)
 
 - [x] **Phase 12: Correctness Fixes and DB Prerequisites** — Fix 4 known provider defects and add GIN trigram indexes before any cascade logic is built (completed 2026-03-29)
-- [ ] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching
+- [x] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching (completed 2026-03-29)
 - [ ] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode
 - [ ] **Phase 15: LLM Sidecar** — Local Ollama sidecar for address correction when deterministic stages fail (data-driven: execute only if Phase 14 telemetry shows > 1-2% unresolved)
 
@@ -74,7 +74,7 @@ Plans:
 
 Plans:
 - [x] 13-01-PLAN.md — SpellCorrector with symspellpy, spell_dictionary table, rebuild hooks, and startup loading
-- [ ] 13-02-PLAN.md — FuzzyMatcher service with word_similarity() + dmetaphone() tiebreaker and 30-address calibration corpus
+- [x] 13-02-PLAN.md — FuzzyMatcher service with word_similarity() + dmetaphone() tiebreaker and 30-address calibration corpus
 
 ### Phase 14: Cascade Orchestrator and Consensus Scoring
 **Goal**: The geocoding pipeline auto-resolves degraded input into an official geocode without any caller-side changes
@@ -117,6 +117,6 @@ Plans:
 | 10. NAD Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
-| 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 1/2 | In Progress|  |
+| 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |

@@ -23,9 +23,9 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 ### Fuzzy Matching
 
 - [x] **FUZZ-01**: pg_trgm extension enabled via Alembic migration with GIN trigram indexes on `openaddresses_points.street` and `nad_points.street_name`
-- [ ] **FUZZ-02**: FuzzyMatcher service uses `word_similarity()` with threshold 0.65-0.70 for street name matching as fallback when all exact providers return NO_MATCH
-- [ ] **FUZZ-03**: Double Metaphone (`dmetaphone()` from fuzzystrmatch) used as secondary phonetic fallback when trigram similarity is below threshold
-- [ ] **FUZZ-04**: Fuzzy match thresholds calibrated against Issue #1 E2E test corpus (4 addresses with known ground truth)
+- [x] **FUZZ-02**: FuzzyMatcher service uses `word_similarity()` with threshold 0.65-0.70 for street name matching as fallback when all exact providers return NO_MATCH
+- [x] **FUZZ-03**: Double Metaphone (`dmetaphone()` from fuzzystrmatch) used as secondary phonetic fallback when trigram similarity is below threshold
+- [x] **FUZZ-04**: Fuzzy match thresholds calibrated against Issue #1 E2E test corpus (4 addresses with known ground truth)
 
 ### Cascade Pipeline
 
@@ -88,9 +88,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SPELL-01 | Phase 13 | Complete |
 | SPELL-02 | Phase 13 | Complete |
 | SPELL-03 | Phase 13 | Complete |
-| FUZZ-02 | Phase 13 | Pending |
-| FUZZ-03 | Phase 13 | Pending |
-| FUZZ-04 | Phase 13 | Pending |
+| FUZZ-02 | Phase 13 | Complete |
+| FUZZ-03 | Phase 13 | Complete |
+| FUZZ-04 | Phase 13 | Complete |
 | CASC-01 | Phase 14 | Pending |
 | CASC-02 | Phase 14 | Pending |
 | CASC-03 | Phase 14 | Pending |
