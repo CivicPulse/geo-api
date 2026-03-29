@@ -44,6 +44,46 @@ docker compose exec api geo-import load-oa /app/data/US_GA_Bibb_Addresses_2026-0
 echo "--- Loading Tiger/Line data for GA (this may take 10-30 minutes)..."
 docker compose exec api geo-import setup-tiger GA
 
+# Step 4b: Load Tiger national lookup tables (STATE + COUNTY)
+# The Loader_Generate_Script loads county-level data (addr, edges, faces, featnames)
+# but the national lookup tables need manual shp2pgsql import. Without these,
+# PostGIS geocode() silently returns 0 rows because it can't route by state/county.
+echo "--- Loading Tiger national lookup tables (STATE + COUNTY)..."
+docker compose exec api bash -c '
+set -e
+TMPDIR=/gisdata/temp
+mkdir -p $TMPDIR
+PSQL="psql -h db -U civpulse -d civpulse_geo"
+
+# STATE
+if [ -f /gisdata/www2.census.gov/geo/tiger/TIGER2024/STATE/tl_2024_us_state.zip ]; then
+  rm -f $TMPDIR/*.*
+  unzip -o -d $TMPDIR /gisdata/www2.census.gov/geo/tiger/TIGER2024/STATE/tl_2024_us_state.zip
+  cd $TMPDIR
+  PGPASSWORD=civpulse $PSQL -q -c "DROP TABLE IF EXISTS tiger_staging.state;"
+  shp2pgsql -D -c -s 4269 -g the_geom -W "latin1" tl_2024_us_state.dbf tiger_staging.state | PGPASSWORD=civpulse $PSQL -q
+  PGPASSWORD=civpulse $PSQL -q -c "
+    INSERT INTO tiger.state (region, division, statefp, statens, stusps, name, lsad, mtfcc, funcstat, aland, awater, intptlat, intptlon, the_geom)
+    SELECT region, division, statefp, statens, stusps, name, lsad, mtfcc, funcstat, aland, awater, intptlat, intptlon, the_geom
+    FROM tiger_staging.state ON CONFLICT DO NOTHING;"
+  echo "  STATE: $(PGPASSWORD=civpulse $PSQL -t -c "SELECT count(*) FROM tiger.state;") rows"
+fi
+
+# COUNTY
+if [ -f /gisdata/www2.census.gov/geo/tiger/TIGER2024/COUNTY/tl_2024_us_county.zip ]; then
+  rm -f $TMPDIR/*.*
+  unzip -o -d $TMPDIR /gisdata/www2.census.gov/geo/tiger/TIGER2024/COUNTY/tl_2024_us_county.zip
+  cd $TMPDIR
+  PGPASSWORD=civpulse $PSQL -q -c "DROP TABLE IF EXISTS tiger_staging.county;"
+  shp2pgsql -D -c -s 4269 -g the_geom -W "latin1" tl_2024_us_county.dbf tiger_staging.county | PGPASSWORD=civpulse $PSQL -q
+  PGPASSWORD=civpulse $PSQL -q -c "
+    INSERT INTO tiger.county (statefp, countyfp, countyns, cntyidfp, name, namelsad, lsad, classfp, mtfcc, csafp, cbsafp, metdivfp, funcstat, aland, awater, intptlat, intptlon, the_geom)
+    SELECT statefp, countyfp, countyns, statefp || countyfp, name, namelsad, lsad, classfp, mtfcc, csafp, cbsafp, metdivfp, funcstat, aland, awater, intptlat, intptlon, the_geom
+    FROM tiger_staging.county ON CONFLICT DO NOTHING;"
+  echo "  COUNTY: $(PGPASSWORD=civpulse $PSQL -t -c "SELECT count(*) FROM tiger.county;") rows"
+fi
+'
+
 # Step 5: Load NAD data
 echo "--- Loading National Address Database data for GA..."
 docker compose exec api geo-import load-nad /app/data/NAD_r21_TXT.zip --state GA

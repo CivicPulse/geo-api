@@ -84,9 +84,10 @@ None.
 | 260324-n3c | create Postman collection for all 8 API endpoints | 2026-03-24 | e464ddb | [260324-n3c-create-a-postman-config-that-can-test-al](./quick/260324-n3c-create-a-postman-config-that-can-test-al/) |
 | 260325-0pw | add OpenAddresses parcel boundary staging table and CLI command | 2026-03-25 | fcc0de9 | [260325-0pw-add-openaddresses-parcel-boundary-stagin](./quick/260325-0pw-add-openaddresses-parcel-boundary-stagin/) |
 | 260325-0th | add 4th local geocoder using Macon-Bibb County GIS address points | 2026-03-25 | a99a45d | [260325-0th-add-4th-local-geocoder-using-macon-bibb-](./quick/260325-0th-add-4th-local-geocoder-using-macon-bibb-/) |
+| 260329-2zn | complete local dev env setup with all 5 providers registered | 2026-03-29 | c7ac438 | [260329-2zn-start-a-local-dev-env-ensure-all-5-provi](./quick/260329-2zn-start-a-local-dev-env-ensure-all-5-provi/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-25 - Completed quick task 260325-0th: add 4th local geocoder using Macon-Bibb County GIS address points
-Stopped at: Completed quick task 260325-0th
+Last activity: 2026-03-29 - Completed quick task 260329-2zn: complete local dev env setup with all 5 providers registered
+Stopped at: Completed quick task 260329-2zn
 Resume file: None

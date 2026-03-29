@@ -70,16 +70,18 @@ Loaded 5 validation provider(s)
 | 1 | 32c6412 | feat(quick-260329-2zn): mount tiger-data volume, set DEBUG=0, create dev-bootstrap.sh |
 | 2 | (no files changed — data loading only) | All 5 providers loaded and registered via CLI commands |
 
-## Deviations from Plan
+### Post-execution Fix: Tiger National Lookup Tables
 
-### Auto-fixed Issues
+After initial setup, discovered that PostGIS `geocode()` was returning 0 rows despite 1.7M addr records loaded. Root cause: `tiger.state` and `tiger.county` national lookup tables were empty — PostGIS needs these to route geocode queries by state/county. The `Loader_Generate_Script` includes wget for these files but the mounted volume path bypassed the download, and the `shp2pgsql` import step wasn't reached.
 
-None — plan executed as written.
+**Fix:** Added step 4b to `dev-bootstrap.sh` that manually loads STATE (56 rows) and COUNTY (3,235 rows) via `shp2pgsql` from the mounted shapefiles.
 
 ### Notes
 
 - The plan's verification script checks `d['status']=='healthy'` but the health endpoint returns `"status": "ok"`. This is the existing API format and is correct — not a regression. The API is healthy.
 - OA and NAD data was pre-populated from prior dev sessions, so only Macon-Bibb needed loading.
+- NAD r21 GA data is concentrated in Atlanta-area zips (303xx); no Macon coverage.
+- NAD GA records all have `placement = "Unknown"`, yielding 0.10 confidence for exact matches — data quality issue in NAD r21.
 
 ## Current State
 
