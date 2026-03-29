@@ -23,7 +23,7 @@ services:
       DATABASE_URL_SYNC: postgresql+psycopg2://civpulse:civpulse@db:5432/civpulse_geo
       LOG_LEVEL: DEBUG
       ENVIRONMENT: development
-      DEBUG: "1"
+      DEBUG: "0"
     ports:
       - "8042:8000"
       - "5680:5680"
@@ -33,6 +33,7 @@ services:
     volumes:
       - ./data:/app/data
       - ./src:/app/src
+      - ./tiger-data:/gisdata/www2.census.gov/geo/tiger/TIGER2024:ro
 
 volumes:
   postgres_data:
