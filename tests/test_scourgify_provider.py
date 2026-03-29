@@ -8,7 +8,7 @@ Tests verify:
 - USPS Pub 28 abbreviations applied: "Road" -> "RD", "Georgia" -> "GA"
 - APT/unit designators extracted to address_line_2
 - ZIP+4 postal codes preserved in full (e.g. "31201-5678")
-- confidence is always 1.0 for successful normalization
+- confidence is always 0.3 for successful normalization (parse-only, not address-verified)
 - delivery_point_verified is always False
 - Unparseable addresses (PO Box, gibberish) raise ProviderError
 - original_input echoes back the raw input string
@@ -39,7 +39,7 @@ async def test_validate_freeform(provider):
     assert result.city == "MACON"
     assert result.state == "GA"
     assert result.postal_code == "31201"
-    assert result.confidence == 1.0
+    assert result.confidence == 0.3
     assert result.delivery_point_verified is False
     assert result.provider_name == "scourgify"
 
@@ -64,10 +64,10 @@ async def test_zip_plus_4_preserved(provider):
     assert result.postal_code == "31201-5678"
 
 
-async def test_confidence_always_1(provider):
-    """All successful validations return confidence=1.0."""
+async def test_confidence_always_0_3(provider):
+    """All successful validations return confidence=0.3 (parse-only, not address-verified)."""
     result = await provider.validate("626 Arlington Pl, Macon, GA 31201")
-    assert result.confidence == 1.0
+    assert result.confidence == 0.3
 
 
 async def test_dpv_always_false(provider):

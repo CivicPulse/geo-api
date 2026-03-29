@@ -4,6 +4,9 @@ Tests verify:
 - GeocodingResult returned with correct lat/lng, RANGE_INTERPOLATED location_type, confidence
 - Confidence mapping: rating 0 -> 1.0, rating 50 -> 0.5, rating 100 -> 0.0, rating 108 clamped to 0.0
 - NO_MATCH behavior when no row found or parsed=False
+- County spatial post-filter: results outside expected county return NO_MATCH
+- county_fips kwarg match/mismatch behavior
+- Graceful degradation when state=None (county filter skipped)
 - is_local=True on both providers
 - provider_name="postgis_tiger" on both providers
 - geocode() accepts **kwargs (no TypeError when http_client= passed)
@@ -15,13 +18,16 @@ Tests verify:
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 from sqlalchemy.exc import SQLAlchemyError
 
 from civpulse_geo.providers.tiger import (
     TigerGeocodingProvider,
     TigerValidationProvider,
     _tiger_extension_available,
+    GEOCODE_SQL,
+    STATE_FIPS_SQL,
+    COUNTY_CONTAINS_SQL,
 )
 from civpulse_geo.providers.schemas import GeocodingResult, ValidationResult
 from civpulse_geo.providers.exceptions import ProviderError
@@ -32,7 +38,11 @@ from civpulse_geo.providers.exceptions import ProviderError
 # ---------------------------------------------------------------------------
 
 def _make_session_factory(execute_return_value=None, raise_exc=None):
-    """Build a mock async_sessionmaker that works with 'async with factory() as session'."""
+    """Build a mock async_sessionmaker that works with 'async with factory() as session'.
+
+    Use this for simple single-execute tests (no county filter chain needed).
+    For tests that exercise the county filter, use _make_geocode_session_factory.
+    """
     mock_session = AsyncMock()
 
     if raise_exc is not None:
@@ -43,6 +53,43 @@ def _make_session_factory(execute_return_value=None, raise_exc=None):
         mock_session.execute = AsyncMock(return_value=mock_result)
 
     # Support 'async with session_factory() as session'
+    mock_ctx = AsyncMock()
+    mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_ctx.__aexit__ = AsyncMock(return_value=False)
+
+    mock_factory = MagicMock(return_value=mock_ctx)
+    return mock_factory
+
+
+def _make_geocode_session_factory(geocode_row, state_row, county_row):
+    """Build a mock session factory for geocode() tests that exercise the county filter.
+
+    Returns different mock results for each of the three execute() calls:
+    1. GEOCODE_SQL -> geocode_row
+    2. STATE_FIPS_SQL -> state_row
+    3. COUNTY_CONTAINS_SQL -> county_row
+
+    Args:
+        geocode_row: Row returned by GEOCODE_SQL (or None for no match).
+        state_row: Row returned by STATE_FIPS_SQL (or None for state not found).
+        county_row: Row returned by COUNTY_CONTAINS_SQL (or None for no county match).
+    """
+    call_count = [0]
+    rows = [geocode_row, state_row, county_row]
+
+    async def execute_side_effect(sql, params=None):
+        idx = call_count[0]
+        call_count[0] += 1
+        mock_result = MagicMock()
+        if idx < len(rows):
+            mock_result.first.return_value = rows[idx]
+        else:
+            mock_result.first.return_value = None
+        return mock_result
+
+    mock_session = AsyncMock()
+    mock_session.execute.side_effect = execute_side_effect
+
     mock_ctx = AsyncMock()
     mock_ctx.__aenter__ = AsyncMock(return_value=mock_session)
     mock_ctx.__aexit__ = AsyncMock(return_value=False)
@@ -261,6 +308,98 @@ class TestTigerGeocodingProvider:
         assert len(results) == 2
         assert all(isinstance(r, GeocodingResult) for r in results)
 
+    # -----------------------------------------------------------------------
+    # County spatial post-filter tests (FIX-01)
+    # -----------------------------------------------------------------------
+
+    @pytest.mark.asyncio
+    async def test_tiger_geocode_wrong_county_returns_no_match(self):
+        """Geocoded point not in any county in the expected state returns NO_MATCH."""
+        geocode_row = _make_geocode_row(rating=10, lat=32.84, lng=-83.63, state="GA")
+        state_row = MagicMock()
+        state_row.statefp = "13"  # Georgia FIPS
+        county_row = None  # point falls outside all counties in expected state
+
+        factory = _make_geocode_session_factory(geocode_row, state_row, county_row)
+        provider = TigerGeocodingProvider(factory)
+
+        result = await provider.geocode("123 Main St, Macon, GA 31201")
+
+        assert result.location_type == "NO_MATCH"
+        assert result.confidence == 0.0
+        assert result.lat == 0.0
+        assert result.lng == 0.0
+
+    @pytest.mark.asyncio
+    async def test_tiger_geocode_correct_county_returns_match(self):
+        """Geocoded point inside a county in the expected state returns RANGE_INTERPOLATED."""
+        geocode_row = _make_geocode_row(rating=10, lat=32.84, lng=-83.63, state="GA")
+        state_row = MagicMock()
+        state_row.statefp = "13"
+        county_row = MagicMock()
+        county_row.cntyidfp = "13021"  # Bibb County
+
+        factory = _make_geocode_session_factory(geocode_row, state_row, county_row)
+        provider = TigerGeocodingProvider(factory)
+
+        result = await provider.geocode("123 Main St, Macon, GA 31201")
+
+        assert result.location_type == "RANGE_INTERPOLATED"
+        assert result.confidence > 0.0
+        assert result.lat == pytest.approx(32.84)
+        assert result.lng == pytest.approx(-83.63)
+
+    @pytest.mark.asyncio
+    async def test_tiger_geocode_county_fips_kwarg_mismatch(self):
+        """county_fips kwarg mismatch (different county) returns NO_MATCH."""
+        geocode_row = _make_geocode_row(rating=10, lat=32.84, lng=-83.63, state="GA")
+        state_row = MagicMock()
+        state_row.statefp = "13"
+        county_row = MagicMock()
+        county_row.cntyidfp = "13021"  # Bibb County — geocoded here
+
+        factory = _make_geocode_session_factory(geocode_row, state_row, county_row)
+        provider = TigerGeocodingProvider(factory)
+
+        # Caller requests a different county
+        result = await provider.geocode("123 Main St, Macon, GA 31201", county_fips="13189")
+
+        assert result.location_type == "NO_MATCH"
+        assert result.confidence == 0.0
+
+    @pytest.mark.asyncio
+    async def test_tiger_geocode_county_fips_kwarg_match(self):
+        """county_fips kwarg matching actual county returns the result normally."""
+        geocode_row = _make_geocode_row(rating=10, lat=32.84, lng=-83.63, state="GA")
+        state_row = MagicMock()
+        state_row.statefp = "13"
+        county_row = MagicMock()
+        county_row.cntyidfp = "13021"  # Bibb County
+
+        factory = _make_geocode_session_factory(geocode_row, state_row, county_row)
+        provider = TigerGeocodingProvider(factory)
+
+        # Caller specifies matching county
+        result = await provider.geocode("123 Main St, Macon, GA 31201", county_fips="13021")
+
+        assert result.location_type == "RANGE_INTERPOLATED"
+        assert result.confidence > 0.0
+
+    @pytest.mark.asyncio
+    async def test_tiger_geocode_no_state_skips_county_filter(self):
+        """When geocoded row has state=None, county filter is skipped (graceful degradation)."""
+        geocode_row = _make_geocode_row(rating=10, lat=32.84, lng=-83.63, state=None)
+        # state_row and county_row will never be called since row.state is None
+        factory = _make_geocode_session_factory(geocode_row, None, None)
+        provider = TigerGeocodingProvider(factory)
+
+        result = await provider.geocode("123 Main St")
+
+        # Should return normally without errors
+        assert result.location_type == "RANGE_INTERPOLATED"
+        assert result.lat == pytest.approx(32.84)
+        assert result.confidence > 0.0
+
 
 # ---------------------------------------------------------------------------
 # TigerValidationProvider tests
@@ -277,7 +416,8 @@ class TestTigerValidationProvider:
         assert provider.is_local is True
 
     @pytest.mark.asyncio
-    async def test_validate_match_parsed_true_returns_confidence_1(self):
+    async def test_validate_match_parsed_true_returns_confidence(self):
+        """Tiger validation returns confidence=0.4 when normalize_address() parses successfully."""
         row = _make_normalize_row(parsed=True)
         factory = _make_session_factory(execute_return_value=row)
         provider = TigerValidationProvider(factory)
@@ -285,7 +425,7 @@ class TestTigerValidationProvider:
         result = await provider.validate("123 Main St, Macon, GA 31201")
 
         assert isinstance(result, ValidationResult)
-        assert result.confidence == pytest.approx(1.0)
+        assert result.confidence == pytest.approx(0.4)
         assert result.provider_name == "postgis_tiger"
         assert result.delivery_point_verified is False
         assert result.original_input == "123 Main St, Macon, GA 31201"
