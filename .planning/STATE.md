@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: Local Data Sources
-status: milestone_complete
-stopped_at: v1.1 milestone archived
-last_updated: "2026-03-29T03:35:00Z"
+milestone: v1.2
+milestone_name: Cascading Address Resolution
+status: defining_requirements
+stopped_at: ~
+last_updated: "2026-03-29T12:00:00Z"
 last_activity: 2026-03-29
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 9
-  completed_plans: 9
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 # Project State
@@ -20,11 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Planning next milestone
+**Current focus:** Defining requirements for v1.2 Cascading Address Resolution
 
 ## Current Position
 
-Milestone v1.1 complete. No active phase.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-03-29 — Milestone v1.2 started
 
 ## Accumulated Context
 
@@ -38,7 +41,7 @@ None.
 
 ### Blockers/Concerns (Carry Forward)
 
-- Google Maps Platform ToS caching clause must be reviewed before building the Google adapter
+- Google Maps excluded — ToS incompatible with caching model (moved to Out of Scope)
 - VAL-06 delivery_point_verified is always False with scourgify — real DPV needs a paid USPS API adapter
 
 ### Quick Tasks Completed

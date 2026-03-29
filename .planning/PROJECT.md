@@ -30,7 +30,27 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-(None — next milestone not yet defined)
+- [ ] Cascading resolution pipeline that auto-sets official geocode from best available result
+- [ ] Tiger county disambiguation via PostGIS spatial boundary post-filter
+- [ ] Zip prefix fallback matching for truncated/mistyped zip codes in local providers
+- [ ] Fuzzy/phonetic street matching (pg_trgm, Soundex/Metaphone) as exact-match fallback
+- [ ] Spell correction layer for address input before provider dispatch
+- [ ] Local LLM sidecar for address correction/completion when deterministic methods fail
+- [ ] Cross-provider consensus scoring to flag outliers and weight agreement
+- [ ] Validation confidence semantics fix (structural parse ≠ address-verified)
+- [ ] Street name normalization mismatch fix for multi-word street names with USPS suffixes
+
+## Current Milestone: v1.2 Cascading Address Resolution
+
+**Goal:** Transform the multi-provider lookup into an auto-resolving cascading pipeline that progressively refines degraded address input into an accurate official geocode — transparent to end users.
+
+**Target features:**
+- Fix 5 known provider defects from E2E testing (Issue #1)
+- Fuzzy/phonetic street matching via pg_trgm and Soundex/Metaphone
+- Spell correction layer (offline library) before provider dispatch
+- Local LLM sidecar for address correction/completion
+- Cross-provider consensus scoring
+- Cascading resolution pipeline: normalize → spell-correct → exact match → fuzzy match → AI correction → re-match → score consensus → auto-set official
 
 ### Out of Scope
 
@@ -42,6 +62,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - Cache expiration / TTL — addresses rarely change; manual refresh available
 - Routing / directions / distance matrix — different problem domain
 - Autocomplete / typeahead — interactive UX feature; this is a batch/point-lookup API
+- Google Geocoding API — ToS prohibits caching results; incompatible with geo-api's core caching model
 - Local provider result caching — local data is already local, no need to cache
 - Collection ZIP multi-state import — single county files sufficient for now
 - NAD FGDB import — TXT format preferred for bulk loading
@@ -58,7 +79,7 @@ Active providers: Census Geocoder (external, cached), OpenAddresses (local), Tig
 
 Part of the CivPulse ecosystem alongside run-api and vote-api. Internal API consumed by other CivPulse services, not directly by end users.
 
-Known future provider candidates: Google Geocoding API (deferred — ToS review), USPS (for real DPV), Amazon Location Service, Geoapify.
+Known future provider candidates: USPS (for real DPV), Amazon Location Service, Geoapify.
 
 ## Constraints
 
@@ -89,6 +110,24 @@ Known future provider candidates: Google Geocoding API (deferred — ToS review)
 | Tiger via PostGIS SQL functions | No staging table needed — geocode()/normalize_address() called directly | ✓ Good — leverages existing PostGIS extension infrastructure |
 | NAD bulk COPY via temp table | COPY to nad_temp (TEXT), then upsert with ST_GeogFromText — avoids geography type in COPY stream | ✓ Good — handles 80M rows efficiently |
 | Conditional provider registration | _oa_data_available / _nad_data_available / _tiger_extension_available checks at startup | ✓ Good — API starts cleanly regardless of which data is loaded |
+| Google Geocoding API excluded | ToS Section 3.2.3(a) prohibits caching geocoding results | ✓ Good — removes legal risk; local providers cover the use case |
+
+## Evolution
+
+This document evolves at phase transitions and milestone boundaries.
+
+**After each phase transition** (via `/gsd:transition`):
+1. Requirements invalidated? → Move to Out of Scope with reason
+2. Requirements validated? → Move to Validated with phase reference
+3. New requirements emerged? → Add to Active
+4. Decisions to log? → Add to Key Decisions
+5. "What This Is" still accurate? → Update if drifted
+
+**After each milestone** (via `/gsd:complete-milestone`):
+1. Full review of all sections
+2. Core Value check — still the right priority?
+3. Audit Out of Scope — reasons still valid?
+4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after v1.1 milestone (Local Data Sources) complete*
+*Last updated: 2026-03-29 after v1.2 milestone (Cascading Address Resolution) started*
