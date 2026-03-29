@@ -29,6 +29,7 @@ from civpulse_geo.providers.macon_bibb import (
     MaconBibbValidationProvider,
     _macon_bibb_data_available,
 )
+from civpulse_geo.spell import load_spell_corrector
 
 
 @asynccontextmanager
@@ -75,6 +76,22 @@ async def lifespan(app: FastAPI):
         )
     logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     logger.info(f"Loaded {len(app.state.validation_providers)} validation provider(s)")
+
+    # Load spell corrector dictionary into memory (D-09)
+    # Uses a sync engine since SymSpell.create_dictionary_entry is synchronous.
+    # Workers reload dictionary on restart to pick up new rebuilds.
+    try:
+        from sqlalchemy import create_engine as _create_sync_engine
+        from civpulse_geo.config import settings as _settings
+        _sync_engine = _create_sync_engine(_settings.database_url_sync)
+        with _sync_engine.connect() as conn:
+            app.state.spell_corrector = load_spell_corrector(conn)
+        word_count = len(app.state.spell_corrector._sym_spell.words)
+        logger.info(f"SpellCorrector loaded with {word_count} dictionary words")
+    except Exception as e:
+        logger.warning(f"SpellCorrector not loaded (spell_dictionary may be empty): {e}")
+        app.state.spell_corrector = None
+
     yield
     await app.state.http_client.aclose()
     logger.info("Shutting down CivPulse Geo API")

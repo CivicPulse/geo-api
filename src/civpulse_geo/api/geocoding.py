@@ -54,6 +54,7 @@ async def geocode(
         db=db,
         providers=request.app.state.providers,
         http_client=request.app.state.http_client,
+        spell_corrector=getattr(request.app.state, "spell_corrector", None),
     )
 
     # Transform ORM results to Pydantic response models
@@ -224,12 +225,17 @@ async def _geocode_one(
     db: AsyncSession,
     providers: dict,
     http_client,
+    spell_corrector=None,
 ) -> BatchGeocodeResultItem:
     """Process a single address within a batch. Catches all exceptions per-item."""
     try:
         async with semaphore:
             result = await service.geocode(
-                freeform=freeform, db=db, providers=providers, http_client=http_client
+                freeform=freeform,
+                db=db,
+                providers=providers,
+                http_client=http_client,
+                spell_corrector=spell_corrector,
             )
         # Transform ORM results to Pydantic (same pattern as single geocode endpoint)
         provider_results = [
@@ -306,6 +312,7 @@ async def batch_geocode(
 
     semaphore = asyncio.Semaphore(settings.batch_concurrency_limit)
     service = GeocodingService()
+    spell_corrector = getattr(request.app.state, "spell_corrector", None)
 
     items = await asyncio.gather(*[
         _geocode_one(
@@ -316,6 +323,7 @@ async def batch_geocode(
             db=db,
             providers=request.app.state.providers,
             http_client=request.app.state.http_client,
+            spell_corrector=spell_corrector,
         )
         for i, addr in enumerate(body.addresses)
     ])

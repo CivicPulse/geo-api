@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from civpulse_geo.normalization import canonical_key, parse_address_components
 from civpulse_geo.providers.openaddresses import _parse_input_address
 from civpulse_geo.models.address import Address
+from civpulse_geo.spell.corrector import SpellCorrector
 from civpulse_geo.models.geocoding import (
     GeocodingResult as GeocodingResultORM,
     OfficialGeocoding,
@@ -47,6 +48,7 @@ class GeocodingService:
         providers: dict[str, GeocodingProvider],
         http_client: httpx.AsyncClient,
         force_refresh: bool = False,
+        spell_corrector: SpellCorrector | None = None,
     ) -> dict:
         """Geocode a freeform address using the cache-first pipeline.
 
@@ -65,6 +67,10 @@ class GeocodingService:
                 results (list[GeocodingResultORM]): ORM rows (may be empty).
                 official (GeocodingResultORM | None): The official result ORM row.
         """
+        # Step 0: Spell-correct street name before normalization (SPELL-01)
+        if spell_corrector is not None:
+            freeform = self._apply_spell_correction(freeform, spell_corrector)
+
         # Step 1: Normalize and hash
         normalized, address_hash = canonical_key(freeform)
 
@@ -234,6 +240,33 @@ class GeocodingService:
             "cache_hit": False,
             "official": official_result,
         }
+
+    @staticmethod
+    def _apply_spell_correction(freeform: str, corrector: SpellCorrector) -> str:
+        """Replace street name tokens in freeform with spell-corrected versions.
+
+        Uses _parse_input_address to isolate the street name, corrects it,
+        then replaces the original street name tokens in the freeform string.
+        Only the street_name portion is modified — house numbers, zip codes,
+        city, and state are never altered.
+
+        Note: Operates on the uppercased freeform since _parse_input_address
+        returns uppercased street names and canonical_key uppercases anyway.
+        """
+        import re
+        street_number, street_name, postal_code, street_suffix, street_dir = (
+            _parse_input_address(freeform)
+        )
+        if not street_name:
+            return freeform
+        corrected_name = corrector.correct_street_name(street_name)
+        if corrected_name == street_name:
+            return freeform  # no correction needed
+        # Replace the original street name in the uppercased freeform
+        freeform_upper = freeform.upper()
+        pattern = re.escape(street_name)
+        corrected_freeform = re.sub(pattern, corrected_name, freeform_upper, count=1)
+        return corrected_freeform
 
     async def set_official(
         self,

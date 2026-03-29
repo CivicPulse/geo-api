@@ -24,6 +24,7 @@ from sqlalchemy import create_engine, text
 from civpulse_geo.cli.parsers import load_geojson, load_kml, load_shp
 from civpulse_geo.config import settings
 from civpulse_geo.normalization import canonical_key, parse_address_components
+from civpulse_geo.spell.corrector import rebuild_dictionary
 
 app = typer.Typer(help="CivPulse Geo CLI -- GIS data import tools.")
 
@@ -338,6 +339,9 @@ def import_gis(
                 typer.echo(f"  Processed {i}/{len(features)}...")
 
         conn.commit()
+        logger.info("Rebuilding spell dictionary...")
+        count = rebuild_dictionary(conn)
+        logger.info(f"Spell dictionary rebuilt: {count} words")
 
     typer.echo("\nImport complete:")
     typer.echo(f"  Total:    {stats['total']}")
@@ -676,6 +680,10 @@ def load_openaddresses(
                 if batch:
                     _upsert_oa_batch(conn, batch, stats)
 
+        logger.info("Rebuilding spell dictionary...")
+        count = rebuild_dictionary(conn)
+        logger.info(f"Spell dictionary rebuilt: {count} words")
+
     elapsed = time.time() - start_time
     typer.echo(f"\nImport complete in {elapsed:.1f}s")
     typer.echo(f"  Processed: {stats['processed']}")
@@ -862,6 +870,10 @@ def load_nad(
                     # Flush remaining
                     if batch_count > 0:
                         _flush_nad_batch(conn, batch_buf, stats)
+
+            logger.info("Rebuilding spell dictionary...")
+            count = rebuild_dictionary(conn)
+            logger.info(f"Spell dictionary rebuilt: {count} words")
 
     elapsed = time.time() - start_time
     typer.echo(f"\nImport complete in {elapsed:.1f}s")
@@ -1161,9 +1173,33 @@ def load_macon_bibb(
             if batch:
                 _upsert_macon_bibb_batch(conn, batch, stats)
 
+        logger.info("Rebuilding spell dictionary...")
+        count = rebuild_dictionary(conn)
+        logger.info(f"Spell dictionary rebuilt: {count} words")
+
     elapsed = time.time() - start_time
     typer.echo(f"\nImport complete in {elapsed:.1f}s")
     typer.echo(f"  Processed: {stats['processed']}")
     typer.echo(f"  Inserted:  {stats['inserted']}")
     typer.echo(f"  Updated:   {stats['updated']}")
     typer.echo(f"  Skipped:   {stats['skipped']}")
+
+
+@app.command("rebuild-dictionary")
+def rebuild_spell_dictionary(
+    database_url: str | None = typer.Option(
+        None, "--database-url", envvar="DATABASE_URL_SYNC",
+        help="Synchronous PostgreSQL URL (psycopg2).",
+    ),
+) -> None:
+    """Rebuild the spell correction dictionary from all staging tables.
+
+    Queries openaddresses_points, nad_points, and macon_bibb_points for distinct
+    street name tokens and populates the spell_dictionary table. Idempotent --
+    safe to run multiple times. API workers pick up the new dictionary on restart.
+    """
+    db_url = database_url or settings.database_url_sync
+    engine = create_engine(db_url)
+    with engine.connect() as conn:
+        count = rebuild_dictionary(conn)
+    typer.echo(f"Spell dictionary rebuilt: {count} words")
