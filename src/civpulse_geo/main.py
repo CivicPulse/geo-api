@@ -30,6 +30,7 @@ from civpulse_geo.providers.macon_bibb import (
     _macon_bibb_data_available,
 )
 from civpulse_geo.spell import load_spell_corrector
+from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.services.llm_corrector import LLMAddressCorrector, _ollama_model_available
 
 
@@ -92,6 +93,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"SpellCorrector not loaded (spell_dictionary may be empty): {e}")
         app.state.spell_corrector = None
+
+    # Register FuzzyMatcher (FUZZ-02/03/04) — stateless init, no try/except needed
+    app.state.fuzzy_matcher = FuzzyMatcher(AsyncSessionLocal)
+    logger.info("FuzzyMatcher registered")
 
     # Initialize LLM corrector (LLM-01, D-09, D-13)
     from civpulse_geo.config import settings as _settings
