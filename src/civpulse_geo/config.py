@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     consensus_timeout_ms: int = 200
     cascade_total_timeout_ms: int = 3000
 
+    # LLM sidecar feature flag (LLM-01, D-09) — default off
+    cascade_llm_enabled: bool = False
+    ollama_url: str = "http://ollama:11434"
+    llm_timeout_ms: int = 5000
+
     # Provider trust weights (CONS-02, D-08)
     weight_census: float = 0.90
     weight_openaddresses: float = 0.80
