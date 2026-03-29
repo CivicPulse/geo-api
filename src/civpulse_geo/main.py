@@ -30,6 +30,7 @@ from civpulse_geo.providers.macon_bibb import (
     _macon_bibb_data_available,
 )
 from civpulse_geo.spell import load_spell_corrector
+from civpulse_geo.services.llm_corrector import LLMAddressCorrector, _ollama_model_available
 
 
 @asynccontextmanager
@@ -91,6 +92,26 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"SpellCorrector not loaded (spell_dictionary may be empty): {e}")
         app.state.spell_corrector = None
+
+    # Initialize LLM corrector (LLM-01, D-09, D-13)
+    from civpulse_geo.config import settings as _settings
+    app.state.llm_corrector = None
+    if _settings.cascade_llm_enabled:
+        try:
+            available = await _ollama_model_available(
+                _settings.ollama_url,
+                app.state.http_client,
+                "qwen2.5:3b",
+            )
+            if available:
+                app.state.llm_corrector = LLMAddressCorrector(
+                    ollama_url=_settings.ollama_url,
+                )
+                logger.info("LLM corrector registered (qwen2.5:3b)")
+            else:
+                logger.warning("Ollama model qwen2.5:3b not available — LLM stage disabled")
+        except Exception as e:
+            logger.warning(f"LLM corrector not loaded: {e}")
 
     yield
     await app.state.http_client.aclose()

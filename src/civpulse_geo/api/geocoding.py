@@ -62,6 +62,7 @@ async def geocode(
         http_client=request.app.state.http_client,
         spell_corrector=getattr(request.app.state, "spell_corrector", None),
         fuzzy_matcher=getattr(request.app.state, "fuzzy_matcher", None),
+        llm_corrector=getattr(request.app.state, "llm_corrector", None),
         dry_run=dry_run,
         trace=trace,
     )
@@ -256,6 +257,7 @@ async def _geocode_one(
     http_client,
     spell_corrector=None,
     fuzzy_matcher=None,
+    llm_corrector=None,
 ) -> BatchGeocodeResultItem:
     """Process a single address within a batch. Catches all exceptions per-item."""
     try:
@@ -267,6 +269,7 @@ async def _geocode_one(
                 http_client=http_client,
                 spell_corrector=spell_corrector,
                 fuzzy_matcher=fuzzy_matcher,
+                llm_corrector=llm_corrector,
             )
 
         # Build outlier set from cascade result (empty set for legacy path)
@@ -354,6 +357,7 @@ async def batch_geocode(
     service = GeocodingService()
     spell_corrector = getattr(request.app.state, "spell_corrector", None)
     fuzzy_matcher = getattr(request.app.state, "fuzzy_matcher", None)
+    llm_corrector = getattr(request.app.state, "llm_corrector", None)
 
     items = await asyncio.gather(*[
         _geocode_one(
@@ -366,6 +370,7 @@ async def batch_geocode(
             http_client=request.app.state.http_client,
             spell_corrector=spell_corrector,
             fuzzy_matcher=fuzzy_matcher,
+            llm_corrector=llm_corrector,
         )
         for i, addr in enumerate(body.addresses)
     ])

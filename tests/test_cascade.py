@@ -694,6 +694,347 @@ class TestCascadeOrchestratorTrace:
         assert "exact_match" in stage_names
 
 
+class TestCascadeOrchestratorLLMStage:
+    """Integration tests for LLM correction stage 4 (LLM-02, D-05, D-06, D-08, D-17)."""
+
+    @pytest.mark.asyncio
+    async def test_llm_correction_enters_reverify_not_candidates(self):
+        """LLM correction result is re-verified through providers, never added directly (D-17).
+
+        Providers return no results on exact-match pass, then return a result when
+        re-verification fires with the corrected address.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from civpulse_geo.services.llm_corrector import LLMAddressCorrector, AddressCorrection
+        from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
+
+        orchestrator = CascadeOrchestrator()
+
+        # Provider: returns no result on exact-match, returns a result on re-verify
+        call_count = {"n": 0}
+
+        async def _geocode_side_effect(addr, http_client):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                # First call (exact-match stage): no result
+                return GeocodingResultSchema(
+                    lat=0.0, lng=0.0, confidence=0.0,
+                    location_type="APPROXIMATE",
+                    raw_response={}, provider_name="census",
+                )
+            else:
+                # Re-verify call with corrected address: return a result
+                return GeocodingResultSchema(
+                    lat=32.8407, lng=-83.6324, confidence=0.90,
+                    location_type="ROOFTOP",
+                    raw_response={"provider": "census"},
+                    provider_name="census",
+                )
+
+        mock_provider = MagicMock()
+        mock_provider.provider_name = "census"
+        mock_provider.is_local = False
+        mock_provider.geocode = AsyncMock(side_effect=_geocode_side_effect)
+
+        # LLM corrector: returns a valid correction
+        mock_llm = MagicMock(spec=LLMAddressCorrector)
+        mock_llm.correct_address = AsyncMock(
+            return_value=AddressCorrection(
+                street_number="123",
+                street_name="Main",
+                street_suffix="St",
+                city="Macon",
+                state="GA",
+                zip="31201",
+            )
+        )
+
+        db, mock_address = make_mock_db()
+
+        with patch("civpulse_geo.services.cascade.canonical_key",
+                   return_value=("123 MAEN ST MACON GA 31201", "hashxyz")), \
+             patch("civpulse_geo.services.cascade.parse_address_components",
+                   return_value={"state": "GA"}), \
+             patch("civpulse_geo.services.cascade._parse_input_address",
+                   return_value=("123", "MAEN", "31201", "ST", None)), \
+             patch("civpulse_geo.services.cascade.settings") as mock_settings:
+
+            # Use real floats for arithmetic-used settings attributes
+            mock_settings.cascade_llm_enabled = True
+            mock_settings.exact_match_timeout_ms = 2000
+            mock_settings.fuzzy_match_timeout_ms = 500
+            mock_settings.llm_timeout_ms = 5000
+            mock_settings.weight_census = 0.90
+            mock_settings.weight_openaddresses = 0.80
+            mock_settings.weight_macon_bibb = 0.80
+            mock_settings.weight_tiger_unrestricted = 0.40
+            mock_settings.weight_nad = 0.80
+
+            addr_res = MagicMock()
+            addr_res.scalars.return_value.first.return_value = mock_address
+            upsert_res = MagicMock()
+            upsert_res.scalar_one.return_value = 55
+            mock_orm_row = MagicMock()
+            mock_orm_row.id = 55
+            mock_orm_row.confidence = 0.90
+            mock_orm_row.provider_name = "census"
+            mock_orm_row.latitude = 32.8407
+            mock_orm_row.longitude = -83.6324
+            orm_res = MagicMock()
+            orm_res.scalars.return_value.first.return_value = mock_orm_row
+            admin_check = MagicMock()
+            admin_check.scalars.return_value.first.return_value = None
+            official_mock = MagicMock()
+            official_mock.scalars.return_value.first.return_value = None
+
+            db.execute.side_effect = [
+                addr_res,      # Address lookup
+                upsert_res,    # GeocodingResult upsert (exact-match, no-match result)
+                orm_res,       # Re-query ORM row
+                upsert_res,    # LLM re-verify: persist candidate row
+                admin_check,   # Admin override check (OfficialGeocoding)
+                admin_check,   # Admin override check (AdminOverride)
+                upsert_res,    # OfficialGeocoding upsert
+                official_mock, # _get_official: OfficialGeocoding
+                official_mock, # _get_official: GeocodingResult
+            ]
+
+            result = await orchestrator.run(
+                freeform="123 MAEN ST MACON GA 31201",
+                db=db,
+                providers={"census": mock_provider},
+                http_client=MagicMock(),
+                llm_corrector=mock_llm,
+                trace=True,
+            )
+
+        # LLM corrector was called
+        mock_llm.correct_address.assert_called_once()
+
+        # Provider was called twice: once for exact-match, once for re-verify
+        assert mock_provider.geocode.call_count == 2
+
+        # The re-verified result has is_llm_corrected=True
+        llm_candidates = [c for c in result.cascade_trace or []
+                          if c.get("stage") == "llm_correction"]
+        assert len(llm_candidates) == 1
+        assert llm_candidates[0].get("reverified_count", 0) >= 1
+
+    @pytest.mark.asyncio
+    async def test_llm_stage_skipped_when_disabled(self):
+        """When CASCADE_LLM_ENABLED=false, LLM stage never fires even if llm_corrector is provided."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from civpulse_geo.services.llm_corrector import LLMAddressCorrector, AddressCorrection
+
+        orchestrator = CascadeOrchestrator()
+
+        # Provider returns no results
+        no_match_provider = make_mock_provider(confidence=0.0, is_local=False)
+
+        # LLM corrector: should never be called
+        mock_llm = MagicMock(spec=LLMAddressCorrector)
+        mock_llm.correct_address = AsyncMock(
+            return_value=AddressCorrection(
+                street_number="123", street_name="Main", street_suffix="St",
+                city="Macon", state="GA", zip="31201",
+            )
+        )
+
+        db, mock_address = make_mock_db()
+
+        with patch("civpulse_geo.services.cascade.canonical_key",
+                   return_value=("123 MAEN ST MACON GA 31201", "hashxyz")), \
+             patch("civpulse_geo.services.cascade.parse_address_components",
+                   return_value={"state": "GA"}), \
+             patch("civpulse_geo.services.cascade._parse_input_address",
+                   return_value=("123", "MAEN", "31201", "ST", None)), \
+             patch("civpulse_geo.services.cascade.settings") as mock_settings:
+
+            mock_settings.cascade_llm_enabled = False  # LLM disabled
+            mock_settings.exact_match_timeout_ms = 2000
+            mock_settings.fuzzy_match_timeout_ms = 500
+            mock_settings.llm_timeout_ms = 5000
+            mock_settings.weight_census = 0.90
+            mock_settings.weight_openaddresses = 0.80
+            mock_settings.weight_macon_bibb = 0.80
+            mock_settings.weight_tiger_unrestricted = 0.40
+            mock_settings.weight_nad = 0.80
+
+            addr_res = MagicMock()
+            addr_res.scalars.return_value.first.return_value = mock_address
+            upsert_res = MagicMock()
+            upsert_res.scalar_one.return_value = 56
+            mock_orm_row = MagicMock()
+            mock_orm_row.id = 56
+            mock_orm_row.confidence = 0.0
+            mock_orm_row.provider_name = "census"
+            mock_orm_row.latitude = 0.0
+            mock_orm_row.longitude = 0.0
+            orm_res = MagicMock()
+            orm_res.scalars.return_value.first.return_value = mock_orm_row
+
+            db.execute.side_effect = [
+                addr_res, upsert_res, orm_res,
+            ]
+
+            result = await orchestrator.run(
+                freeform="123 MAEN ST MACON GA 31201",
+                db=db,
+                providers={"census": no_match_provider},
+                http_client=MagicMock(),
+                llm_corrector=mock_llm,
+            )
+
+        # LLM corrector must NOT have been called
+        mock_llm.correct_address.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_llm_stage_skipped_when_exact_match_succeeds(self):
+        """When exact match returns high-confidence result, LLM stage is skipped (D-05)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from civpulse_geo.services.llm_corrector import LLMAddressCorrector, AddressCorrection
+
+        orchestrator = CascadeOrchestrator()
+
+        # Provider returns high-confidence result (triggers early exit)
+        high_conf_provider = make_mock_provider(confidence=0.95, is_local=False)
+
+        mock_llm = MagicMock(spec=LLMAddressCorrector)
+        mock_llm.correct_address = AsyncMock(
+            return_value=AddressCorrection(
+                street_number="123", street_name="Main", street_suffix="St",
+                city="Macon", state="GA", zip="31201",
+            )
+        )
+
+        db, mock_address = make_mock_db()
+
+        with patch("civpulse_geo.services.cascade.canonical_key",
+                   return_value=("123 MAIN ST MACON GA 31201", "abc123")), \
+             patch("civpulse_geo.services.cascade.parse_address_components",
+                   return_value={"state": "GA"}), \
+             patch("civpulse_geo.services.cascade._parse_input_address",
+                   return_value=("123", "MAIN", "31201", "ST", None)), \
+             patch("civpulse_geo.services.cascade.settings") as mock_settings:
+
+            mock_settings.cascade_llm_enabled = True
+            mock_settings.exact_match_timeout_ms = 2000
+            mock_settings.fuzzy_match_timeout_ms = 500
+            mock_settings.llm_timeout_ms = 5000
+            mock_settings.weight_census = 0.90
+            mock_settings.weight_openaddresses = 0.80
+            mock_settings.weight_macon_bibb = 0.80
+            mock_settings.weight_tiger_unrestricted = 0.40
+            mock_settings.weight_nad = 0.80
+
+            addr_res = MagicMock()
+            addr_res.scalars.return_value.first.return_value = mock_address
+            upsert_res = MagicMock()
+            upsert_res.scalar_one.return_value = 57
+            mock_orm_row = MagicMock()
+            mock_orm_row.id = 57
+            mock_orm_row.confidence = 0.95
+            mock_orm_row.provider_name = "census"
+            mock_orm_row.latitude = 32.8407
+            mock_orm_row.longitude = -83.6324
+            orm_res = MagicMock()
+            orm_res.scalars.return_value.first.return_value = mock_orm_row
+            admin_check = MagicMock()
+            admin_check.scalars.return_value.first.return_value = None
+            official_mock = MagicMock()
+            official_mock.scalars.return_value.first.return_value = None
+
+            db.execute.side_effect = [
+                addr_res, upsert_res, orm_res,
+                admin_check, admin_check, upsert_res,
+                official_mock, official_mock,
+            ]
+
+            result = await orchestrator.run(
+                freeform="123 MAIN ST MACON GA 31201",
+                db=db,
+                providers={"census": high_conf_provider},
+                http_client=MagicMock(),
+                llm_corrector=mock_llm,
+            )
+
+        # LLM corrector must NOT have been called (skip_fuzzy=True blocks LLM stage)
+        mock_llm.correct_address.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_llm_stage_timeout_degrades_gracefully(self):
+        """When LLM stage times out, cascade continues with empty candidates (D-08)."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+        from civpulse_geo.services.llm_corrector import LLMAddressCorrector
+
+        orchestrator = CascadeOrchestrator()
+
+        # Provider returns no result
+        no_match_provider = make_mock_provider(confidence=0.0, is_local=False)
+
+        # LLM corrector: simulates timeout via asyncio.TimeoutError
+        async def _timeout_correct(*args, **kwargs):
+            raise asyncio.TimeoutError()
+
+        mock_llm = MagicMock(spec=LLMAddressCorrector)
+        mock_llm.correct_address = AsyncMock(side_effect=_timeout_correct)
+
+        db, mock_address = make_mock_db()
+
+        with patch("civpulse_geo.services.cascade.canonical_key",
+                   return_value=("123 MAEN ST MACON GA 31201", "hashxyz")), \
+             patch("civpulse_geo.services.cascade.parse_address_components",
+                   return_value={"state": "GA"}), \
+             patch("civpulse_geo.services.cascade._parse_input_address",
+                   return_value=("123", "MAEN", "31201", "ST", None)), \
+             patch("civpulse_geo.services.cascade.settings") as mock_settings:
+
+            mock_settings.cascade_llm_enabled = True
+            mock_settings.exact_match_timeout_ms = 2000
+            mock_settings.fuzzy_match_timeout_ms = 500
+            mock_settings.llm_timeout_ms = 5000
+            mock_settings.weight_census = 0.90
+            mock_settings.weight_openaddresses = 0.80
+            mock_settings.weight_macon_bibb = 0.80
+            mock_settings.weight_tiger_unrestricted = 0.40
+            mock_settings.weight_nad = 0.80
+
+            addr_res = MagicMock()
+            addr_res.scalars.return_value.first.return_value = mock_address
+            upsert_res = MagicMock()
+            upsert_res.scalar_one.return_value = 58
+            mock_orm_row = MagicMock()
+            mock_orm_row.id = 58
+            mock_orm_row.confidence = 0.0
+            mock_orm_row.provider_name = "census"
+            mock_orm_row.latitude = 0.0
+            mock_orm_row.longitude = 0.0
+            orm_res = MagicMock()
+            orm_res.scalars.return_value.first.return_value = mock_orm_row
+
+            db.execute.side_effect = [
+                addr_res, upsert_res, orm_res,
+            ]
+
+            # Should NOT raise — cascade degrades gracefully on LLM timeout
+            result = await orchestrator.run(
+                freeform="123 MAEN ST MACON GA 31201",
+                db=db,
+                providers={"census": no_match_provider},
+                http_client=MagicMock(),
+                llm_corrector=mock_llm,
+                trace=True,
+            )
+
+        # Cascade should have completed without error
+        assert result is not None
+        # Trace should contain llm_correction with timeout=True
+        llm_entries = [e for e in (result.cascade_trace or [])
+                       if e.get("stage") == "llm_correction"]
+        assert len(llm_entries) == 1
+        assert llm_entries[0].get("timeout") is True
+
+
 class TestCascadeOrchestratorStageTimeout:
     @pytest.mark.asyncio
     async def test_stage_timeout_cascade_continues_with_empty(self):

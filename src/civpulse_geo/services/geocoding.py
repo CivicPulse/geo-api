@@ -39,6 +39,7 @@ from civpulse_geo.providers.base import GeocodingProvider
 from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
 from civpulse_geo.services.cascade import CascadeOrchestrator, CascadeResult
 from civpulse_geo.services.fuzzy import FuzzyMatcher
+from civpulse_geo.services.llm_corrector import LLMAddressCorrector
 
 
 class GeocodingService:
@@ -60,6 +61,7 @@ class GeocodingService:
         force_refresh: bool = False,
         spell_corrector: SpellCorrector | None = None,
         fuzzy_matcher: FuzzyMatcher | None = None,
+        llm_corrector: LLMAddressCorrector | None = None,
         dry_run: bool = False,
         trace: bool = False,
     ) -> dict:
@@ -77,6 +79,7 @@ class GeocodingService:
                            Only honoured by the legacy path.
             spell_corrector: Optional SpellCorrector for street-name correction.
             fuzzy_matcher: Optional FuzzyMatcher for fuzzy street-name stage (cascade only).
+            llm_corrector: Optional LLMAddressCorrector for LLM stage 4 (cascade only).
             dry_run: Run cascade without writing OfficialGeocoding; returns would_set_official.
             trace: Include cascade_trace array in the response.
 
@@ -101,6 +104,7 @@ class GeocodingService:
                 http_client=http_client,
                 spell_corrector=spell_corrector,
                 fuzzy_matcher=fuzzy_matcher,
+                llm_corrector=llm_corrector,
                 dry_run=dry_run,
                 trace=trace,
             )
