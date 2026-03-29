@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     # Per-stage timeout budgets in ms (CASC-04, D-15)
     exact_match_timeout_ms: int = 2000
+    tiger_timeout_ms: int = 3000        # Tiger PostGIS geocode() needs more time than HTTP providers
+    census_timeout_ms: int = 2000       # Census HTTP provider (same as exact_match default)
     fuzzy_match_timeout_ms: int = 500
     consensus_timeout_ms: int = 200
     cascade_total_timeout_ms: int = 3000

@@ -7,16 +7,12 @@ fuzzy/spell helpers.
 from __future__ import annotations
 
 import asyncio
-import math
-from dataclasses import dataclass, field
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from civpulse_geo.services.cascade import (
     CascadeOrchestrator,
-    CascadeResult,
     Cluster,
     ProviderCandidate,
     get_provider_weight,
@@ -1083,7 +1079,7 @@ class TestPerProviderTimeout:
     @pytest.mark.asyncio
     async def test_tiger_uses_tiger_timeout_ms(self):
         """postgis_tiger provider uses settings.tiger_timeout_ms for asyncio.wait_for."""
-        from unittest.mock import patch, AsyncMock, MagicMock, call
+        from unittest.mock import patch, AsyncMock, MagicMock
         from civpulse_geo.services.cascade import CascadeOrchestrator
 
         orchestrator = CascadeOrchestrator()
@@ -1137,12 +1133,6 @@ class TestPerProviderTimeout:
                 http_client=MagicMock(),
             )
 
-        # The wait_for call for postgis_tiger must use tiger_timeout_ms / 1000 = 3.0
-        tiger_calls = [
-            c for c in mock_wait_for.call_args_list
-            if c.kwargs.get("timeout") == pytest.approx(3.0)
-            or (len(c.args) > 1 and c.args[1] == pytest.approx(3.0))
-        ]
         # Verify timeout was 3000ms/1000 = 3.0s (not 2.0s)
         all_timeouts = [c.kwargs.get("timeout") for c in mock_wait_for.call_args_list]
         assert any(t == pytest.approx(3.0) for t in all_timeouts), \
@@ -1438,7 +1428,7 @@ class TestCacheHitConsensusReRun:
         CRITICAL: would_set_official must NOT be None when run_consensus returns a winning cluster.
         This validates D-05's retroactive provider weight goal.
         """
-        from civpulse_geo.services.cascade import CascadeOrchestrator, Cluster, ProviderCandidate
+        from civpulse_geo.services.cascade import CascadeOrchestrator
         from civpulse_geo.models.geocoding import GeocodingResult as GeocodingResultORM
 
         orchestrator = CascadeOrchestrator()

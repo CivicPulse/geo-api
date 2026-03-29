@@ -50,7 +50,9 @@ GEOCODE_SQL = text("""
         (addy).zip            AS zip,
         (addy).zip4           AS zip4,
         (addy).parsed         AS parsed
-    FROM geocode(:address, 1)
+    FROM geocode(:address, 1,
+        (SELECT ARRAY[the_geom] FROM tiger.state WHERE stusps = 'GA')
+    )
     ORDER BY rating ASC
     LIMIT 1
 """)

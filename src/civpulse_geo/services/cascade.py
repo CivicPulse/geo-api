@@ -34,7 +34,6 @@ from civpulse_geo.config import settings
 from civpulse_geo.models.address import Address
 from civpulse_geo.services.llm_corrector import (
     LLMAddressCorrector,
-    AddressCorrection,
     _passes_guardrails,
 )
 from civpulse_geo.models.geocoding import (
@@ -46,7 +45,7 @@ from civpulse_geo.normalization import canonical_key, parse_address_components
 from civpulse_geo.providers.base import GeocodingProvider
 from civpulse_geo.providers.openaddresses import _parse_input_address
 from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
-from civpulse_geo.services.fuzzy import FuzzyMatcher, FuzzyMatchResult
+from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.spell.corrector import SpellCorrector
 
 
@@ -340,9 +339,6 @@ class CascadeOrchestrator:
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
-        local_providers = {k: v for k, v in providers.items() if v.is_local}
-        remote_providers = {k: v for k, v in providers.items() if not v.is_local}
-
         candidates: list[ProviderCandidate] = []
         new_results: list[GeocodingResultORM] = []
         local_results: list[GeocodingResultSchema] = []
@@ -352,15 +348,19 @@ class CascadeOrchestrator:
             provider_name: str, provider: GeocodingProvider
         ) -> tuple[str, GeocodingResultSchema | None]:
             try:
+                _timeout_map = {
+                    "postgis_tiger": settings.tiger_timeout_ms,
+                }
+                timeout_ms = _timeout_map.get(provider_name, settings.exact_match_timeout_ms)
                 result = await asyncio.wait_for(
                     provider.geocode(normalized, http_client=http_client),
-                    timeout=settings.exact_match_timeout_ms / 1000,
+                    timeout=timeout_ms / 1000,
                 )
                 return provider_name, result
             except asyncio.TimeoutError:
                 logger.warning(
                     "CascadeOrchestrator: provider {} timed out after {}ms",
-                    provider_name, settings.exact_match_timeout_ms,
+                    provider_name, timeout_ms,
                 )
                 return provider_name, None
             except Exception as exc:
