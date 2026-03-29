@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
 status: verifying
-stopped_at: Phase 14 context gathered
-last_updated: "2026-03-29T15:09:43.210Z"
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-03-29T15:32:57.590Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
   completed_phases: 2
-  total_plans: 4
-  completed_plans: 4
+  total_plans: 7
+  completed_plans: 5
 ---
 
 # Project State
@@ -44,6 +44,7 @@ v1.2 Progress: [----------] 0/4 phases
 | Phase 12-correctness-fixes-and-db-prerequisites P02 | 15 | 2 tasks | 5 files |
 | Phase 13-spell-correction-and-fuzzy-phonetic-matching P01 | 7 | 3 tasks | 11 files |
 | Phase 13-spell-correction-and-fuzzy-phonetic-matching P02 | 9 | 2 tasks | 3 files |
+| Phase 14-cascade-orchestrator-and-consensus-scoring P01 | 2 | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -61,6 +62,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 13]: UNION ALL across OA/NAD/Macon-Bibb staging tables in single query (D-06) for FuzzyMatcher
 - [Phase 13]: dmetaphone() SQL tiebreaker as second query when candidates within 0.05 gap (D-12)
 - [Phase 13]: Calibration corpus uses mock session for CI-compatible D-15 regression testing
+- [Phase 14-cascade-orchestrator-and-consensus-scoring]: cascade_enabled defaults True — opt-out via CASCADE_ENABLED=false env var
+- [Phase 14-cascade-orchestrator-and-consensus-scoring]: set_by_stage is nullable so existing official_geocoding rows remain valid with NULL
+- [Phase 14-cascade-orchestrator-and-consensus-scoring]: is_outlier/cascade_trace/would_set_official all default False/None — backward compat
 
 ### Phase Ordering Notes
 
@@ -94,6 +98,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-cascade-orchestrator-and-consensus-scoring/14-CONTEXT.md
+Stopped at: Completed 14-01-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 12`

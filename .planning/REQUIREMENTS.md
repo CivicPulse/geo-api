@@ -30,18 +30,18 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 ### Cascade Pipeline
 
 - [ ] **CASC-01**: CascadeOrchestrator implements staged resolution: normalize → spell-correct → exact match → fuzzy/phonetic → consensus score → auto-set official
-- [ ] **CASC-02**: Cascade is feature-flagged via `CASCADE_ENABLED` environment variable (default: true for new installs)
+- [x] **CASC-02**: Cascade is feature-flagged via `CASCADE_ENABLED` environment variable (default: true for new installs)
 - [ ] **CASC-03**: Early-exit optimization: if any exact-match provider returns confidence >= 0.80, skip fuzzy and later stages
-- [ ] **CASC-04**: Per-stage latency budgets enforced (P95 target: < 3s total cascade for single address)
+- [x] **CASC-04**: Per-stage latency budgets enforced (P95 target: < 3s total cascade for single address)
 
 ### Consensus Scoring
 
 - [ ] **CONS-01**: Cross-provider consensus scoring groups geocode results into spatial clusters (within 100m) and selects the cluster with highest weighted agreement
-- [ ] **CONS-02**: Provider trust weights are configurable (Census: 0.90, OA: 0.80, Macon-Bibb: 0.80, Tiger: 0.40 unrestricted / 0.75 with restrict_region, NAD: 0.80)
-- [ ] **CONS-03**: Outlier results (> 1km from winning cluster centroid) are flagged as low-confidence in the response
+- [x] **CONS-02**: Provider trust weights are configurable (Census: 0.90, OA: 0.80, Macon-Bibb: 0.80, Tiger: 0.40 unrestricted / 0.75 with restrict_region, NAD: 0.80)
+- [x] **CONS-03**: Outlier results (> 1km from winning cluster centroid) are flagged as low-confidence in the response
 - [ ] **CONS-04**: Winning cluster centroid is auto-set as OfficialGeocoding when no admin override exists (`ON CONFLICT DO UPDATE` in cascade path; admin overrides are never overwritten)
-- [ ] **CONS-05**: All auto-set official records include `set_by_stage` audit metadata indicating which cascade stage produced the result
-- [ ] **CONS-06**: Dry-run mode available via query parameter (`?dry_run=true`) — runs full cascade but does not write OfficialGeocoding, returns what would have been set
+- [x] **CONS-05**: All auto-set official records include `set_by_stage` audit metadata indicating which cascade stage produced the result
+- [x] **CONS-06**: Dry-run mode available via query parameter (`?dry_run=true`) — runs full cascade but does not write OfficialGeocoding, returns what would have been set
 
 ### LLM Sidecar (Data-Driven)
 
@@ -92,15 +92,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FUZZ-03 | Phase 13 | Complete |
 | FUZZ-04 | Phase 13 | Complete |
 | CASC-01 | Phase 14 | Pending |
-| CASC-02 | Phase 14 | Pending |
+| CASC-02 | Phase 14 | Complete |
 | CASC-03 | Phase 14 | Pending |
-| CASC-04 | Phase 14 | Pending |
+| CASC-04 | Phase 14 | Complete |
 | CONS-01 | Phase 14 | Pending |
-| CONS-02 | Phase 14 | Pending |
-| CONS-03 | Phase 14 | Pending |
+| CONS-02 | Phase 14 | Complete |
+| CONS-03 | Phase 14 | Complete |
 | CONS-04 | Phase 14 | Pending |
-| CONS-05 | Phase 14 | Pending |
-| CONS-06 | Phase 14 | Pending |
+| CONS-05 | Phase 14 | Complete |
+| CONS-06 | Phase 14 | Complete |
 | LLM-01 | Phase 15 | Pending |
 | LLM-02 | Phase 15 | Pending |
 | LLM-03 | Phase 15 | Pending |

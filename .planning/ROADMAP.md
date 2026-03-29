@@ -90,7 +90,7 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 14-01-PLAN.md — Config settings, Alembic migration (set_by_stage), and Pydantic schema extensions
+- [x] 14-01-PLAN.md — Config settings, Alembic migration (set_by_stage), and Pydantic schema extensions
 - [ ] 14-02-PLAN.md — CascadeOrchestrator service with consensus scoring engine
 - [ ] 14-03-PLAN.md — GeocodingService refactor, API route integration, and parameterized tests
 **UI hint**: no
@@ -123,5 +123,5 @@ Plans:
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
-| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/3 | Not started | - |
+| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 1/3 | In Progress|  |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
