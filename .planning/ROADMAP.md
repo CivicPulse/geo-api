@@ -104,7 +104,12 @@ Plans:
   2. An address that fails exact and fuzzy match is sent to the LLM, which returns a structured JSON correction; the corrected form is then re-verified against provider databases before any geocode result is returned
   3. An LLM suggestion that would change the state code or produce a zip/state mismatch is hard-rejected and the cascade returns NO_MATCH rather than a bad geocode
   4. When the Ollama service is unavailable, the cascade degrades gracefully — requests complete with whatever result the deterministic stages produced, no errors surfaced to the caller
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 15-01-PLAN.md — LLMAddressCorrector service, AddressCorrection model, guardrails, and config settings
+- [ ] 15-02-PLAN.md — Cascade stage 4 integration, GeocodingService threading, API routes, and startup wiring
+- [ ] 15-03-PLAN.md — Docker Compose Ollama service and K8s manifests for production deployment
 
 ## Progress
 
@@ -124,4 +129,4 @@ Plans:
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete    | 2026-03-29 |
-| 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
+| 15. LLM Sidecar | v1.2 | 0/3 | Not started | - |
