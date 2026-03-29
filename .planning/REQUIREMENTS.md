@@ -12,7 +12,7 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 - [x] **FIX-01**: Tiger geocode results are filtered by expected county/city boundary via PostGIS `restrict_region` parameter, discarding wrong-county matches
 - [x] **FIX-02**: Local providers (OA, Macon-Bibb) fall back to zip prefix matching (`LIKE '3120%'`) when input zip is < 5 digits, instead of exact equality
 - [x] **FIX-03**: Street name matching includes `street_suffix` in the query to prevent multi-word street names (e.g., "Beaver Falls") from failing when scourgify extracts the suffix token
-- [x] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.5 to reflect "structurally parsed but not address-verified" semantics; Tiger validation confidence similarly adjusted
+- [x] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.3; Tiger validation confidence reduced to 0.4 — reflecting "structurally parsed but not address-verified" semantics (per locked decisions D-09, D-10)
 
 ### Spell Correction
 
