@@ -58,7 +58,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 
 Plans:
 - [x] 12-01-PLAN.md — Parse expansion (5-tuple), suffix matching, and zip prefix fallback across OA/NAD/Macon-Bibb
-- [ ] 12-02-PLAN.md — Tiger county spatial post-filter, confidence constants, and GIN trigram migration
+- [x] 12-02-PLAN.md — Tiger county spatial post-filter, confidence constants, and GIN trigram migration
 
 ### Phase 13: Spell Correction and Fuzzy/Phonetic Matching
 **Goal**: Addresses with typoed or phonetically misspelled street names are recovered before they reach the cascade orchestrator

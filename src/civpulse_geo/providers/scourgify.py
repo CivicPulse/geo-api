@@ -9,7 +9,7 @@ Key behaviors:
 - Normalizes state names: "Georgia" -> "GA"
 - Extracts secondary designators to address_line_2: "APT 4B", "STE 200"
 - Preserves ZIP+4 in postal_code: "31201-5678" remains "31201-5678"
-- confidence is always 1.0 on success (binary: parse or fail)
+- confidence is always 0.3 on success (parse-only; not address-verified)
 - delivery_point_verified is always False (offline normalization only)
 - Raises ProviderError for PO Boxes and unparseable addresses
 """
@@ -25,13 +25,13 @@ from civpulse_geo.providers.base import ValidationProvider
 from civpulse_geo.providers.exceptions import ProviderError
 from civpulse_geo.providers.schemas import ValidationResult
 
-SCOURGIFY_CONFIDENCE = 1.0
+SCOURGIFY_CONFIDENCE = 0.3  # structurally parsed but not address-verified (D-09)
 
 
 class ScourgifyValidationProvider(ValidationProvider):
     """Validation provider using scourgify for USPS Pub 28 normalization.
 
-    Scourgify is binary: either it parses successfully (confidence=1.0) or raises
+    Scourgify is binary: either it parses successfully (confidence=0.3) or raises
     an exception (unparseable). There are no partial matches.
 
     delivery_point_verified is always False — scourgify cannot confirm mail delivery.

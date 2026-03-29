@@ -9,10 +9,10 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 
 ### Correctness Fixes
 
-- [ ] **FIX-01**: Tiger geocode results are filtered by expected county/city boundary via PostGIS `restrict_region` parameter, discarding wrong-county matches
+- [x] **FIX-01**: Tiger geocode results are filtered by expected county/city boundary via PostGIS `restrict_region` parameter, discarding wrong-county matches
 - [x] **FIX-02**: Local providers (OA, Macon-Bibb) fall back to zip prefix matching (`LIKE '3120%'`) when input zip is < 5 digits, instead of exact equality
 - [x] **FIX-03**: Street name matching includes `street_suffix` in the query to prevent multi-word street names (e.g., "Beaver Falls") from failing when scourgify extracts the suffix token
-- [ ] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.5 to reflect "structurally parsed but not address-verified" semantics; Tiger validation confidence similarly adjusted
+- [x] **FIX-04**: Scourgify validation confidence reduced from 1.0 to 0.5 to reflect "structurally parsed but not address-verified" semantics; Tiger validation confidence similarly adjusted
 
 ### Spell Correction
 
@@ -22,7 +22,7 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 
 ### Fuzzy Matching
 
-- [ ] **FUZZ-01**: pg_trgm extension enabled via Alembic migration with GIN trigram indexes on `openaddresses_points.street` and `nad_points.street_name`
+- [x] **FUZZ-01**: pg_trgm extension enabled via Alembic migration with GIN trigram indexes on `openaddresses_points.street` and `nad_points.street_name`
 - [ ] **FUZZ-02**: FuzzyMatcher service uses `word_similarity()` with threshold 0.65-0.70 for street name matching as fallback when all exact providers return NO_MATCH
 - [ ] **FUZZ-03**: Double Metaphone (`dmetaphone()` from fuzzystrmatch) used as secondary phonetic fallback when trigram similarity is below threshold
 - [ ] **FUZZ-04**: Fuzzy match thresholds calibrated against Issue #1 E2E test corpus (4 addresses with known ground truth)
@@ -80,11 +80,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIX-01 | Phase 12 | Pending |
+| FIX-01 | Phase 12 | Complete |
 | FIX-02 | Phase 12 | Complete |
 | FIX-03 | Phase 12 | Complete |
-| FIX-04 | Phase 12 | Pending |
-| FUZZ-01 | Phase 12 | Pending |
+| FIX-04 | Phase 12 | Complete |
+| FUZZ-01 | Phase 12 | Complete |
 | SPELL-01 | Phase 13 | Pending |
 | SPELL-02 | Phase 13 | Pending |
 | SPELL-03 | Phase 13 | Pending |
