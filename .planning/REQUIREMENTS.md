@@ -29,25 +29,25 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 
 ### Cascade Pipeline
 
-- [ ] **CASC-01**: CascadeOrchestrator implements staged resolution: normalize → spell-correct → exact match → fuzzy/phonetic → consensus score → auto-set official
+- [x] **CASC-01**: CascadeOrchestrator implements staged resolution: normalize → spell-correct → exact match → fuzzy/phonetic → consensus score → auto-set official
 - [x] **CASC-02**: Cascade is feature-flagged via `CASCADE_ENABLED` environment variable (default: true for new installs)
-- [ ] **CASC-03**: Early-exit optimization: if any exact-match provider returns confidence >= 0.80, skip fuzzy and later stages
+- [x] **CASC-03**: Early-exit optimization: if any exact-match provider returns confidence >= 0.80, skip fuzzy and later stages
 - [x] **CASC-04**: Per-stage latency budgets enforced (P95 target: < 3s total cascade for single address)
 
 ### Consensus Scoring
 
-- [ ] **CONS-01**: Cross-provider consensus scoring groups geocode results into spatial clusters (within 100m) and selects the cluster with highest weighted agreement
+- [x] **CONS-01**: Cross-provider consensus scoring groups geocode results into spatial clusters (within 100m) and selects the cluster with highest weighted agreement
 - [x] **CONS-02**: Provider trust weights are configurable (Census: 0.90, OA: 0.80, Macon-Bibb: 0.80, Tiger: 0.40 unrestricted / 0.75 with restrict_region, NAD: 0.80)
 - [x] **CONS-03**: Outlier results (> 1km from winning cluster centroid) are flagged as low-confidence in the response
-- [ ] **CONS-04**: Winning cluster centroid is auto-set as OfficialGeocoding when no admin override exists (`ON CONFLICT DO UPDATE` in cascade path; admin overrides are never overwritten)
+- [x] **CONS-04**: Winning cluster centroid is auto-set as OfficialGeocoding when no admin override exists (`ON CONFLICT DO UPDATE` in cascade path; admin overrides are never overwritten)
 - [x] **CONS-05**: All auto-set official records include `set_by_stage` audit metadata indicating which cascade stage produced the result
 - [x] **CONS-06**: Dry-run mode available via query parameter (`?dry_run=true`) — runs full cascade but does not write OfficialGeocoding, returns what would have been set
 
 ### LLM Sidecar (Data-Driven)
 
-- [ ] **LLM-01**: Ollama + qwen2.5:3b Docker Compose service added, feature-flagged off by default (`CASCADE_LLM_ENABLED=false`)
-- [ ] **LLM-02**: LLMAddressCorrector sends address to local LLM with structured JSON schema output (temperature=0) for component extraction and correction
-- [ ] **LLM-03**: Every LLM-corrected address is re-verified against provider databases before use — LLM output is never used as a geocode result directly
+- [x] **LLM-01**: Ollama + qwen2.5:3b Docker Compose service added, feature-flagged off by default (`CASCADE_LLM_ENABLED=false`)
+- [x] **LLM-02**: LLMAddressCorrector sends address to local LLM with structured JSON schema output (temperature=0) for component extraction and correction
+- [x] **LLM-03**: Every LLM-corrected address is re-verified against provider databases before use — LLM output is never used as a geocode result directly
 - [ ] **LLM-04**: K8s manifests for Ollama deployment with PVC for model storage (ArgoCD-compatible)
 
 > **Note:** LLM phase (LLM-01 through LLM-04) is executed only if Phase 14 telemetry shows > 1-2% of addresses remain unresolved after deterministic cascade stages. Otherwise deferred to v1.3.
@@ -91,19 +91,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FUZZ-02 | Phase 13 | Complete |
 | FUZZ-03 | Phase 13 | Complete |
 | FUZZ-04 | Phase 13 | Complete |
-| CASC-01 | Phase 14 | Pending |
+| CASC-01 | Phase 14 | Complete |
 | CASC-02 | Phase 14 | Complete |
-| CASC-03 | Phase 14 | Pending |
+| CASC-03 | Phase 14 | Complete |
 | CASC-04 | Phase 14 | Complete |
-| CONS-01 | Phase 14 | Pending |
+| CONS-01 | Phase 14 | Complete |
 | CONS-02 | Phase 14 | Complete |
 | CONS-03 | Phase 14 | Complete |
-| CONS-04 | Phase 14 | Pending |
+| CONS-04 | Phase 14 | Complete |
 | CONS-05 | Phase 14 | Complete |
 | CONS-06 | Phase 14 | Complete |
-| LLM-01 | Phase 15 | Pending |
-| LLM-02 | Phase 15 | Pending |
-| LLM-03 | Phase 15 | Pending |
+| LLM-01 | Phase 15 | Complete |
+| LLM-02 | Phase 15 | Complete |
+| LLM-03 | Phase 15 | Complete |
 | LLM-04 | Phase 15 | Pending |
 
 **Coverage:**

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
 status: executing
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-29T16:25:08.346Z"
+stopped_at: Completed 15-01-PLAN.md
+last_updated: "2026-03-29T16:50:24.505Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 9
 ---
 
 # Project State
@@ -20,12 +20,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 14 — cascade-orchestrator-and-consensus-scoring
+**Current focus:** Phase 15 — llm-sidecar
 
 ## Current Position
 
-Phase: 15
-Plan: Not started
+Phase: 15 (llm-sidecar) — EXECUTING
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-29
 
@@ -46,6 +46,8 @@ v1.2 Progress: [----------] 0/4 phases
 | Phase 13-spell-correction-and-fuzzy-phonetic-matching P02 | 9 | 2 tasks | 3 files |
 | Phase 14-cascade-orchestrator-and-consensus-scoring P02 | 6min | 1 tasks | 2 files |
 | Phase 14-cascade-orchestrator-and-consensus-scoring P03 | 7 | 3 tasks | 4 files |
+| Phase 15-llm-sidecar P01 | 12 | 1 tasks | 3 files |
+| Phase 15-llm-sidecar P03 | 8 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -67,6 +69,12 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 14-02]: best_candidate selected as cluster member closest to weighted centroid (not first/highest-weight)
 - [Phase 14]: patch settings via civpulse_geo.services.geocoding.settings (not the module directly) for test isolation
 - [Phase 14]: outlier_providers defaults to empty set() in legacy path result dict to avoid KeyError in API
+- [Phase 15-llm-sidecar]: Direct httpx for Ollama client — reuses existing AsyncClient, no new dependency, full timeout control
+- [Phase 15-llm-sidecar]: POST timeout 6.0s (above 5s asyncio.wait_for) lets wait_for handle cancellation cleanly
+- [Phase 15-llm-sidecar]: _ZIP_FIRST_DIGIT_STATES hardcoded dict covers all 50 states plus territories — complete guardrail coverage, zero dependencies
+- [Phase 15-llm-sidecar]: Docker Compose profiles (profiles: [llm]) for optional Ollama activation — avoids 2GB model download for devs not using LLM
+- [Phase 15-llm-sidecar]: K8s initContainer pulls qwen2.5:3b before main container starts — model warm on first request
+- [Phase 15-llm-sidecar]: No CPU limit in K8s or Docker (D-11) — LLM inference is CPU-bursty; limits cause starvation
 
 ### Phase Ordering Notes
 
@@ -100,6 +108,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — v1.2 roadmap created
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-llm-sidecar/15-CONTEXT.md
+Stopped at: Completed 15-01-PLAN.md
+Resume file: None
 Next action: `/gsd:plan-phase 12`
