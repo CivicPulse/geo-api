@@ -76,6 +76,27 @@ CHECK_EXTENSION_SQL = text("""
     WHERE extname = 'postgis_tiger_geocoder'
 """)
 
+COUNTY_CONTAINS_SQL = text("""
+    SELECT cntyidfp
+    FROM tiger.county
+    WHERE statefp = :state_fips
+      AND ST_Contains(
+            the_geom,
+            ST_Transform(ST_SetSRID(ST_MakePoint(:lng, :lat), 4326), 4269)
+          )
+    LIMIT 1
+""")
+
+STATE_FIPS_SQL = text("""
+    SELECT statefp FROM tiger.state
+    WHERE stusps = :state_abbrev
+    LIMIT 1
+""")
+
+# Confidence for Tiger validation (normalize_address cross-refs Census data).
+# Higher than scourgify (0.3) because Tiger normalizes against actual street data.
+TIGER_VALIDATION_CONFIDENCE = 0.4  # D-10
+
 
 # ---------------------------------------------------------------------------
 # Extension availability check
@@ -137,12 +158,15 @@ class TigerGeocodingProvider(GeocodingProvider):
 
         Args:
             address: Freeform address string.
-            **kwargs: Accepts http_client= and other kwargs from service layer
-                without raising TypeError.
+            **kwargs: Accepts http_client=, county_fips= and other kwargs from
+                service layer without raising TypeError. When county_fips is
+                provided (5-digit FIPS string e.g. "13021"), the geocoded point
+                must fall inside that specific county or NO_MATCH is returned.
 
         Returns:
             GeocodingResult with RANGE_INTERPOLATED location_type and rating-based
-            confidence. Returns NO_MATCH (confidence=0.0) if no row is returned.
+            confidence. Returns NO_MATCH (confidence=0.0) if no row is returned
+            or if the geocoded point falls outside the expected county.
 
         Raises:
             ProviderError: On SQLAlchemy database error.
@@ -151,18 +175,57 @@ class TigerGeocodingProvider(GeocodingProvider):
             async with self._session_factory() as session:
                 result = await session.execute(GEOCODE_SQL, {"address": address})
                 row = result.first()
+
+                if row is None:
+                    return GeocodingResult(
+                        lat=0.0,
+                        lng=0.0,
+                        location_type="NO_MATCH",
+                        confidence=0.0,
+                        raw_response={},
+                        provider_name=self.provider_name,
+                    )
+
+                # FIX-01: County spatial post-filter (D-01, D-02, D-03)
+                if row.state:
+                    state_result = await session.execute(
+                        STATE_FIPS_SQL, {"state_abbrev": row.state}
+                    )
+                    state_row = state_result.first()
+                    if state_row:
+                        county_result = await session.execute(
+                            COUNTY_CONTAINS_SQL,
+                            {
+                                "state_fips": state_row.statefp,
+                                "lng": row.lng,
+                                "lat": row.lat,
+                            },
+                        )
+                        county_row = county_result.first()
+                        if county_row is None:
+                            # D-03: geocoded point outside all counties in expected state
+                            return GeocodingResult(
+                                lat=0.0,
+                                lng=0.0,
+                                location_type="NO_MATCH",
+                                confidence=0.0,
+                                raw_response={},
+                                provider_name=self.provider_name,
+                            )
+                        # D-02: if caller specified county_fips, verify match
+                        expected_county = kwargs.get("county_fips")
+                        if expected_county and county_row.cntyidfp != expected_county:
+                            return GeocodingResult(
+                                lat=0.0,
+                                lng=0.0,
+                                location_type="NO_MATCH",
+                                confidence=0.0,
+                                raw_response={},
+                                provider_name=self.provider_name,
+                            )
+
         except SQLAlchemyError as e:
             raise ProviderError(f"Tiger geocode query failed: {e}") from e
-
-        if row is None:
-            return GeocodingResult(
-                lat=0.0,
-                lng=0.0,
-                location_type="NO_MATCH",
-                confidence=0.0,
-                raw_response={},
-                provider_name=self.provider_name,
-            )
 
         confidence = max(0.0, min(1.0, (100 - row.rating) / 100))
 
@@ -219,8 +282,9 @@ class TigerValidationProvider(ValidationProvider):
     Parses address components via Tiger norm_addy type. Returns results directly
     without writing to validation_results (is_local=True).
 
-    Returns confidence=1.0 when normalize_address() sets parsed=True, and
-    confidence=0.0 (NO_MATCH) when parsed=False or no row is returned.
+    Returns confidence=TIGER_VALIDATION_CONFIDENCE (0.4) when normalize_address()
+    sets parsed=True, and confidence=0.0 (NO_MATCH) when parsed=False or no row
+    is returned.
 
     Args:
         session_factory: async_sessionmaker[AsyncSession] for DB access.
@@ -246,9 +310,9 @@ class TigerValidationProvider(ValidationProvider):
             **kwargs: Accepts extra kwargs for future compatibility.
 
         Returns:
-            ValidationResult with confidence=1.0 when parsed=True.
-            Returns NO_MATCH (confidence=0.0) when parsed=False or no row returned.
-            delivery_point_verified is always False.
+            ValidationResult with confidence=TIGER_VALIDATION_CONFIDENCE (0.4) when
+            parsed=True. Returns NO_MATCH (confidence=0.0) when parsed=False or no
+            row returned. delivery_point_verified is always False.
 
         Raises:
             ProviderError: On SQLAlchemy database error.
@@ -300,7 +364,7 @@ class TigerValidationProvider(ValidationProvider):
             city=row.city,
             state=row.state,
             postal_code=row.zip,
-            confidence=1.0,
+            confidence=TIGER_VALIDATION_CONFIDENCE,
             delivery_point_verified=False,
             provider_name=self.provider_name,
             original_input=address,
