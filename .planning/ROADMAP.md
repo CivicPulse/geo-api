@@ -87,7 +87,12 @@ Plans:
   4. A new OfficialGeocoding record is auto-set from the consensus winner with `set_by_stage` audit metadata; an existing admin override is never overwritten
   5. Sending `?dry_run=true` runs the full cascade and returns what would have been set without writing any OfficialGeocoding record
   6. Disabling cascade via `CASCADE_ENABLED=false` restores the v1.1 exact-match-only behavior — no regressions on the existing test suite
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 14-01-PLAN.md — Config settings, Alembic migration (set_by_stage), and Pydantic schema extensions
+- [ ] 14-02-PLAN.md — CascadeOrchestrator service with consensus scoring engine
+- [ ] 14-03-PLAN.md — GeocodingService refactor, API route integration, and parameterized tests
 **UI hint**: no
 
 ### Phase 15: LLM Sidecar
@@ -118,5 +123,5 @@ Plans:
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
-| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
+| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/3 | Not started | - |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
