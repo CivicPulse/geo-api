@@ -9,7 +9,7 @@ Endpoints:
 """
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,12 +41,18 @@ async def geocode(
     body: GeocodeRequest,
     request: Request,
     db: AsyncSession = Depends(get_db),
+    dry_run: bool = Query(False, description="Run cascade without writing OfficialGeocoding"),
+    trace: bool = Query(False, description="Include cascade_trace in response"),
 ):
     """Geocode a freeform US address.
 
-    Returns cached results if available, otherwise calls the Census Geocoder
-    and stores the result. The cache_hit flag indicates whether the result
-    came from the database cache or a fresh provider call.
+    Returns cached results if available, otherwise calls providers and stores
+    the result. The cache_hit flag indicates whether the result came from the
+    database cache or a fresh provider call.
+
+    When CASCADE_ENABLED=true:
+    - dry_run=true: runs cascade without writing OfficialGeocoding; returns would_set_official
+    - trace=true: includes per-stage cascade_trace in response
     """
     service = GeocodingService()
     result = await service.geocode(
@@ -55,7 +61,13 @@ async def geocode(
         providers=request.app.state.providers,
         http_client=request.app.state.http_client,
         spell_corrector=getattr(request.app.state, "spell_corrector", None),
+        fuzzy_matcher=getattr(request.app.state, "fuzzy_matcher", None),
+        dry_run=dry_run,
+        trace=trace,
     )
+
+    # Build outlier set from cascade result (empty set for legacy path)
+    outlier_providers = result.get("outlier_providers", set())
 
     # Transform ORM results to Pydantic response models
     provider_results = [
@@ -65,6 +77,7 @@ async def geocode(
             longitude=r.longitude,
             location_type=r.location_type.value if r.location_type else None,
             confidence=r.confidence,
+            is_outlier=r.provider_name in outlier_providers,
         )
         for r in result["results"]
     ]
@@ -77,6 +90,7 @@ async def geocode(
             longitude=r.lng,
             location_type=r.location_type,
             confidence=r.confidence,
+            is_outlier=r.provider_name in outlier_providers,
         )
         for r in result.get("local_results", [])
     ]
@@ -92,6 +106,19 @@ async def geocode(
             confidence=o.confidence,
         )
 
+    # Build would_set_official from CascadeResult (for dry_run mode)
+    would_set = None
+    ws = result.get("would_set_official")
+    if ws is not None:
+        # ws is a ProviderCandidate dataclass from cascade.py
+        would_set = GeocodeProviderResult(
+            provider_name=ws.provider_name,
+            latitude=ws.lat,
+            longitude=ws.lng,
+            location_type=ws.location_type,
+            confidence=ws.confidence,
+        )
+
     return GeocodeResponse(
         address_hash=result["address_hash"],
         normalized_address=result["normalized_address"],
@@ -99,6 +126,8 @@ async def geocode(
         results=provider_results,
         local_results=local_provider_results,
         official=official,
+        cascade_trace=result.get("cascade_trace"),
+        would_set_official=would_set,
     )
 
 
@@ -226,6 +255,7 @@ async def _geocode_one(
     providers: dict,
     http_client,
     spell_corrector=None,
+    fuzzy_matcher=None,
 ) -> BatchGeocodeResultItem:
     """Process a single address within a batch. Catches all exceptions per-item."""
     try:
@@ -236,7 +266,12 @@ async def _geocode_one(
                 providers=providers,
                 http_client=http_client,
                 spell_corrector=spell_corrector,
+                fuzzy_matcher=fuzzy_matcher,
             )
+
+        # Build outlier set from cascade result (empty set for legacy path)
+        outlier_providers = result.get("outlier_providers", set())
+
         # Transform ORM results to Pydantic (same pattern as single geocode endpoint)
         provider_results = [
             GeocodeProviderResult(
@@ -245,6 +280,7 @@ async def _geocode_one(
                 longitude=r.longitude,
                 location_type=r.location_type.value if r.location_type else None,
                 confidence=r.confidence,
+                is_outlier=r.provider_name in outlier_providers,
             )
             for r in result["results"]
         ]
@@ -255,6 +291,7 @@ async def _geocode_one(
                 longitude=r.lng,
                 location_type=r.location_type,
                 confidence=r.confidence,
+                is_outlier=r.provider_name in outlier_providers,
             )
             for r in result.get("local_results", [])
         ]
@@ -275,6 +312,8 @@ async def _geocode_one(
             results=provider_results,
             local_results=local_provider_results,
             official=official,
+            cascade_trace=None,
+            would_set_official=None,
         )
         return BatchGeocodeResultItem(
             index=index,
@@ -306,6 +345,7 @@ async def batch_geocode(
 
     Returns per-item results with individual status codes. One item failing
     does not affect other items. Returns outer 422 only when ALL items fail.
+    Note: batch does not support dry_run or trace (single-address debugging features).
     """
     if not body.addresses:
         return BatchGeocodeResponse(total=0, succeeded=0, failed=0, results=[])
@@ -313,6 +353,7 @@ async def batch_geocode(
     semaphore = asyncio.Semaphore(settings.batch_concurrency_limit)
     service = GeocodingService()
     spell_corrector = getattr(request.app.state, "spell_corrector", None)
+    fuzzy_matcher = getattr(request.app.state, "fuzzy_matcher", None)
 
     items = await asyncio.gather(*[
         _geocode_one(
@@ -324,6 +365,7 @@ async def batch_geocode(
             providers=request.app.state.providers,
             http_client=request.app.state.http_client,
             spell_corrector=spell_corrector,
+            fuzzy_matcher=fuzzy_matcher,
         )
         for i, addr in enumerate(body.addresses)
     ])
