@@ -4,7 +4,7 @@ milestone: v1.2
 milestone_name: Cascading Address Resolution
 status: verifying
 stopped_at: Completed 15-02-PLAN.md
-last_updated: "2026-03-29T16:59:41.228Z"
+last_updated: "2026-03-29T17:05:30.074Z"
 last_activity: 2026-03-29
 progress:
   total_phases: 4
@@ -24,8 +24,8 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 ## Current Position
 
-Phase: 15 (llm-sidecar) — EXECUTING
-Plan: 3 of 3
+Phase: 15
+Plan: Not started
 Status: Phase complete — ready for verification
 Last activity: 2026-03-29
 

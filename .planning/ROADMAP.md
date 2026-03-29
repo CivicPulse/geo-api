@@ -129,4 +129,4 @@ Plans:
 | 12. Correctness Fixes and DB Prerequisites | v1.2 | 2/2 | Complete | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 2/2 | Complete   | 2026-03-29 |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 3/3 | Complete    | 2026-03-29 |
-| 15. LLM Sidecar | v1.2 | 3/3 | Complete   | 2026-03-29 |
+| 15. LLM Sidecar | v1.2 | 3/3 | Complete    | 2026-03-29 |
