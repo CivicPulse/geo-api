@@ -2,8 +2,8 @@
 phase: 13
 slug: spell-correction-and-fuzzy-phonetic-matching
 status: draft
-nyquist_compliant: false
-wave_0_complete: false
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-29
 ---
 
@@ -38,15 +38,11 @@ created: 2026-03-29
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 13-01-01 | 01 | 0 | SPELL-01 | unit | `uv run pytest tests/test_spell_corrector.py -x` | ❌ W0 | ⬜ pending |
-| 13-01-02 | 01 | 0 | FUZZ-02 | unit | `uv run pytest tests/test_fuzzy_matcher.py -x` | ❌ W0 | ⬜ pending |
-| 13-01-03 | 01 | 0 | FUZZ-04 | integration | `uv run pytest tests/test_fuzzy_calibration.py -x` | ❌ W0 | ⬜ pending |
-| 13-02-01 | 02 | 1 | SPELL-01 | unit | `uv run pytest tests/test_spell_corrector.py -x` | ❌ W0 | ⬜ pending |
-| 13-02-02 | 02 | 1 | SPELL-02 | unit | `uv run pytest tests/test_spell_corrector.py::test_rebuild_dictionary -x` | ❌ W0 | ⬜ pending |
-| 13-03-01 | 03 | 1 | FUZZ-02 | unit | `uv run pytest tests/test_fuzzy_matcher.py::test_fuzzy_above_threshold -x` | ❌ W0 | ⬜ pending |
-| 13-03-02 | 03 | 1 | FUZZ-03 | unit | `uv run pytest tests/test_fuzzy_matcher.py::test_dmetaphone_tiebreaker -x` | ❌ W0 | ⬜ pending |
-| 13-04-01 | 04 | 2 | SPELL-03 | unit | `uv run pytest tests/test_spell_corrector.py::test_rebuild_triggered_after_cli -x` | ❌ W0 | ⬜ pending |
-| 13-05-01 | 05 | 2 | FUZZ-04 | integration | `uv run pytest tests/test_fuzzy_calibration.py -x` | ❌ W0 | ⬜ pending |
+| 13-01-T1 | 01 | 1 | SPELL-02 | unit | `uv run python -c "from civpulse_geo.models.spell_dictionary import SpellDictionary"` | TDD | ⬜ pending |
+| 13-01-T2 | 01 | 1 | SPELL-01 | unit | `uv run pytest tests/test_spell_corrector.py -x -q` | TDD | ⬜ pending |
+| 13-01-T3 | 01 | 1 | SPELL-03 | unit | `uv run pytest -x -q` | TDD | ⬜ pending |
+| 13-02-T1 | 02 | 2 | FUZZ-02, FUZZ-03 | unit | `uv run pytest tests/test_fuzzy_matcher.py -x -q` | TDD | ⬜ pending |
+| 13-02-T2 | 02 | 2 | FUZZ-04 | integration | `uv run pytest tests/test_fuzzy_calibration.py -x -q` | TDD | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -54,10 +50,12 @@ created: 2026-03-29
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_spell_corrector.py` — stubs for SPELL-01, SPELL-02, SPELL-03
-- [ ] `tests/test_fuzzy_matcher.py` — stubs for FUZZ-02, FUZZ-03
-- [ ] `tests/test_fuzzy_calibration.py` — stubs for FUZZ-04 (30-address corpus)
-- [ ] `uv add symspellpy>=6.9.0` — required before any spell corrector tests can run
+*Test files created via TDD within each task — no separate Wave 0 plan needed.*
+
+- [x] `tests/test_spell_corrector.py` — created in Plan 01 Task 2 (TDD)
+- [x] `tests/test_fuzzy_matcher.py` — created in Plan 02 Task 1 (TDD)
+- [x] `tests/test_fuzzy_calibration.py` — created in Plan 02 Task 2 (TDD)
+- [x] `uv add symspellpy>=6.9.0` — Plan 01 Task 1
 
 ---
 
@@ -73,11 +71,11 @@ created: 2026-03-29
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 45s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references (TDD — tests co-created with implementation)
+- [x] No watch-mode flags
+- [x] Feedback latency < 45s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved 2026-03-29
