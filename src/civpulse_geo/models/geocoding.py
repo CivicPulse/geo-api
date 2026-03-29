@@ -57,6 +57,7 @@ class OfficialGeocoding(Base, TimestampMixin):
     geocoding_result_id: Mapped[int] = mapped_column(
         ForeignKey("geocoding_results.id"), nullable=False
     )
+    set_by_stage: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Relationships
     address: Mapped[Address] = relationship("Address")
