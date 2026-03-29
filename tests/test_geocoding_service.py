@@ -177,12 +177,15 @@ async def test_geocode_cache_hit_returns_cached():
         side_effect=[addr_result, official_result, gr_result]
     )
 
-    result = await service.geocode(
-        freeform="4600 Silver Hill Rd Washington DC 20233",
-        db=db,
-        providers={"census": provider},
-        http_client=http_client,
-    )
+    # Force legacy path — this test verifies legacy cache-hit behavior
+    with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+        mock_settings.cascade_enabled = False
+        result = await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"census": provider},
+            http_client=http_client,
+        )
 
     # Provider should NOT have been called
     assert not provider.geocode.called
@@ -446,12 +449,14 @@ async def test_cache_hit_flag_true_on_hit():
 
     db.execute = AsyncMock(side_effect=[addr_result, official_result, gr_result])
 
-    result = await service.geocode(
-        freeform="4600 Silver Hill Rd Washington DC 20233",
-        db=db,
-        providers={"census": provider},
-        http_client=http_client,
-    )
+    with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+        mock_settings.cascade_enabled = False
+        result = await service.geocode(
+            freeform="4600 Silver Hill Rd Washington DC 20233",
+            db=db,
+            providers={"census": provider},
+            http_client=http_client,
+        )
 
     assert result["cache_hit"] is True
 
@@ -1006,7 +1011,10 @@ def _make_db_for_local_provider(address_id=1):
 
 
 class TestLocalProviderBypass:
-    """Tests verifying that local providers bypass geocoding_results DB writes."""
+    """Tests verifying that local providers bypass geocoding_results DB writes.
+
+    All tests in this class use CASCADE_ENABLED=false to verify the legacy path behavior.
+    """
 
     @pytest.mark.asyncio
     async def test_local_provider_bypasses_geocoding_results_write(self):
@@ -1017,12 +1025,14 @@ class TestLocalProviderBypass:
 
         db, address = _make_db_for_local_provider()
 
-        result = await service.geocode(
-            freeform="4600 Silver Hill Rd Washington DC 20233",
-            db=db,
-            providers={"test-local": local_provider},
-            http_client=http_client,
-        )
+        with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+            mock_settings.cascade_enabled = False
+            result = await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=db,
+                providers={"test-local": local_provider},
+                http_client=http_client,
+            )
 
         # Only address lookup should have been called (1 execute),
         # plus no geocoding_results insert
@@ -1043,12 +1053,14 @@ class TestLocalProviderBypass:
 
         db, address = _make_db_for_local_provider()
 
-        result = await service.geocode(
-            freeform="4600 Silver Hill Rd Washington DC 20233",
-            db=db,
-            providers={"test-local": local_provider},
-            http_client=http_client,
-        )
+        with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+            mock_settings.cascade_enabled = False
+            result = await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=db,
+                providers={"test-local": local_provider},
+                http_client=http_client,
+            )
 
         assert "local_results" in result
         assert "results" in result
@@ -1069,12 +1081,14 @@ class TestLocalProviderBypass:
 
         db, address = _make_db_for_local_provider()
 
-        await service.geocode(
-            freeform="4600 Silver Hill Rd Washington DC 20233",
-            db=db,
-            providers={"test-local": local_provider},
-            http_client=http_client,
-        )
+        with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+            mock_settings.cascade_enabled = False
+            await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=db,
+                providers={"test-local": local_provider},
+                http_client=http_client,
+            )
 
         # Should only execute address lookup (1 call) — no upsert for geocoding_results
         assert db.execute.call_count == 1, (
@@ -1110,12 +1124,14 @@ class TestLocalProviderBypass:
 
         db.execute = AsyncMock(side_effect=[addr_result, official_result, gr_result])
 
-        result = await service.geocode(
-            freeform="4600 Silver Hill Rd Washington DC 20233",
-            db=db,
-            providers={"census": remote_provider},
-            http_client=http_client,
-        )
+        with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+            mock_settings.cascade_enabled = False
+            result = await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=db,
+                providers={"census": remote_provider},
+                http_client=http_client,
+            )
 
         assert result["cache_hit"] is True
         assert "local_results" in result
@@ -1130,11 +1146,199 @@ class TestLocalProviderBypass:
 
         db, address = _make_db_for_local_provider()
 
-        await service.geocode(
+        with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+            mock_settings.cascade_enabled = False
+            await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=db,
+                providers={"test-local": local_provider},
+                http_client=http_client,
+            )
+
+        local_provider.geocode.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Phase 14: Cascade dispatcher tests (CASC-01, CASC-02, D-02, D-03)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch as _patch
+from civpulse_geo.config import settings as _settings
+from civpulse_geo.services.cascade import CascadeResult, ProviderCandidate
+
+
+def _make_cascade_result(
+    address_hash="a" * 64,
+    normalized_address="4600 SILVER HILL RD WASHINGTON DC 20233",
+    cache_hit=False,
+    results=None,
+    local_results=None,
+    official=None,
+    cascade_trace=None,
+    would_set_official=None,
+    outlier_providers=None,
+):
+    """Build a minimal CascadeResult for use in cascade dispatcher tests."""
+    from civpulse_geo.models.address import Address
+
+    addr = MagicMock(spec=Address)
+    addr.id = 1
+    return CascadeResult(
+        address_hash=address_hash,
+        normalized_address=normalized_address,
+        address=addr,
+        cache_hit=cache_hit,
+        results=results or [],
+        local_results=local_results or [],
+        official=official,
+        cascade_trace=cascade_trace,
+        would_set_official=would_set_official,
+        outlier_providers=outlier_providers or set(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_geocode_delegates_to_cascade_when_enabled():
+    """When CASCADE_ENABLED=true, geocode() calls CascadeOrchestrator.run()."""
+    service = GeocodingService()
+    cascade_result = _make_cascade_result()
+
+    with _patch.object(_settings, "cascade_enabled", True):
+        with _patch(
+            "civpulse_geo.services.geocoding.CascadeOrchestrator.run",
+            new_callable=AsyncMock,
+            return_value=cascade_result,
+        ) as mock_run:
+            result = await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=AsyncMock(),
+                providers={},
+                http_client=AsyncMock(),
+            )
+
+    mock_run.assert_called_once()
+    assert result["address_hash"] == cascade_result.address_hash
+    assert result["cache_hit"] is False
+
+
+@pytest.mark.asyncio
+async def test_geocode_delegates_to_legacy_when_disabled():
+    """When CASCADE_ENABLED=false, geocode() calls _legacy_geocode()."""
+    service = GeocodingService()
+    legacy_result = {
+        "address_hash": "b" * 64,
+        "normalized_address": "4600 SILVER HILL RD WASHINGTON DC 20233",
+        "cache_hit": True,
+        "results": [],
+        "local_results": [],
+        "official": None,
+    }
+
+    with _patch.object(_settings, "cascade_enabled", False):
+        with _patch.object(
+            service, "_legacy_geocode", new_callable=AsyncMock, return_value=legacy_result
+        ) as mock_legacy:
+            result = await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=AsyncMock(),
+                providers={},
+                http_client=AsyncMock(),
+            )
+
+    mock_legacy.assert_called_once()
+    assert result["address_hash"] == legacy_result["address_hash"]
+
+
+@pytest.mark.asyncio
+async def test_geocode_passes_dry_run_and_trace():
+    """dry_run and trace kwargs are forwarded to CascadeOrchestrator.run()."""
+    service = GeocodingService()
+    cascade_result = _make_cascade_result(cascade_trace=[{"stage": "normalize"}])
+
+    with _patch.object(_settings, "cascade_enabled", True):
+        with _patch(
+            "civpulse_geo.services.geocoding.CascadeOrchestrator.run",
+            new_callable=AsyncMock,
+            return_value=cascade_result,
+        ) as mock_run:
+            await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=AsyncMock(),
+                providers={},
+                http_client=AsyncMock(),
+                dry_run=True,
+                trace=True,
+            )
+
+    call_kwargs = mock_run.call_args.kwargs
+    assert call_kwargs.get("dry_run") is True
+    assert call_kwargs.get("trace") is True
+
+
+@pytest.mark.asyncio
+async def test_geocode_cascade_result_includes_outlier_providers():
+    """Cascade path returns outlier_providers set in the result dict."""
+    service = GeocodingService()
+    cascade_result = _make_cascade_result(outlier_providers={"tiger"})
+
+    with _patch.object(_settings, "cascade_enabled", True):
+        with _patch(
+            "civpulse_geo.services.geocoding.CascadeOrchestrator.run",
+            new_callable=AsyncMock,
+            return_value=cascade_result,
+        ):
+            result = await service.geocode(
+                freeform="4600 Silver Hill Rd Washington DC 20233",
+                db=AsyncMock(),
+                providers={},
+                http_client=AsyncMock(),
+            )
+
+    assert "outlier_providers" in result
+    assert "tiger" in result["outlier_providers"]
+
+
+# Fix: existing legacy-dependent tests that fail under CASCADE_ENABLED=true
+# Patch the affected tests to use _legacy_geocode directly or disable cascade.
+# We add a fixture-based approach as well as direct class patches.
+
+@pytest.mark.asyncio
+async def test_geocode_cache_hit_returns_cached_legacy():
+    """cache_hit=True when cached results returned (legacy path, CASCADE_ENABLED=false)."""
+    service = GeocodingService()
+    provider = _make_provider()
+    http_client = AsyncMock()
+
+    db = AsyncMock(spec=AsyncSession)
+    db.commit = AsyncMock()
+
+    cached_address = _make_address(has_results=True)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = cached_address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    official_scalars = MagicMock()
+    official_scalars.first.return_value = None
+    official_result = MagicMock()
+    official_result.scalars.return_value = official_scalars
+
+    gr_scalars = MagicMock()
+    gr_scalars.first.return_value = None
+    gr_result = MagicMock()
+    gr_result.scalars.return_value = gr_scalars
+
+    db.execute = AsyncMock(side_effect=[addr_result, official_result, gr_result])
+
+    with _patch.object(_settings, "cascade_enabled", False):
+        result = await service.geocode(
             freeform="4600 Silver Hill Rd Washington DC 20233",
             db=db,
-            providers={"test-local": local_provider},
+            providers={"census": provider},
             http_client=http_client,
         )
 
-        local_provider.geocode.assert_called_once()
+    assert not provider.geocode.called
+    assert result["cache_hit"] is True
+    assert len(result["results"]) == 1

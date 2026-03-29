@@ -341,3 +341,222 @@ async def test_get_provider_not_found(patched_app_state):
             response = await client.get(f"/geocode/{MOCK_HASH}/providers/nonexistent")
 
     assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Phase 14: Cascade API integration tests (CASC-01, CONS-03, CONS-06)
+# ---------------------------------------------------------------------------
+
+from unittest.mock import patch as _api_patch
+from civpulse_geo.config import settings as _api_settings
+from civpulse_geo.services.cascade import CascadeResult
+from civpulse_geo.models.address import Address as _Address
+
+
+def _make_cascade_geocode_result(
+    address_hash="a" * 64,
+    normalized_address="123 MAIN ST MACON GA 31201",
+    cache_hit=False,
+    cascade_trace=None,
+    would_set_official=None,
+    outlier_providers=None,
+):
+    """Build a fake geocode() return dict for cascade-enabled API tests."""
+    return {
+        "address_hash": address_hash,
+        "normalized_address": normalized_address,
+        "cache_hit": cache_hit,
+        "results": [],
+        "local_results": [],
+        "official": None,
+        "cascade_trace": cascade_trace,
+        "would_set_official": would_set_official,
+        "outlier_providers": outlier_providers or set(),
+    }
+
+
+@pytest.mark.asyncio
+async def test_geocode_dry_run_param(patched_app_state):
+    """POST /geocode?dry_run=true returns would_set_official and cascade_trace fields."""
+    result_dict = _make_cascade_geocode_result(
+        cascade_trace=[{"stage": "normalize", "ms": 1.0}],
+    )
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/geocode?dry_run=true",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    # cascade_trace key should be present (even if None for dry_run with no cascade)
+    assert "cascade_trace" in data
+    assert "would_set_official" in data
+
+
+@pytest.mark.asyncio
+async def test_geocode_trace_param(patched_app_state):
+    """POST /geocode?trace=true returns cascade_trace in response."""
+    trace_data = [
+        {"stage": "normalize", "ms": 1.0, "results_count": 0},
+        {"stage": "exact_match", "ms": 200.0, "results_count": 1},
+    ]
+    result_dict = _make_cascade_geocode_result(cascade_trace=trace_data)
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/geocode?trace=true",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "cascade_trace" in data
+    assert data["cascade_trace"] is not None
+    assert len(data["cascade_trace"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_geocode_normal_no_trace(patched_app_state):
+    """Normal POST /geocode does not include cascade_trace (cascade_trace is None)."""
+    result_dict = _make_cascade_geocode_result(cascade_trace=None)
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/geocode",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("cascade_trace") is None
+
+
+@pytest.mark.asyncio
+async def test_geocode_response_has_is_outlier(patched_app_state):
+    """Response provider results include is_outlier field (defaults to false)."""
+    mock_orm_row = _make_mock_orm_row()
+    result_dict = {
+        "address_hash": "c" * 64,
+        "normalized_address": "123 MAIN ST MACON GA 31201",
+        "cache_hit": False,
+        "results": [mock_orm_row],
+        "local_results": [],
+        "official": None,
+        "cascade_trace": None,
+        "would_set_official": None,
+        "outlier_providers": set(),
+    }
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/geocode",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    for r in data.get("results", []):
+        assert "is_outlier" in r
+        assert r["is_outlier"] is False  # no outlier providers set
+
+
+@pytest.mark.asyncio
+async def test_geocode_outlier_flagged_in_response(patched_app_state):
+    """When outlier_providers contains a provider name, is_outlier=True in that result."""
+    mock_orm_row = _make_mock_orm_row(provider_name="tiger")
+    result_dict = {
+        "address_hash": "d" * 64,
+        "normalized_address": "123 MAIN ST MACON GA 31201",
+        "cache_hit": False,
+        "results": [mock_orm_row],
+        "local_results": [],
+        "official": None,
+        "cascade_trace": None,
+        "would_set_official": None,
+        "outlier_providers": {"tiger"},
+    }
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/geocode",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    assert response.status_code == 200
+    data = response.json()
+    tiger_result = next(r for r in data["results"] if r["provider_name"] == "tiger")
+    assert tiger_result["is_outlier"] is True
+
+
+@pytest.mark.asyncio
+async def test_geocode_passes_dry_run_to_service(patched_app_state):
+    """API route passes dry_run=True to service.geocode()."""
+    result_dict = _make_cascade_geocode_result()
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ) as mock_geocode:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post(
+                "/geocode?dry_run=true",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    call_kwargs = mock_geocode.call_args.kwargs
+    assert call_kwargs.get("dry_run") is True
+
+
+@pytest.mark.asyncio
+async def test_geocode_passes_trace_to_service(patched_app_state):
+    """API route passes trace=True to service.geocode()."""
+    result_dict = _make_cascade_geocode_result()
+
+    with _api_patch(
+        "civpulse_geo.services.geocoding.GeocodingService.geocode",
+        new_callable=AsyncMock,
+        return_value=result_dict,
+    ) as mock_geocode:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            await client.post(
+                "/geocode?trace=true",
+                json={"address": "123 Main St Macon GA 31201"},
+            )
+
+    call_kwargs = mock_geocode.call_args.kwargs
+    assert call_kwargs.get("trace") is True
