@@ -37,7 +37,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 
 ### v1.2 Cascading Address Resolution (Phases 12-15)
 
-- [ ] **Phase 12: Correctness Fixes and DB Prerequisites** — Fix 4 known provider defects and add GIN trigram indexes before any cascade logic is built
+- [x] **Phase 12: Correctness Fixes and DB Prerequisites** — Fix 4 known provider defects and add GIN trigram indexes before any cascade logic is built (completed 2026-03-29)
 - [ ] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching
 - [ ] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode
 - [ ] **Phase 15: LLM Sidecar** — Local Ollama sidecar for address correction when deterministic stages fail (data-driven: execute only if Phase 14 telemetry shows > 1-2% unresolved)
@@ -112,7 +112,7 @@ Plans:
 | 9. Tiger Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 10. NAD Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
-| 12. Correctness Fixes and DB Prerequisites | v1.2 | 1/2 | In Progress|  |
+| 12. Correctness Fixes and DB Prerequisites | v1.2 | 1/2 | Complete    | 2026-03-29 |
 | 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 0/? | Not started | - |
 | 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
 | 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
