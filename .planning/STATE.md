@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Cascading Address Resolution
-status: defining_requirements
+status: roadmap_ready
 stopped_at: ~
 last_updated: "2026-03-29T12:00:00Z"
 last_activity: 2026-03-29
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,20 +20,39 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Defining requirements for v1.2 Cascading Address Resolution
+**Current focus:** v1.2 Cascading Address Resolution — roadmap defined, ready to plan Phase 12
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Not started (roadmap ready)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-03-29 — Milestone v1.2 started
+Status: Ready to plan Phase 12
+Last activity: 2026-03-29 — v1.2 roadmap created (Phases 12-15)
+
+```
+v1.2 Progress: [----------] 0/4 phases
+```
+
+## Performance Metrics
+
+| Metric | v1.0 | v1.1 | v1.2 |
+|--------|------|------|------|
+| Requirements | 26/26 | 6/6 | 0/25 |
+| Phases | 6 | 5 | 0/4 |
+| Tests | 179 | 379 | - |
 
 ## Accumulated Context
 
 ### Decisions
 
 Decisions are logged in PROJECT.md Key Decisions table.
+
+### Phase Ordering Notes
+
+- Phase 12 is a hard prerequisite for all v1.2 phases: Tiger wrong-county bug and confidence semantics corruption must be fixed before any cascade auto-set logic is built
+- Phase 13 (spell correction + fuzzy) depends on Phase 12 GIN indexes existing and normalization being consistent on both sides of the comparison
+- Phase 14 (orchestrator + consensus) depends on Phase 13 components existing so the orchestrator has meaningful fuzzy results to score
+- Phase 15 (LLM sidecar) is data-driven: execute only if Phase 14 telemetry shows > 1-2% of addresses remain unresolved after deterministic stages
 
 ### Pending Todos
 
@@ -42,7 +61,8 @@ None.
 ### Blockers/Concerns (Carry Forward)
 
 - Google Maps excluded — ToS incompatible with caching model (moved to Out of Scope)
-- VAL-06 delivery_point_verified is always False with scourgify — real DPV needs a paid USPS API adapter
+- VAL-06 delivery_point_verified is always False with scourgify — real DPV needs a paid USPS API adapter (v1.3 candidate)
+- Tiger wrong-county bug is a hard gate: Tiger results must not contribute to auto-set logic until FIX-01 (restrict_region) is deployed and verified
 
 ### Quick Tasks Completed
 
@@ -58,6 +78,7 @@ None.
 
 ## Session Continuity
 
-Last activity: 2026-03-29 — v1.1 milestone archived
-Stopped at: Milestone completion
+Last activity: 2026-03-29 — v1.2 roadmap created
+Stopped at: Roadmap definition complete
 Resume file: None
+Next action: `/gsd:plan-phase 12`

@@ -50,7 +50,7 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 - [ ] **LLM-03**: Every LLM-corrected address is re-verified against provider databases before use — LLM output is never used as a geocode result directly
 - [ ] **LLM-04**: K8s manifests for Ollama deployment with PVC for model storage (ArgoCD-compatible)
 
-> **Note:** LLM phase (LLM-01 through LLM-04) is executed only if Phase 4 telemetry shows > 1-2% of addresses remain unresolved after deterministic cascade stages. Otherwise deferred to v1.3.
+> **Note:** LLM phase (LLM-01 through LLM-04) is executed only if Phase 14 telemetry shows > 1-2% of addresses remain unresolved after deterministic cascade stages. Otherwise deferred to v1.3.
 
 ## Future Requirements
 
@@ -80,37 +80,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FIX-01 | — | Pending |
-| FIX-02 | — | Pending |
-| FIX-03 | — | Pending |
-| FIX-04 | — | Pending |
-| SPELL-01 | — | Pending |
-| SPELL-02 | — | Pending |
-| SPELL-03 | — | Pending |
-| FUZZ-01 | — | Pending |
-| FUZZ-02 | — | Pending |
-| FUZZ-03 | — | Pending |
-| FUZZ-04 | — | Pending |
-| CASC-01 | — | Pending |
-| CASC-02 | — | Pending |
-| CASC-03 | — | Pending |
-| CASC-04 | — | Pending |
-| CONS-01 | — | Pending |
-| CONS-02 | — | Pending |
-| CONS-03 | — | Pending |
-| CONS-04 | — | Pending |
-| CONS-05 | — | Pending |
-| CONS-06 | — | Pending |
-| LLM-01 | — | Pending |
-| LLM-02 | — | Pending |
-| LLM-03 | — | Pending |
-| LLM-04 | — | Pending |
+| FIX-01 | Phase 12 | Pending |
+| FIX-02 | Phase 12 | Pending |
+| FIX-03 | Phase 12 | Pending |
+| FIX-04 | Phase 12 | Pending |
+| FUZZ-01 | Phase 12 | Pending |
+| SPELL-01 | Phase 13 | Pending |
+| SPELL-02 | Phase 13 | Pending |
+| SPELL-03 | Phase 13 | Pending |
+| FUZZ-02 | Phase 13 | Pending |
+| FUZZ-03 | Phase 13 | Pending |
+| FUZZ-04 | Phase 13 | Pending |
+| CASC-01 | Phase 14 | Pending |
+| CASC-02 | Phase 14 | Pending |
+| CASC-03 | Phase 14 | Pending |
+| CASC-04 | Phase 14 | Pending |
+| CONS-01 | Phase 14 | Pending |
+| CONS-02 | Phase 14 | Pending |
+| CONS-03 | Phase 14 | Pending |
+| CONS-04 | Phase 14 | Pending |
+| CONS-05 | Phase 14 | Pending |
+| CONS-06 | Phase 14 | Pending |
+| LLM-01 | Phase 15 | Pending |
+| LLM-02 | Phase 15 | Pending |
+| LLM-03 | Phase 15 | Pending |
+| LLM-04 | Phase 15 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25 ⚠️
+- Mapped to phases: 25
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-03-29*
-*Last updated: 2026-03-29 after initial definition*
+*Last updated: 2026-03-29 after v1.2 roadmap creation*

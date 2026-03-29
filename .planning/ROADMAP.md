@@ -4,6 +4,7 @@
 
 - ✅ **v1.0 MVP** — Phases 1-6 (shipped 2026-03-19)
 - ✅ **v1.1 Local Data Sources** — Phases 7-11 (shipped 2026-03-29)
+- 🔄 **v1.2 Cascading Address Resolution** — Phases 12-15 (active)
 
 ## Phases
 
@@ -34,6 +35,64 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 
 </details>
 
+### v1.2 Cascading Address Resolution (Phases 12-15)
+
+- [ ] **Phase 12: Correctness Fixes and DB Prerequisites** — Fix 4 known provider defects and add GIN trigram indexes before any cascade logic is built
+- [ ] **Phase 13: Spell Correction and Fuzzy/Phonetic Matching** — Offline spell correction layer and pg_trgm + Double Metaphone fallback matching
+- [ ] **Phase 14: Cascade Orchestrator and Consensus Scoring** — Wire all components into a staged pipeline with cross-provider consensus and auto-set official geocode
+- [ ] **Phase 15: LLM Sidecar** — Local Ollama sidecar for address correction when deterministic stages fail (data-driven: execute only if Phase 14 telemetry shows > 1-2% unresolved)
+
+## Phase Details
+
+### Phase 12: Correctness Fixes and DB Prerequisites
+**Goal**: Provider defects that would corrupt cascade results are eliminated and the database is prepared for fuzzy matching
+**Depends on**: Nothing (first v1.2 phase)
+**Requirements**: FIX-01, FIX-02, FIX-03, FIX-04, FUZZ-01
+**Success Criteria** (what must be TRUE):
+  1. Tiger geocode results no longer match addresses in neighboring counties — a query for a Macon-Bibb address returns only Bibb County results
+  2. A truncated 4-digit zip (e.g., "3120") resolves correctly in OA and Macon-Bibb providers via prefix fallback rather than returning NO_MATCH
+  3. A street named "Beaver Falls" (where scourgify extracts "Falls" as a suffix token) matches successfully because the query includes the suffix field
+  4. Scourgify and Tiger validation responses carry `confidence=0.5` rather than `1.0`, distinguishing structural parse from verified geocode
+  5. GIN trigram indexes exist on `openaddresses_points.street` and `nad_points.street_name` — a pg_trgm similarity query against NAD completes within 500ms
+**Plans**: TBD
+
+### Phase 13: Spell Correction and Fuzzy/Phonetic Matching
+**Goal**: Addresses with typoed or phonetically misspelled street names are recovered before they reach the cascade orchestrator
+**Depends on**: Phase 12
+**Requirements**: SPELL-01, SPELL-02, SPELL-03, FUZZ-02, FUZZ-03, FUZZ-04
+**Success Criteria** (what must be TRUE):
+  1. A street name token with a single-character typo (e.g., "Mrccer Rd" for "Mercer Rd") is corrected by SpellCorrector before scourgify normalization, and the corrected form matches at exact match
+  2. House numbers, zip codes, and state abbreviations are never altered by spell correction — only the StreetName token is touched
+  3. An address that fails all exact-match providers but has a street name within trigram similarity 0.65–0.75 of a known street returns a candidate via FuzzyMatcher
+  4. When trigram similarity is ambiguous, Double Metaphone selects the phonetically closest street name as tiebreaker
+  5. The spell correction dictionary auto-rebuilds when `load-oa`, `load-nad`, or `gis import` CLI commands complete, without requiring manual intervention
+**Plans**: TBD
+
+### Phase 14: Cascade Orchestrator and Consensus Scoring
+**Goal**: The geocoding pipeline auto-resolves degraded input into an official geocode without any caller-side changes
+**Depends on**: Phase 13
+**Requirements**: CASC-01, CASC-02, CASC-03, CASC-04, CONS-01, CONS-02, CONS-03, CONS-04, CONS-05, CONS-06
+**Success Criteria** (what must be TRUE):
+  1. A geocode request for a degraded address (typo, truncated zip, wrong suffix) returns an official geocode set automatically by the cascade — the caller sees the same response shape as a direct hit
+  2. When two or more providers agree within 100m, the cascade exits early and skips fuzzy and later stages — single-address P95 latency stays under 3 seconds
+  3. Provider results more than 1km from the winning cluster centroid are flagged as low-confidence outliers in the response
+  4. A new OfficialGeocoding record is auto-set from the consensus winner with `set_by_stage` audit metadata; an existing admin override is never overwritten
+  5. Sending `?dry_run=true` runs the full cascade and returns what would have been set without writing any OfficialGeocoding record
+  6. Disabling cascade via `CASCADE_ENABLED=false` restores the v1.1 exact-match-only behavior — no regressions on the existing test suite
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 15: LLM Sidecar
+**Goal**: Addresses that survive all deterministic cascade stages without resolution are corrected by a local LLM and re-verified before auto-set
+**Depends on**: Phase 14
+**Requirements**: LLM-01, LLM-02, LLM-03, LLM-04
+**Success Criteria** (what must be TRUE):
+  1. The Ollama service starts via Docker Compose with `CASCADE_LLM_ENABLED=true` and the qwen2.5:3b model is available without any manual pull step at startup
+  2. An address that fails exact and fuzzy match is sent to the LLM, which returns a structured JSON correction; the corrected form is then re-verified against provider databases before any geocode result is returned
+  3. An LLM suggestion that would change the state code or produce a zip/state mismatch is hard-rejected and the cascade returns NO_MATCH rather than a bad geocode
+  4. When the Ollama service is unavailable, the cascade degrades gracefully — requests complete with whatever result the deterministic stages produced, no errors surfaced to the caller
+**Plans**: TBD
+
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
@@ -49,3 +108,7 @@ Full details archived in `milestones/v1.1-ROADMAP.md`.
 | 9. Tiger Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 10. NAD Provider | v1.1 | 2/2 | Complete | 2026-03-24 |
 | 11. Fix Batch Local Serialization | v1.1 | 1/1 | Complete | 2026-03-24 |
+| 12. Correctness Fixes and DB Prerequisites | v1.2 | 0/? | Not started | - |
+| 13. Spell Correction and Fuzzy/Phonetic Matching | v1.2 | 0/? | Not started | - |
+| 14. Cascade Orchestrator and Consensus Scoring | v1.2 | 0/? | Not started | - |
+| 15. LLM Sidecar | v1.2 | 0/? | Not started | - |
