@@ -48,7 +48,7 @@ Requirements for v1.2 Cascading Address Resolution. Each maps to roadmap phases.
 - [x] **LLM-01**: Ollama + qwen2.5:3b Docker Compose service added, feature-flagged off by default (`CASCADE_LLM_ENABLED=false`)
 - [x] **LLM-02**: LLMAddressCorrector sends address to local LLM with structured JSON schema output (temperature=0) for component extraction and correction
 - [x] **LLM-03**: Every LLM-corrected address is re-verified against provider databases before use — LLM output is never used as a geocode result directly
-- [ ] **LLM-04**: K8s manifests for Ollama deployment with PVC for model storage (ArgoCD-compatible)
+- [x] **LLM-04**: K8s manifests for Ollama deployment with PVC for model storage (ArgoCD-compatible)
 
 > **Note:** LLM phase (LLM-01 through LLM-04) is executed only if Phase 14 telemetry shows > 1-2% of addresses remain unresolved after deterministic cascade stages. Otherwise deferred to v1.3.
 
@@ -104,7 +104,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | LLM-01 | Phase 15 | Complete |
 | LLM-02 | Phase 15 | Complete |
 | LLM-03 | Phase 15 | Complete |
-| LLM-04 | Phase 15 | Pending |
+| LLM-04 | Phase 15 | Complete |
 
 **Coverage:**
 - v1.2 requirements: 25 total
