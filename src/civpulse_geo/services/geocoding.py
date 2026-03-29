@@ -1,6 +1,10 @@
 """GeocodingService: cache-first geocoding orchestration layer.
 
-Implements the core geocoding pipeline:
+Implements the core geocoding pipeline with two execution paths:
+  - CASCADE_ENABLED=true: delegates to CascadeOrchestrator (Phase 14)
+  - CASCADE_ENABLED=false: runs legacy flat-loop pipeline (_legacy_geocode)
+
+Legacy pipeline (v1.1 behavior):
   1. Normalize input address and compute SHA-256 hash
   2. Find or create Address record in database
   3. Cache check — return cached results if present
@@ -21,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
+from civpulse_geo.config import settings
 from civpulse_geo.normalization import canonical_key, parse_address_components
 from civpulse_geo.providers.openaddresses import _parse_input_address
 from civpulse_geo.models.address import Address
@@ -32,6 +37,8 @@ from civpulse_geo.models.geocoding import (
 )
 from civpulse_geo.providers.base import GeocodingProvider
 from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
+from civpulse_geo.services.cascade import CascadeOrchestrator, CascadeResult
+from civpulse_geo.services.fuzzy import FuzzyMatcher
 
 
 class GeocodingService:
@@ -39,6 +46,9 @@ class GeocodingService:
 
     Designed to be instantiated per-request (stateless). All mutable state
     lives in the database session and provider registry passed at call time.
+
+    When CASCADE_ENABLED=true, delegates to CascadeOrchestrator.run() (D-02).
+    When CASCADE_ENABLED=false, uses the v1.1 flat-loop _legacy_geocode() path (D-03).
     """
 
     async def geocode(
@@ -49,8 +59,85 @@ class GeocodingService:
         http_client: httpx.AsyncClient,
         force_refresh: bool = False,
         spell_corrector: SpellCorrector | None = None,
+        fuzzy_matcher: FuzzyMatcher | None = None,
+        dry_run: bool = False,
+        trace: bool = False,
     ) -> dict:
-        """Geocode a freeform address using the cache-first pipeline.
+        """Geocode a freeform address.
+
+        Dispatches to CascadeOrchestrator when CASCADE_ENABLED=true, otherwise
+        falls back to the v1.1 legacy pipeline via _legacy_geocode().
+
+        Args:
+            freeform: Raw address string from the caller.
+            db: Async database session (from FastAPI dependency).
+            providers: Dict of provider name -> instantiated GeocodingProvider.
+            http_client: Shared httpx.AsyncClient from app.state.
+            force_refresh: If True, skip cache and call providers even if cached.
+                           Only honoured by the legacy path.
+            spell_corrector: Optional SpellCorrector for street-name correction.
+            fuzzy_matcher: Optional FuzzyMatcher for fuzzy street-name stage (cascade only).
+            dry_run: Run cascade without writing OfficialGeocoding; returns would_set_official.
+            trace: Include cascade_trace array in the response.
+
+        Returns:
+            Dict with keys:
+                address_hash (str): SHA-256 hex of the normalized address.
+                normalized_address (str): USPS-normalized address string.
+                cache_hit (bool): True if results came from cache.
+                results (list[GeocodingResultORM]): ORM rows (may be empty).
+                local_results (list[GeocodingResultSchema]): Local provider results.
+                official (GeocodingResultORM | None): The official result ORM row.
+                outlier_providers (set[str]): Provider names flagged as outliers (cascade only).
+                cascade_trace (list[dict] | None): Stage trace (cascade + trace=True only).
+                would_set_official (ProviderCandidate | None): dry_run candidate (cascade only).
+        """
+        if settings.cascade_enabled:
+            orchestrator = CascadeOrchestrator()
+            cascade_result = await orchestrator.run(
+                freeform=freeform,
+                db=db,
+                providers=providers,
+                http_client=http_client,
+                spell_corrector=spell_corrector,
+                fuzzy_matcher=fuzzy_matcher,
+                dry_run=dry_run,
+                trace=trace,
+            )
+            # Convert CascadeResult to the dict format expected by API routes
+            return {
+                "address_hash": cascade_result.address_hash,
+                "normalized_address": cascade_result.normalized_address,
+                "cache_hit": cascade_result.cache_hit,
+                "results": cascade_result.results,
+                "local_results": cascade_result.local_results,
+                "official": cascade_result.official,
+                "cascade_trace": cascade_result.cascade_trace,
+                "would_set_official": cascade_result.would_set_official,
+                "outlier_providers": cascade_result.outlier_providers,
+            }
+        else:
+            return await self._legacy_geocode(
+                freeform=freeform,
+                db=db,
+                providers=providers,
+                http_client=http_client,
+                force_refresh=force_refresh,
+                spell_corrector=spell_corrector,
+            )
+
+    async def _legacy_geocode(
+        self,
+        freeform: str,
+        db: AsyncSession,
+        providers: dict[str, GeocodingProvider],
+        http_client: httpx.AsyncClient,
+        force_refresh: bool = False,
+        spell_corrector: SpellCorrector | None = None,
+    ) -> dict:
+        """V1.1 legacy geocoding pipeline — flat provider loop without cascade.
+
+        Preserved for backward compatibility when CASCADE_ENABLED=false (D-02).
 
         Args:
             freeform: Raw address string from the caller.
