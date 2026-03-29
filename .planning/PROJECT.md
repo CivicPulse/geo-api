@@ -35,7 +35,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - [ ] Zip prefix fallback matching for truncated/mistyped zip codes in local providers
 - [ ] Fuzzy/phonetic street matching (pg_trgm, Soundex/Metaphone) as exact-match fallback
 - [ ] Spell correction layer for address input before provider dispatch
-- [ ] Local LLM sidecar for address correction/completion when deterministic methods fail
+- ✓ Local LLM sidecar for address correction/completion when deterministic methods fail — Phase 15
 - [ ] Cross-provider consensus scoring to flag outliers and weight agreement
 - [ ] Validation confidence semantics fix (structural parse ≠ address-verified)
 - [ ] Street name normalization mismatch fix for multi-word street names with USPS suffixes
@@ -130,4 +130,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 — Phase 14 complete (Cascade Orchestrator and Consensus Scoring: 6-stage cascade pipeline, greedy consensus clustering, provider trust weights, dry_run/trace modes, auto-set OfficialGeocoding with audit trail)*
+*Last updated: 2026-03-29 — Phase 15 complete (LLM Sidecar: Ollama-powered address correction via LLMAddressCorrector with temperature=0 structured JSON, zip/state guardrails, re-verification through providers, graceful degradation, Docker Compose + K8s manifests)*
