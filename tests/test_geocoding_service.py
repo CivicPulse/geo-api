@@ -1342,3 +1342,72 @@ async def test_geocode_cache_hit_returns_cached_legacy():
     assert not provider.geocode.called
     assert result["cache_hit"] is True
     assert len(result["results"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 16 Task 1: Regression test for 5-tuple unpack fix in _legacy_geocode
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_legacy_geocode_no_match_does_not_raise_value_error():
+    """_legacy_geocode must not raise ValueError when all local providers return NO_MATCH.
+
+    The warning block at geocoding.py line 214 previously unpacked _parse_input_address
+    as a 3-tuple, but the function returns a 5-tuple. This test exercises that exact
+    code path and verifies it completes without raising ValueError.
+    """
+    service = GeocodingService()
+    http_client = AsyncMock()
+
+    # Local provider that returns NO_MATCH (confidence=0.0)
+    from civpulse_geo.providers.base import GeocodingProvider
+    local_provider = AsyncMock(spec=GeocodingProvider)
+    local_provider.provider_name = "test-local"
+    local_provider.is_local = True
+    local_provider.geocode = AsyncMock(
+        return_value=ProviderResult(
+            lat=None,
+            lng=None,
+            location_type=None,
+            confidence=0.0,
+            raw_response={},
+            provider_name="test-local",
+        )
+    )
+
+    # DB: address lookup returns existing address with no cached results
+    db = AsyncMock(spec=AsyncSession)
+    db.flush = AsyncMock()
+    db.commit = AsyncMock()
+    db.add = MagicMock()
+
+    address = _make_address(address_id=1, has_results=False)
+
+    addr_scalars = MagicMock()
+    addr_scalars.first.return_value = address
+    addr_result = MagicMock()
+    addr_result.scalars.return_value = addr_scalars
+
+    # _get_official lookup -> None
+    none_scalars = MagicMock()
+    none_scalars.first.return_value = None
+    none_result = MagicMock()
+    none_result.scalars.return_value = none_scalars
+
+    db.execute = AsyncMock(side_effect=[addr_result, none_result])
+
+    # With CASCADE_ENABLED=false the legacy path is used — the 5-tuple unpack
+    # in the warning block must not raise ValueError
+    with patch("civpulse_geo.services.geocoding.settings") as mock_settings:
+        mock_settings.cascade_enabled = False
+        result = await service.geocode(
+            freeform="123 XYZZY ST MACON GA 31201",
+            db=db,
+            providers={"test-local": local_provider},
+            http_client=http_client,
+        )
+
+    # The call must not raise — and local_results must show the NO_MATCH entry
+    assert "local_results" in result
+    assert len(result["local_results"]) == 1
+    assert result["local_results"][0].confidence == 0.0

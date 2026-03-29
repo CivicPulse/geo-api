@@ -211,7 +211,7 @@ class GeocodingService:
 
         # Warn when all local providers return NO_MATCH (aids debugging data gaps)
         if local_results and all(r.confidence == 0.0 for r in local_results):
-            street_number, street_name, postal_code = _parse_input_address(normalized)
+            street_number, street_name, postal_code, _, _ = _parse_input_address(normalized)
             logger.warning(
                 "All local providers returned NO_MATCH for address: {} "
                 "(parsed: street_number={}, street_name={}, zip={}). "
