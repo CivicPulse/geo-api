@@ -74,7 +74,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
   4. All 504 test suite entries pass (or pre-existing CLI fixture failures are fixed and eliminated)
 **Plans**: 2 plans
 Plans:
-- [ ] 17-01-PLAN.md — Fix OA accuracy parser, per-provider timeouts, Tiger optimization, cascade cache-hit early exit
+- [x] 17-01-PLAN.md — Fix OA accuracy parser, per-provider timeouts, Tiger optimization, cascade cache-hit early exit
 - [ ] 17-02-PLAN.md — Spell dictionary auto-rebuild at startup
 
 ### Phase 18: Code Review
