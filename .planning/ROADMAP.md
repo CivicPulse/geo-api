@@ -101,7 +101,10 @@ Plans:
   2. Image is pushed to GHCR and pullable by the k3s cluster
   3. geo-api database exists on the shared PostgreSQL instance in both civpulse-dev and civpulse-prod namespaces, with Alembic migrations applied
   4. A test pod inside each namespace can connect to postgresql.civpulse-infra.svc.cluster.local:5432 and run a query
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 19-01-PLAN.md — Multi-stage Dockerfile, .dockerignore, docker-compose.yml update, DB provisioning SQL script
+- [ ] 19-02-PLAN.md — Build/push to GHCR, manual DB provisioning, K8s connectivity verification
 
 ### Phase 20: Health, Resilience, and K8s Manifests
 **Goal**: geo-api is deployed to both dev and prod K8s namespaces with correct probes, Ollama sidecar, graceful shutdown, and ArgoCD managing both environments
@@ -173,7 +176,7 @@ Plans:
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
 | 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
 | 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 19. Dockerfile and Database Provisioning | v1.3 | 0/TBD | Not started | - |
+| 19. Dockerfile and Database Provisioning | v1.3 | 0/2 | Planning complete | - |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |
 | 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
 | 22. Observability | v1.3 | 0/TBD | Not started | - |
