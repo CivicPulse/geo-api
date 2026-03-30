@@ -13,3 +13,6 @@ data:
   DB_POOL_SIZE: "5"
   DB_MAX_OVERFLOW: "5"
   DB_POOL_RECYCLE: "3600"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://tempo.civpulse-infra.svc.cluster.local:4317"
+  OTEL_ENABLED: "true"
+  LOG_FORMAT: "auto"

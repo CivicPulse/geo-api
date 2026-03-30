@@ -2,7 +2,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        arbitrary_types_allowed=True,
+    )
 
     database_url: str = "postgresql+asyncpg://CHANGEME:CHANGEME@localhost:5432/civpulse_geo"
     database_url_sync: str = "postgresql+psycopg2://CHANGEME:CHANGEME@localhost:5432/civpulse_geo"
@@ -31,6 +35,20 @@ class Settings(BaseSettings):
     cascade_llm_enabled: bool = False
     ollama_url: str = "http://ollama:11434"
     llm_timeout_ms: int = 5000
+
+    # Observability settings (Phase 22)
+    log_format: str = "auto"  # auto|json|text (D-01)
+    otel_enabled: bool = True
+    otel_exporter_endpoint: str = "http://tempo:4317"
+
+    @property
+    def is_json_logging(self) -> bool:
+        if self.log_format == "json":
+            return True
+        if self.log_format == "text":
+            return False
+        # auto: JSON when not local
+        return self.environment != "local"
 
     # Provider trust weights (CONS-02, D-08)
     weight_census: float = 0.90
