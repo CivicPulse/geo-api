@@ -8,7 +8,12 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from civpulse_geo.api import health, geocoding, validation
+from civpulse_geo.api.metrics import router as metrics_router
+from civpulse_geo.config import settings as _app_settings
 from civpulse_geo.database import AsyncSessionLocal
+from civpulse_geo.middleware.request_id import RequestIDMiddleware
+from civpulse_geo.observability.logging import configure_logging
+from civpulse_geo.observability.tracing import setup_tracing, teardown_tracing
 from civpulse_geo.providers.registry import load_providers
 from civpulse_geo.providers.census import CensusGeocodingProvider
 from civpulse_geo.providers.scourgify import ScourgifyValidationProvider
@@ -59,6 +64,14 @@ async def _sigterm_cleanup() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 1. Configure structured logging FIRST (before any logger.info)
+    configure_logging(_app_settings)
+
+    # 2. Set up OTel tracing (patcher already installed by configure_logging)
+    from civpulse_geo.database import engine as _async_engine
+
+    _tracer_provider = setup_tracing(app, _app_settings, _async_engine.sync_engine)
+
     logger.info("Starting CivPulse Geo API")
     app.state.http_client = httpx.AsyncClient(timeout=10.0)
     app.state.providers = load_providers({"census": CensusGeocodingProvider})
@@ -178,6 +191,9 @@ async def lifespan(app: FastAPI):
     # Install SIGTERM handler as belt-and-suspenders (D-10)
     _install_sigterm_handler()
 
+    # 3. Add request-ID middleware
+    app.add_middleware(RequestIDMiddleware)
+
     yield
 
     # Shutdown sequence (D-12): preStop sleep handled by K8s, then SIGTERM arrives,
@@ -185,6 +201,8 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down CivPulse Geo API")
     await app.state.http_client.aclose()
     logger.info("HTTP client closed")
+
+    teardown_tracing(_tracer_provider)
 
     from civpulse_geo.database import engine as _async_engine
     await _async_engine.dispose()
@@ -216,3 +234,4 @@ async def generic_exception_handler(request: Request, exc: Exception) -> JSONRes
 app.include_router(health.router)
 app.include_router(geocoding.router)
 app.include_router(validation.router)
+app.include_router(metrics_router)

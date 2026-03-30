@@ -3,9 +3,11 @@
 Configures Loguru with either a JSON sink (for K8s/production) or
 human-readable colorized output (for local development).
 
-The OTel trace_id/span_id patcher is NOT wired here -- it is added
-in Plan 02 after OTel TracerProvider is available. This module
-provides configure_logging() which is safe to call before OTel setup.
+The OTel trace_id/span_id patcher is installed by configure_logging()
+via logger.configure(patcher=_add_otel_context). The patcher reads
+get_current_span() lazily at log-emit time, so it is safe to install
+before TracerProvider is initialized (produces empty strings until a
+real span exists).
 """
 import json
 import os
@@ -13,6 +15,38 @@ import sys
 from datetime import timezone
 
 from loguru import logger
+from opentelemetry import trace as otel_trace
+from opentelemetry.trace import INVALID_SPAN_CONTEXT
+
+
+def _add_otel_context(record: dict) -> None:
+    """Patcher: inject trace_id and span_id from active OTel span.
+
+    Called by Loguru for every log record. Reads get_current_span()
+    lazily -- safe to register before TracerProvider is set up.
+    Handles INVALID_SPAN_CONTEXT gracefully (Pitfall 7).
+    """
+    span = otel_trace.get_current_span()
+    ctx = span.get_span_context()
+    if ctx and ctx != INVALID_SPAN_CONTEXT and ctx.trace_id != 0:
+        record["extra"]["trace_id"] = format(ctx.trace_id, "032x")
+        record["extra"]["span_id"] = format(ctx.span_id, "016x")
+    else:
+        record["extra"].setdefault("trace_id", "")
+        record["extra"].setdefault("span_id", "")
+
+
+def add_otel_patcher() -> None:
+    """Register the OTel context patcher with Loguru.
+
+    Call AFTER configure_logging() and AFTER logger.remove() / logger.add().
+    The patcher injects trace_id/span_id into every log record.
+
+    CRITICAL (Pitfall 2): This must be called after configure_logging()
+    has already done logger.remove() and logger.add(). The patcher
+    applies to all currently registered sinks.
+    """
+    logger.configure(patcher=_add_otel_context)
 
 
 def _json_sink(message) -> None:
@@ -37,15 +71,20 @@ def _json_sink(message) -> None:
 
 
 def configure_logging(settings) -> None:
-    """Configure Loguru with appropriate sink based on settings.
+    """Configure Loguru with appropriate sink and OTel patcher.
 
-    Must be called before any logger.info() calls in lifespan.
-    Patcher for OTel context is added separately via add_otel_patcher().
+    Order matters (Pitfall 2):
+    1. logger.remove() -- clear default handler
+    2. logger.configure(patcher=..., extra=...) -- set patcher and defaults
+    3. logger.add(...) -- add sink(s) that benefit from the patcher
+
+    The patcher reads get_current_span() lazily at emit time, so it is
+    safe to install before TracerProvider exists.
     """
-    logger.remove()  # Remove default handler
+    logger.remove()
 
-    # Bind service-level context that persists across all log calls
     logger.configure(
+        patcher=_add_otel_context,
         extra={
             "environment": settings.environment,
             "version": getattr(
@@ -55,7 +94,7 @@ def configure_logging(settings) -> None:
             "request_id": "",
             "trace_id": "",
             "span_id": "",
-        }
+        },
     )
 
     if settings.is_json_logging:
