@@ -57,7 +57,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 - [x] **Phase 18: Code Review** — Parallel security, stability, and performance audit by three independent agent teams; all blocking findings resolved (completed 2026-03-30)
 - [x] **Phase 19: Dockerfile and Database Provisioning** — Production multi-stage Docker image pushed to GHCR; dev and prod databases provisioned on shared PostgreSQL instance (completed 2026-03-30)
 - [x] **Phase 20: Health, Resilience, and K8s Manifests** — Split health endpoints, graceful shutdown, K8s Deployment with Ollama sidecar, ClusterIP Service, ArgoCD apps, and Kustomize overlays for dev and prod (completed 2026-03-30)
-- [ ] **Phase 21: CI/CD Pipeline** — GitHub Actions CI (lint + test) and CD (build + GHCR push + ArgoCD trigger) with Trivy scan; automated dev sync, manual prod gate
+- [x] **Phase 21: CI/CD Pipeline** — GitHub Actions CI (lint + test) and CD (build + GHCR push + ArgoCD trigger) with Trivy scan; automated dev sync, manual prod gate (completed 2026-03-30)
 - [ ] **Phase 22: Observability** — Structured JSON logging, Prometheus /metrics, OpenTelemetry traces exported to Tempo, and Loguru trace context middleware for Loki-to-Tempo correlation
 - [ ] **Phase 23: E2E Testing, Load Baselines, and Final Validation** — E2E suite for all 5 providers, Locust cold-cache/warm-cache baselines, observability verification under load, and a top-to-bottom validation pass that repeats until clean
 
@@ -132,8 +132,8 @@ Plans:
   3. Production deployment requires explicit manual approval (not triggered automatically on merge)
 **Plans**: 2 plans
 Plans:
-- [ ] 21-01-PLAN.md — CI workflow (ruff lint + pytest), ruff config, .trivyignore skeleton
-- [ ] 21-02-PLAN.md — CD workflow (build + scan + GHCR push + dev manifest update), production promotion workflow (v* tag)
+- [x] 21-01-PLAN.md — CI workflow (ruff lint + pytest), ruff config, .trivyignore skeleton
+- [x] 21-02-PLAN.md — CD workflow (build + scan + GHCR push + dev manifest update), production promotion workflow (v* tag)
 
 ### Phase 22: Observability
 **Goal**: Every request produces a structured JSON log entry, a Prometheus metric, and a distributed trace; logs and traces are correlated by trace_id in Grafana
@@ -185,6 +185,6 @@ Plans:
 | 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 21. CI/CD Pipeline | v1.3 | 0/2 | Not started | - |
+| 21. CI/CD Pipeline | v1.3 | 2/2 | Complete   | 2026-03-30 |
 | 22. Observability | v1.3 | 0/TBD | Not started | - |
 | 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |

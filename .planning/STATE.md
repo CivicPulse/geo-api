@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
-status: executing
-stopped_at: Phase 21 context gathered
-last_updated: "2026-03-30T04:32:41.111Z"
+status: verifying
+stopped_at: Completed 21-ci-cd-pipeline/21-02-PLAN.md
+last_updated: "2026-03-30T05:00:14.305Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 7
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 5
+  total_plans: 12
+  completed_plans: 12
   percent: 7
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 20 — health-resilience-and-k8s-manifests
+**Current focus:** Phase 21 — ci-cd-pipeline
 
 ## Current Position
 
-Phase: 21
-Plan: Not started
-Status: Ready to execute
+Phase: 21 (ci-cd-pipeline) — EXECUTING
+Plan: 2 of 2
+Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
 Progress: [█░░░░░░░░░] 7% (v1.3)
@@ -48,6 +48,8 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 | Phase 20-health-resilience-and-k8s-manifests P01 | 4min | 2 tasks | 4 files |
 | Phase 20-health-resilience-and-k8s-manifests P02 | 2min | 2 tasks | 5 files |
 | Phase 20-health-resilience-and-k8s-manifests P03 | 4min | 2 tasks | 9 files |
+| Phase 21-ci-cd-pipeline P02 | 2min | 2 tasks | 2 files |
+| Phase 21-ci-cd-pipeline P01 | 2min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -84,6 +86,12 @@ Key decisions affecting v1.3 execution:
 - [Phase 20-health-resilience-and-k8s-manifests]: model-pull skip-if-cached guard (ollama list | grep qwen2.5:3b) avoids 2GB re-download on pod restarts
 - [Phase 20-health-resilience-and-k8s-manifests]: ArgoCD Application CRs must be applied directly (kubectl apply -f) not via kustomize build — top-level namespace: field overrides Application namespace in kustomize v5.0.4 output
 - [Phase 20-health-resilience-and-k8s-manifests]: Secrets excluded from Kustomize resources per D-06/Pitfall 3 — ArgoCD selfHeal would overwrite real credentials with CHANGEME placeholders if managed via kustomize
+- [Phase 21-ci-cd-pipeline]: D-01 manifest-commit strategy: kustomize edit set image updates k8s/overlays/dev/kustomization.yaml, ArgoCD automated sync deploys
+- [Phase 21-ci-cd-pipeline]: D-09 SHA-pinned actions enforced across all workflow files (Trivy supply chain compromise mitigation, March 2026)
+- [Phase 21-ci-cd-pipeline]: Loop prevention belt-and-suspenders: paths-ignore k8s/overlays/** (primary) + [skip ci] in automated commit messages (secondary)
+- [Phase 21-ci-cd-pipeline]: All GitHub Actions pinned to full 40-char commit SHAs per D-09 (Trivy supply chain compromise March 2026)
+- [Phase 21-ci-cd-pipeline]: ci.yml uses permissions: contents: read (least-privilege per D-08); write permissions in cd.yml only
+- [Phase 21-ci-cd-pipeline]: ruff installed via astral-sh/ruff-action in CI, not as project dev dep; [tool.ruff] target-version=py312 ensures CI/local parity
 
 ### Phase Ordering Constraint
 
@@ -105,6 +113,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Phase 21 context gathered
-Resume file: .planning/phases/21-ci-cd-pipeline/21-CONTEXT.md
+Stopped at: Completed 21-ci-cd-pipeline/21-02-PLAN.md
+Resume file: None
 Next action: Phase 17 verification
