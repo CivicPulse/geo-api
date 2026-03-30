@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
-status: completed
-stopped_at: Phase 18 context gathered
-last_updated: "2026-03-29T23:57:26.281Z"
-last_activity: 2026-03-29
+status: executing
+stopped_at: Completed 18-code-review 18-02-PLAN.md
+last_updated: "2026-03-30T00:24:12.935Z"
+last_activity: 2026-03-30
 progress:
   total_phases: 7
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 5
+  completed_plans: 4
   percent: 7
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 17 — tech-debt-resolution
+**Current focus:** Phase 18 — code-review
 
 ## Current Position
 
-Phase: 18
-Plan: Not started
-Status: Phase 17 Plan 1 complete — Plan 2 pending
-Last activity: 2026-03-29
+Phase: 18 (code-review) — EXECUTING
+Plan: 3 of 3
+Status: Ready to execute
+Last activity: 2026-03-30
 
 Progress: [█░░░░░░░░░] 7% (v1.3)
 
@@ -42,6 +42,8 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 | v1.3 | 7 planned | 0/30 | In progress |
 
 *Updated after each plan completion*
+| Phase 18-code-review P02 | 3min | 2 tasks | 3 files |
+| Phase 18-code-review P01 | 3min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -65,6 +67,11 @@ Key decisions affecting v1.3 execution:
 - [CI/CD]: ArgoCD Image Updater vs. manifest-commit strategy is mutually exclusive — decision required in Phase 21 planning
 - [OTel]: opentelemetry-instrumentation-logging has no effect on Loguru — must use logger.configure(patcher=add_otel_context) custom pattern
 - [Phase 18]: Code review uses three parallel agent teams: security, stability, performance
+- [Phase 18-code-review]: TestClient(raise_server_exceptions=False) required for generic exception handler testing in Starlette 0.52 — ASGITransport ServerErrorMiddleware re-raises exceptions before handler fires
+- [Phase 18-code-review]: Per-provider try/except wraps entire remote loop body (including DB upsert) so any error during result handling also degrades gracefully (STAB-04)
+- [Phase 18-code-review]: CHANGEME placeholders in config.py defaults allow Settings() instantiation without .env while making required credentials obvious; Field(required=...) would break pytest
+- [Phase 18-code-review]: KNOWN_PROVIDERS frozenset in api/geocoding.py as module-level allowlist — O(1) check before service dispatch, sanitized error messages prevent input reflection
+- [Phase 18-code-review]: Annotated[str, Field(min_length=1, max_length=500)] for per-item constraints in Pydantic v2 list fields (batch schemas)
 
 ### Phase Ordering Constraint
 
@@ -86,6 +93,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-code-review/18-CONTEXT.md
+Stopped at: Completed 18-code-review 18-02-PLAN.md
+Resume file: None
 Next action: Phase 17 verification

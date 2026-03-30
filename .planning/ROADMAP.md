@@ -88,8 +88,8 @@ Plans:
   3. No N+1 query patterns exist in provider or pipeline code; SQLAlchemy connection pool sizing matches deployment resource limits
 **Plans**: 3 plans
 Plans:
-- [ ] 18-01-PLAN.md — Security audit: fix hardcoded credentials, add input validation constraints, provider name allowlist
-- [ ] 18-02-PLAN.md — Stability audit: add global exception handler, guard legacy provider loop
+- [x] 18-01-PLAN.md — Security audit: fix hardcoded credentials, add input validation constraints, provider name allowlist
+- [x] 18-02-PLAN.md — Stability audit: add global exception handler, guard legacy provider loop
 - [ ] 18-03-PLAN.md — Performance audit: explicit pool sizing, fix Tiger weight key mismatch, write findings report
 
 ### Phase 19: Dockerfile and Database Provisioning
@@ -172,7 +172,7 @@ Plans:
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
 | 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
-| 18. Code Review | v1.3 | 0/3 | Not started | - |
+| 18. Code Review | v1.3 | 2/3 | In Progress|  |
 | 19. Dockerfile and Database Provisioning | v1.3 | 0/TBD | Not started | - |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |
 | 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
