@@ -1,0 +1,15 @@
+# Trivy CVE Suppressions for geo-api
+# ===================================
+# This file suppresses known-unfixable CVEs in the base image (python:3.12-slim-bookworm).
+# Per D-06: each entry MUST have a comment explaining why it is ignored and when to revisit.
+#
+# Format:
+#   # CVE-XXXX-YYYYY: [Description] in [package]
+#   # Base image: python:3.12-slim-bookworm
+#   # Status: No fix available in Debian bookworm as of YYYY-MM-DD
+#   # Source: https://security.debian.org/tracker/CVE-XXXX-YYYYY
+#   # Revisit: Check debian security tracker monthly
+#   CVE-XXXX-YYYYY
+#
+# Entries will be populated after the first cd.yml workflow run identifies
+# which HIGH/CRITICAL CVEs exist in the built image.
