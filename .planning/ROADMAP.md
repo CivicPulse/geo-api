@@ -130,7 +130,10 @@ Plans:
   1. A pull request to main triggers the CI workflow (ruff lint + full pytest suite) and must pass before merge
   2. A merge to main triggers the CD workflow: Docker image built, Trivy vulnerability scan runs, image pushed to GHCR with immutable SHA tag, and ArgoCD dev sync triggered
   3. Production deployment requires explicit manual approval (not triggered automatically on merge)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 21-01-PLAN.md — CI workflow (ruff lint + pytest), ruff config, .trivyignore skeleton
+- [ ] 21-02-PLAN.md — CD workflow (build + scan + GHCR push + dev manifest update), production promotion workflow (v* tag)
 
 ### Phase 22: Observability
 **Goal**: Every request produces a structured JSON log entry, a Prometheus metric, and a distributed trace; logs and traces are correlated by trace_id in Grafana
@@ -182,6 +185,6 @@ Plans:
 | 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
+| 21. CI/CD Pipeline | v1.3 | 0/2 | Not started | - |
 | 22. Observability | v1.3 | 0/TBD | Not started | - |
 | 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |
