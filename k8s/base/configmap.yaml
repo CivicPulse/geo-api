@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geo-api-config
+data:
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "INFO"
+  OLLAMA_URL: "http://localhost:11434"
+  CASCADE_LLM_ENABLED: "false"
+  CASCADE_ENABLED: "true"
+  MAX_BATCH_SIZE: "100"
+  BATCH_CONCURRENCY_LIMIT: "10"
+  DB_POOL_SIZE: "5"
+  DB_MAX_OVERFLOW: "5"
+  DB_POOL_RECYCLE: "3600"
