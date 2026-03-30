@@ -1,0 +1,41 @@
+name: Promote to Production
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  update-prod-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: main
+
+      - name: Install kustomize
+        run: |
+          curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/v5.8.1/kustomize_v5.8.1_linux_amd64.tar.gz" | tar xz
+          sudo mv kustomize /usr/local/bin/kustomize
+
+      - name: Derive SHA tag from tagged commit
+        id: tag_sha
+        run: echo "sha=sha-$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_OUTPUT
+
+      - name: Update prod image tag
+        run: |
+          cd k8s/overlays/prod
+          kustomize edit set image ghcr.io/civicpulse/geo-api=ghcr.io/civicpulse/geo-api:${{ steps.tag_sha.outputs.sha }}
+
+      - name: Commit and push manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add k8s/overlays/prod/kustomization.yaml
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "chore(deploy): promote prod to ${{ steps.tag_sha.outputs.sha }} (${{ github.ref_name }}) [skip ci]"
+          git push origin main
