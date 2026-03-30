@@ -22,8 +22,8 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 
 ### Observability
 
-- [ ] **OBS-01**: Structured JSON logging via Loguru to stdout with per-request request_id correlation
-- [ ] **OBS-02**: Prometheus /metrics endpoint exposed for VictoriaMetrics scraping
+- [x] **OBS-01**: Structured JSON logging via Loguru to stdout with per-request request_id correlation
+- [x] **OBS-02**: Prometheus /metrics endpoint exposed for VictoriaMetrics scraping
 - [ ] **OBS-03**: OpenTelemetry traces exported via OTLP to Tempo with FastAPI/SQLAlchemy auto-instrumentation
 - [ ] **OBS-04**: Loguru trace_id/span_id injection via custom middleware for log-trace correlation in Grafana
 
@@ -118,8 +118,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPLOY-05 | Phase 20 | Complete |
 | DEPLOY-07 | Phase 20 | Complete |
 | DEPLOY-06 | Phase 21 | Complete |
-| OBS-01 | Phase 22 | Pending |
-| OBS-02 | Phase 22 | Pending |
+| OBS-01 | Phase 22 | Complete |
+| OBS-02 | Phase 22 | Complete |
 | OBS-03 | Phase 22 | Pending |
 | OBS-04 | Phase 22 | Pending |
 | TEST-01 | Phase 23 | Pending |

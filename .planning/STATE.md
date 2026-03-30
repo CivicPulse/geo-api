@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
-status: verifying
-stopped_at: Phase 22 context gathered
-last_updated: "2026-03-30T17:03:17.377Z"
+status: executing
+stopped_at: Completed 22-01-PLAN.md
+last_updated: "2026-03-30T17:30:00.513Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
   percent: 7
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 21 — ci-cd-pipeline
+**Current focus:** Phase 22 — observability
 
 ## Current Position
 
-Phase: 22
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 22 (observability) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-03-30
 
 Progress: [█░░░░░░░░░] 7% (v1.3)
@@ -50,6 +50,7 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 | Phase 20-health-resilience-and-k8s-manifests P03 | 4min | 2 tasks | 9 files |
 | Phase 21-ci-cd-pipeline P02 | 2min | 2 tasks | 2 files |
 | Phase 21-ci-cd-pipeline P01 | 2min | 2 tasks | 3 files |
+| Phase 22-observability P01 | 4min | 2 tasks | 13 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,9 @@ Key decisions affecting v1.3 execution:
 - [Phase 21-ci-cd-pipeline]: All GitHub Actions pinned to full 40-char commit SHAs per D-09 (Trivy supply chain compromise March 2026)
 - [Phase 21-ci-cd-pipeline]: ci.yml uses permissions: contents: read (least-privilege per D-08); write permissions in cd.yml only
 - [Phase 21-ci-cd-pipeline]: ruff installed via astral-sh/ruff-action in CI, not as project dev dep; [tool.ruff] target-version=py312 ensures CI/local parity
+- [Phase 22-01]: OTel patcher for trace_id/span_id deferred to Plan 02 — configure_logging() safe to call before TracerProvider is initialized
+- [Phase 22-01]: generate_latest() + plain FastAPI Response for /metrics — avoids prometheus_client.make_asgi_app() 307 redirect bug
+- [Phase 22-01]: arbitrary_types_allowed=True on SettingsConfigDict — required for @property on Pydantic v2 BaseSettings
 
 ### Phase Ordering Constraint
 
@@ -113,6 +117,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Phase 22 context gathered
-Resume file: .planning/phases/22-observability/22-CONTEXT.md
+Stopped at: Completed 22-01-PLAN.md
+Resume file: None
 Next action: Phase 17 verification
