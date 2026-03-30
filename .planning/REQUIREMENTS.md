@@ -40,9 +40,9 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 
 ### Health & Resilience
 
-- [ ] **RESIL-01**: /health/live endpoint (process-only, no DB) for K8s liveness probe
-- [ ] **RESIL-02**: /health/ready endpoint (DB + all registered providers verified) for K8s readiness probe
-- [ ] **RESIL-03**: Graceful shutdown with preStop hook and SIGTERM handling for asyncpg pool cleanup
+- [x] **RESIL-01**: /health/live endpoint (process-only, no DB) for K8s liveness probe — Phase 20
+- [x] **RESIL-02**: /health/ready endpoint (DB + all registered providers verified) for K8s readiness probe — Phase 20
+- [x] **RESIL-03**: Graceful shutdown with preStop hook and SIGTERM handling for asyncpg pool cleanup — Phase 20
 - [x] **RESIL-04**: Startup data initialization — spell dictionary rebuild and provider data verification on boot
 
 ### E2E & Load Testing
@@ -108,9 +108,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | REVIEW-03 | Phase 18 | Complete |
 | DEPLOY-01 | Phase 19 | Pending |
 | DEPLOY-08 | Phase 19 | Pending |
-| RESIL-01 | Phase 20 | Pending |
-| RESIL-02 | Phase 20 | Pending |
-| RESIL-03 | Phase 20 | Pending |
+| RESIL-01 | Phase 20 | Complete |
+| RESIL-02 | Phase 20 | Complete |
+| RESIL-03 | Phase 20 | Complete |
 | RESIL-04 | Phase 20 | Complete |
 | DEPLOY-02 | Phase 20 | Complete |
 | DEPLOY-03 | Phase 20 | Complete |
