@@ -55,7 +55,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 
 - [x] **Phase 17: Tech Debt Resolution** — Resolve all 4 known defects that corrupt runtime behavior (Tiger timeout, cache_hit hardcode, spell dictionary startup, CLI test failures) (completed 2026-03-29)
 - [x] **Phase 18: Code Review** — Parallel security, stability, and performance audit by three independent agent teams; all blocking findings resolved (completed 2026-03-30)
-- [ ] **Phase 19: Dockerfile and Database Provisioning** — Production multi-stage Docker image pushed to GHCR; dev and prod databases provisioned on shared PostgreSQL instance
+- [x] **Phase 19: Dockerfile and Database Provisioning** — Production multi-stage Docker image pushed to GHCR; dev and prod databases provisioned on shared PostgreSQL instance (completed 2026-03-30)
 - [ ] **Phase 20: Health, Resilience, and K8s Manifests** — Split health endpoints, graceful shutdown, K8s Deployment with Ollama sidecar, ClusterIP Service, ArgoCD apps, and Kustomize overlays for dev and prod
 - [ ] **Phase 21: CI/CD Pipeline** — GitHub Actions CI (lint + test) and CD (build + GHCR push + ArgoCD trigger) with Trivy scan; automated dev sync, manual prod gate
 - [ ] **Phase 22: Observability** — Structured JSON logging, Prometheus /metrics, OpenTelemetry traces exported to Tempo, and Loguru trace context middleware for Loki-to-Tempo correlation
@@ -103,7 +103,7 @@ Plans:
   4. A test pod inside each namespace can connect to postgresql.civpulse-infra.svc.cluster.local:5432 and run a query
 **Plans**: 2 plans
 Plans:
-- [ ] 19-01-PLAN.md — Multi-stage Dockerfile, .dockerignore, docker-compose.yml update, DB provisioning SQL script
+- [x] 19-01-PLAN.md — Multi-stage Dockerfile, .dockerignore, docker-compose.yml update, DB provisioning SQL script
 - [ ] 19-02-PLAN.md — Build/push to GHCR, manual DB provisioning, K8s connectivity verification
 
 ### Phase 20: Health, Resilience, and K8s Manifests
@@ -176,7 +176,7 @@ Plans:
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
 | 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
 | 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 19. Dockerfile and Database Provisioning | v1.3 | 0/2 | Planning complete | - |
+| 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |
 | 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
 | 22. Observability | v1.3 | 0/TBD | Not started | - |
