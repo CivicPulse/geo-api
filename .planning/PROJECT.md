@@ -38,7 +38,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - [ ] K8s deployment to civpulse-dev and civpulse-prod (internal ClusterIP only)
 - [ ] Ollama LLM sidecar in both environments
 - [ ] Database provisioning (dev + prod)
-- [ ] CI/CD pipeline (GitHub Actions → GHCR → ArgoCD)
+- [x] CI/CD pipeline (GitHub Actions → GHCR → ArgoCD)
 - [ ] E2E testing of all 5 providers in deployed prod
 - [ ] Performance/load baselines and scaling validation
 - [ ] Monitoring/logging validation under load
@@ -84,6 +84,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - ✓ Health probes (/health/live liveness, /health/ready readiness with DB + provider threshold) — v1.3, Phase 20
 - ✓ Graceful shutdown with engine disposal, SIGTERM handler, preStop hook — v1.3, Phase 20
 - ✓ K8s Kustomize base + overlays (dev/prod) with native Ollama sidecar, init containers, ArgoCD CRs — v1.3, Phase 20
+- ✓ CI/CD pipeline: GitHub Actions CI gate (ruff + pytest), CD (Docker build → Trivy scan → GHCR push → ArgoCD dev deploy), production promotion via git tag — v1.3, Phase 21
 
 ### Out of Scope
 
@@ -173,4 +174,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 20 complete*
+*Last updated: 2026-03-30 after Phase 21 complete*
