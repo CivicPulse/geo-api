@@ -11,8 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from httpx import AsyncClient, ASGITransport
 
 from civpulse_geo.main import app
-from civpulse_geo.database import get_db
-from civpulse_geo.schemas.geocoding import GeocodeResponse
+
+# Alias for cascade tests (Phase 14 section uses _api_patch name)
+_api_patch = patch
 
 
 TEST_ADDRESS = "4600 Silver Hill Rd Washington DC 20233"
@@ -347,11 +348,6 @@ async def test_get_provider_not_found(patched_app_state):
 # Phase 14: Cascade API integration tests (CASC-01, CONS-03, CONS-06)
 # ---------------------------------------------------------------------------
 
-from unittest.mock import patch as _api_patch
-from civpulse_geo.config import settings as _api_settings
-from civpulse_geo.services.cascade import CascadeResult
-from civpulse_geo.models.address import Address as _Address
-
 
 def _make_cascade_geocode_result(
     address_hash="a" * 64,
@@ -560,3 +556,75 @@ async def test_geocode_passes_trace_to_service(patched_app_state):
 
     call_kwargs = mock_geocode.call_args.kwargs
     assert call_kwargs.get("trace") is True
+
+
+# ---------------------------------------------------------------------------
+# Phase 18: Security regression tests (SEC-02, SEC-03, SEC-04)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_geocode_rejects_oversized_address(test_client, override_db):
+    """SEC-02: Address > 500 chars rejected at schema level."""
+    long_address = "A" * 501
+    resp = await test_client.post("/geocode", json={"address": long_address})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_geocode_rejects_empty_address(test_client, override_db):
+    """SEC-02: Empty string address rejected at schema level."""
+    resp = await test_client.post("/geocode", json={"address": ""})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_set_official_rejects_out_of_range_latitude(test_client, override_db):
+    """SEC-03: latitude=91.0 rejected at schema level."""
+    resp = await test_client.put("/geocode/abc123/official", json={"latitude": 91.0, "longitude": 0.0})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_set_official_rejects_out_of_range_longitude(test_client, override_db):
+    """SEC-03: longitude=-181.0 rejected at schema level."""
+    resp = await test_client.put("/geocode/abc123/official", json={"latitude": 0.0, "longitude": -181.0})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_set_official_accepts_boundary_values(test_client, override_db):
+    """SEC-03: lat=-90, lng=180 are valid boundary values — NOT rejected as 422."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.set_official",
+        new_callable=AsyncMock,
+        side_effect=ValueError("Address not found"),
+    ):
+        resp = await test_client.put("/geocode/abc123/official", json={"latitude": -90.0, "longitude": 180.0})
+    # Should be 404 (hash not found) or 200 — NOT 422
+    assert resp.status_code != 422
+
+
+@pytest.mark.asyncio
+async def test_get_provider_rejects_unknown_provider(test_client, override_db):
+    """SEC-04: Unknown provider_name returns 404 with sanitized message."""
+    resp = await test_client.get("/geocode/abc123/providers/not_a_real_provider")
+    assert resp.status_code == 404
+    assert "Unknown provider" in resp.json()["detail"]
+    # Verify user input is NOT reflected back
+    assert "not_a_real_provider" not in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_get_provider_allows_known_provider(test_client, override_db):
+    """SEC-04: Known provider passes allowlist (may 404 on hash, but NOT on provider name)."""
+    with patch(
+        "civpulse_geo.services.geocoding.GeocodingService.get_by_provider",
+        new_callable=AsyncMock,
+        side_effect=ValueError("No result from provider 'census' for this address"),
+    ):
+        resp = await test_client.get("/geocode/abc123/providers/census")
+    # Should be 404 (hash not found) or 200 — NOT blocked by allowlist
+    # The response may contain "No result found" but should not say "Unknown provider"
+    if resp.status_code == 404:
+        assert "Unknown provider" not in resp.json()["detail"]

@@ -11,11 +11,8 @@ Tests verify:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from httpx import AsyncClient, ASGITransport
 
 from civpulse_geo.main import app
-from civpulse_geo.database import get_db
-from civpulse_geo.providers.schemas import ValidationResult as ValidationResultSchema
 
 
 def _make_mock_validation_orm_row(
@@ -223,3 +220,24 @@ async def test_validate_response_structure(test_client, override_db, mock_db_ses
     assert "confidence" in candidate
     assert "delivery_point_verified" in candidate
     assert "provider_name" in candidate
+
+
+# ---------------------------------------------------------------------------
+# Phase 18: Security regression tests (SEC-02)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_validate_rejects_oversized_freeform_address(test_client, override_db):
+    """SEC-02: Freeform address > 500 chars rejected at schema level."""
+    long_address = "A" * 501
+    resp = await test_client.post("/validate", json={"address": long_address})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_validate_rejects_oversized_street(test_client, override_db):
+    """SEC-02: Street field > 200 chars rejected at schema level."""
+    long_street = "A" * 201
+    resp = await test_client.post("/validate", json={"street": long_street})
+    assert resp.status_code == 422
