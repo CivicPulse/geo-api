@@ -116,7 +116,11 @@ Plans:
   3. Spell dictionary rebuilds and provider data verifies automatically during pod startup (no manual CLI step needed post-deploy)
   4. Sending SIGTERM to the pod results in graceful shutdown — in-flight requests complete, asyncpg pool closes cleanly, pod terminates without error
   5. ArgoCD shows both dev and prod applications in Synced/Healthy state
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 20-01-PLAN.md — Health endpoints (/health/live, /health/ready), graceful shutdown with engine disposal and SIGTERM handler
+- [ ] 20-02-PLAN.md — Kustomize base manifests (Deployment with sidecar + init containers, Service, ConfigMap, PVC)
+- [ ] 20-03-PLAN.md — Kustomize overlays for dev/prod, ArgoCD Application CRs, remove old Ollama manifests
 
 ### Phase 21: CI/CD Pipeline
 **Goal**: Every merge to main automatically builds, scans, and publishes a new image and triggers ArgoCD to deploy to dev; prod requires a manual promotion
@@ -177,7 +181,7 @@ Plans:
 | 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
 | 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
-| 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |
+| 20. Health, Resilience, and K8s Manifests | v1.3 | 0/3 | Planned | - |
 | 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
 | 22. Observability | v1.3 | 0/TBD | Not started | - |
 | 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |
