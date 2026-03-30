@@ -1,7 +1,8 @@
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 from civpulse_geo.api import health, geocoding, validation
@@ -162,6 +163,22 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Catch-all handler: converts unhandled exceptions to structured 500 JSON.
+
+    Prevents raw tracebacks from reaching the client (STAB-01, STAB-02).
+    Specific exception types (ValueError -> 404, ProviderError -> 422)
+    are still caught by individual endpoints before this handler fires.
+    """
+    logger.error("Unhandled exception on {}: {}", request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
+
 
 app.include_router(health.router)
 app.include_router(geocoding.router)

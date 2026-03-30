@@ -37,7 +37,7 @@ from civpulse_geo.models.geocoding import (
 )
 from civpulse_geo.providers.base import GeocodingProvider
 from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
-from civpulse_geo.services.cascade import CascadeOrchestrator, CascadeResult
+from civpulse_geo.services.cascade import CascadeOrchestrator
 from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.services.llm_corrector import LLMAddressCorrector
 
@@ -212,10 +212,14 @@ class GeocodingService:
         # Step 3a: Always call local providers (bypass DB write; results never cached)
         local_results: list[GeocodingResultSchema] = []
         for provider_name, provider in local_providers.items():
-            provider_result = await provider.geocode(
-                normalized, http_client=http_client
-            )
-            local_results.append(provider_result)
+            try:
+                provider_result = await provider.geocode(
+                    normalized, http_client=http_client
+                )
+                local_results.append(provider_result)
+            except Exception as e:
+                logger.warning("Legacy path: provider {} failed: {}", provider_name, e)
+                continue
 
         # Warn when all local providers return NO_MATCH (aids debugging data gaps)
         if local_results and all(r.confidence == 0.0 for r in local_results):
@@ -248,67 +252,71 @@ class GeocodingService:
         # Step 4: Call remote providers on cache miss
         new_results: list[GeocodingResultORM] = []
         for provider_name, provider in remote_providers.items():
-            provider_result = await provider.geocode(
-                normalized, http_client=http_client
-            )
-
-            # Step 5: Upsert into geocoding_results
-            # For NO_MATCH results, store null location_type and null geometry
-            is_match = provider_result.confidence > 0.0
-
-            location_type_value = None
-            if is_match:
-                # "RANGE_INTERPOLATED" matches LocationType enum value
-                location_type_value = provider_result.location_type
-
-            ewkt_point = None
-            latitude = None
-            longitude = None
-            if is_match:
-                # WKT convention: POINT(lng lat) — longitude first
-                ewkt_point = (
-                    f"SRID=4326;POINT({provider_result.lng} {provider_result.lat})"
+            try:
+                provider_result = await provider.geocode(
+                    normalized, http_client=http_client
                 )
-                latitude = provider_result.lat
-                longitude = provider_result.lng
 
-            stmt = (
-                pg_insert(GeocodingResultORM)
-                .values(
-                    address_id=address.id,
-                    provider_name=provider_name,
-                    location=ewkt_point,
-                    latitude=latitude,
-                    longitude=longitude,
-                    location_type=location_type_value,
-                    confidence=provider_result.confidence,
-                    raw_response=provider_result.raw_response,
-                )
-                .on_conflict_do_update(
-                    constraint="uq_geocoding_address_provider",
-                    set_={
-                        "location": ewkt_point,
-                        "latitude": latitude,
-                        "longitude": longitude,
-                        "location_type": location_type_value,
-                        "confidence": provider_result.confidence,
-                        "raw_response": provider_result.raw_response,
-                    },
-                )
-                .returning(GeocodingResultORM.id)
-            )
-            upsert_result = await db.execute(stmt)
-            result_id = upsert_result.scalar_one()
+                # Step 5: Upsert into geocoding_results
+                # For NO_MATCH results, store null location_type and null geometry
+                is_match = provider_result.confidence > 0.0
 
-            # Re-query to get full ORM object for response
-            orm_row_result = await db.execute(
-                select(GeocodingResultORM).where(
-                    GeocodingResultORM.id == result_id
+                location_type_value = None
+                if is_match:
+                    # "RANGE_INTERPOLATED" matches LocationType enum value
+                    location_type_value = provider_result.location_type
+
+                ewkt_point = None
+                latitude = None
+                longitude = None
+                if is_match:
+                    # WKT convention: POINT(lng lat) — longitude first
+                    ewkt_point = (
+                        f"SRID=4326;POINT({provider_result.lng} {provider_result.lat})"
+                    )
+                    latitude = provider_result.lat
+                    longitude = provider_result.lng
+
+                stmt = (
+                    pg_insert(GeocodingResultORM)
+                    .values(
+                        address_id=address.id,
+                        provider_name=provider_name,
+                        location=ewkt_point,
+                        latitude=latitude,
+                        longitude=longitude,
+                        location_type=location_type_value,
+                        confidence=provider_result.confidence,
+                        raw_response=provider_result.raw_response,
+                    )
+                    .on_conflict_do_update(
+                        constraint="uq_geocoding_address_provider",
+                        set_={
+                            "location": ewkt_point,
+                            "latitude": latitude,
+                            "longitude": longitude,
+                            "location_type": location_type_value,
+                            "confidence": provider_result.confidence,
+                            "raw_response": provider_result.raw_response,
+                        },
+                    )
+                    .returning(GeocodingResultORM.id)
                 )
-            )
-            orm_row = orm_row_result.scalars().first()
-            if orm_row:
-                new_results.append(orm_row)
+                upsert_result = await db.execute(stmt)
+                result_id = upsert_result.scalar_one()
+
+                # Re-query to get full ORM object for response
+                orm_row_result = await db.execute(
+                    select(GeocodingResultORM).where(
+                        GeocodingResultORM.id == result_id
+                    )
+                )
+                orm_row = orm_row_result.scalars().first()
+                if orm_row:
+                    new_results.append(orm_row)
+            except Exception as e:
+                logger.warning("Legacy path: provider {} failed: {}", provider_name, e)
+                continue
 
         # Step 6: Auto-set OfficialGeocoding on first successful remote match
         # Local results have no ORM row and cannot be referenced by geocoding_result_id
