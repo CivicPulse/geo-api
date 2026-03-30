@@ -74,6 +74,12 @@ Provide a single, reliable source of geocoded and validated address data across 
 - ✓ Validation confidence semantics fix (structural parse ≠ address-verified) — v1.2, Phase 12
 - ✓ Street name normalization mismatch fix for multi-word street names with USPS suffixes — v1.2, Phase 12
 
+### Validated (v1.3)
+
+- ✓ Security audit — no hardcoded credentials, input validation on all external inputs, provider allowlist — v1.3, Phase 18
+- ✓ Stability audit — global exception handler, per-provider error isolation in legacy path — v1.3, Phase 18
+- ✓ Performance audit — explicit connection pool sizing, corrected provider weight mapping — v1.3, Phase 18
+
 ### Out of Scope
 
 - International addresses — US only for v1
