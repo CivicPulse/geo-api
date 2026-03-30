@@ -1,17 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Production Readiness & Deployment
-status: verifying
-stopped_at: Phase 19 context gathered
-last_updated: "2026-03-30T01:23:25.585Z"
-last_activity: 2026-03-30
-progress:
-  total_phases: 7
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
-  percent: 7
+milestone: v1.0
+milestone_name: milestone
+status: Milestone v1.2 shipped — ready for next milestone
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-03-30T01:48:46.053Z"
+last_activity: 2026-03-29
 ---
 
 # Project State
@@ -21,30 +15,37 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 18 — code-review
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 19
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-30
+Phase: —
+Plan: —
+Status: Milestone v1.2 shipped — ready for next milestone
+Last activity: 2026-03-29
 
-Progress: [█░░░░░░░░░] 7% (v1.3)
+```
+v1.2 Progress: [██████████] 5/5 phases — SHIPPED
+```
 
 ## Performance Metrics
 
-| Milestone | Phases | Requirements | Notes |
-|-----------|--------|--------------|-------|
-| v1.0 | 6 | 26/26 | Shipped 2026-03-19 |
-| v1.1 | 5 | 6/6 | Shipped 2026-03-29 |
-| v1.2 | 5 | 25/25 | Shipped 2026-03-29 |
-| v1.3 | 7 planned | 0/30 | In progress |
-
-*Updated after each plan completion*
-| Phase 18-code-review P02 | 3min | 2 tasks | 3 files |
-| Phase 18-code-review P01 | 3min | 2 tasks | 10 files |
-| Phase 18-code-review P03 | 10min | 2 tasks | 6 files |
+| Metric | v1.0 | v1.1 | v1.2 |
+|--------|------|------|------|
+| Requirements | 26/26 | 6/6 | 0/25 |
+| Phases | 6 | 5 | 0/4 |
+| Tests | 179 | 379 | - |
+| Phase 12-correctness-fixes-and-db-prerequisites P01 | 470 | 2 tasks | 6 files |
+| Phase 12-correctness-fixes-and-db-prerequisites P02 | 15 | 2 tasks | 5 files |
+| Phase 13-spell-correction-and-fuzzy-phonetic-matching P01 | 7 | 3 tasks | 11 files |
+| Phase 13-spell-correction-and-fuzzy-phonetic-matching P02 | 9 | 2 tasks | 3 files |
+| Phase 14-cascade-orchestrator-and-consensus-scoring P02 | 6min | 1 tasks | 2 files |
+| Phase 14-cascade-orchestrator-and-consensus-scoring P03 | 7 | 3 tasks | 4 files |
+| Phase 15-llm-sidecar P01 | 12 | 1 tasks | 3 files |
+| Phase 15-llm-sidecar P03 | 8 | 2 tasks | 5 files |
+| Phase 15-llm-sidecar P02 | 6min | 2 tasks | 5 files |
+| Phase 16-audit-gap-closure P01 | 15min | 3 tasks | 4 files |
+| Phase 19-dockerfile-and-database-provisioning P01 | 3min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -52,50 +53,66 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
-Key decisions affecting v1.3 execution:
+- [Phase 12]: _parse_input_address 5-tuple: street_suffix and street_directional added at positions 4 and 5; suffix condition uses tuple unpacking in WHERE clause so it is omitted when None
+- [Phase 12]: ZIP prefix ordering uses lexicographic .asc() on zip column rather than integer math; progressive fallback tries 4-digit prefix then 3-digit
+- [Phase 12]: COUNTY_CONTAINS_SQL uses ST_Transform to convert WGS84 geocode result to NAD83 before ST_Contains check against tiger.county
+- [Phase 12]: SCOURGIFY_CONFIDENCE=0.3 and TIGER_VALIDATION_CONFIDENCE=0.4 replace hardcoded 1.0 — parse-only providers mislead consensus scoring if confidence is too high (D-09, D-10)
+- [Phase 13]: symspellpy Verbosity.TOP returns single top candidate per token; tokens < 4 chars bypass correction to avoid over-correcting short street names
+- [Phase 13]: rebuild_dictionary uses TRUNCATE + unnest(string_to_array) for per-word tokenization; Tiger featnames included with bare except guard (SPELL-02)
+- [Phase 13]: SpellCorrector uses sync engine at API startup for SymSpell.create_dictionary_entry (D-09); graceful fallback sets app.state.spell_corrector = None on error
+- [Phase 13]: UNION ALL across OA/NAD/Macon-Bibb staging tables in single query (D-06) for FuzzyMatcher
+- [Phase 13]: dmetaphone() SQL tiebreaker as second query when candidates within 0.05 gap (D-12)
+- [Phase 13]: Calibration corpus uses mock session for CI-compatible D-15 regression testing
+- [Phase 14-02]: official_loaded flag prevents double _get_official() call when admin override blocks auto-set
+- [Phase 14-02]: best_candidate selected as cluster member closest to weighted centroid (not first/highest-weight)
+- [Phase 14]: patch settings via civpulse_geo.services.geocoding.settings (not the module directly) for test isolation
+- [Phase 14]: outlier_providers defaults to empty set() in legacy path result dict to avoid KeyError in API
+- [Phase 15-llm-sidecar]: Direct httpx for Ollama client — reuses existing AsyncClient, no new dependency, full timeout control
+- [Phase 15-llm-sidecar]: POST timeout 6.0s (above 5s asyncio.wait_for) lets wait_for handle cancellation cleanly
+- [Phase 15-llm-sidecar]: _ZIP_FIRST_DIGIT_STATES hardcoded dict covers all 50 states plus territories — complete guardrail coverage, zero dependencies
+- [Phase 15-llm-sidecar]: Docker Compose profiles (profiles: [llm]) for optional Ollama activation — avoids 2GB model download for devs not using LLM
+- [Phase 15-llm-sidecar]: K8s initContainer pulls qwen2.5:3b before main container starts — model warm on first request
+- [Phase 15-llm-sidecar]: No CPU limit in K8s or Docker (D-11) — LLM inference is CPU-bursty; limits cause starvation
+- [Phase 15-llm-sidecar]: is_llm_corrected check precedes is_fuzzy in set_by_stage — LLM stage is more specific than fuzzy and takes priority in set_by_stage labeling
+- [Phase 16]: FuzzyMatcher wiring placed after spell_corrector block, before LLM corrector block — no try/except needed since init only stores session_factory
+- [Phase 16]: 5-tuple discard pattern (_, _) used for street_suffix and street_directional in legacy geocode warning block — not needed in log message
+- [Phase 19-01]: Multi-stage Dockerfile: python:3.12-slim-bookworm builder+runtime; uv --no-editable for portable .venv
+- [Phase 19-01]: provision-db.sql uses \gexec pattern for idempotent CREATE DATABASE outside transaction block
 
-- [Phase 17-tech-debt-resolution]: DEBT-03: Only auto-rebuild when spell_dictionary is empty — never TRUNCATE on every restart (D-08)
-- [Phase 17-tech-debt-resolution]: DEBT-03: Only rebuild when staging tables have data — skip with warning when no source data (D-07)
+### Phase Ordering Notes
 
-- [Phase 17-01]: DEBT-04: accuracy parser uses None default (not 'parcel') — empty string from OA features must not become a fake accuracy value
-- [Phase 17-01]: DEBT-01: tiger_timeout_ms=3000 separate from exact_match_timeout_ms=2000 — PostGIS geocode() needs more time than HTTP providers
-- [Phase 17-01]: DEBT-01: _timeout_map dict inside _call_provider — reads current settings at call time for test patchability
-- [Phase 17-01]: DEBT-02: selectinload(Address.geocoding_results) in Stage 1 query — required for cache detection without N+1 lazy load
-- [Phase 17-01]: DEBT-02: would_set_official wired from consensus winning cluster best candidate on cache hit — D-05 retroactive provider weight changes
-- [Infra]: Ollama sidecar (not standalone Deployment) — shares Pod network, httpx to localhost:11434
-- [Infra]: No transaction-mode PgBouncer assumed — must confirm in Phase 19 or set prepared_statement_cache_size=0
-- [Infra]: k3s StorageClass for Ollama PVC assumed to be local-path — verify with kubectl get storageclass in Phase 19
-- [CI/CD]: ArgoCD Image Updater vs. manifest-commit strategy is mutually exclusive — decision required in Phase 21 planning
-- [OTel]: opentelemetry-instrumentation-logging has no effect on Loguru — must use logger.configure(patcher=add_otel_context) custom pattern
-- [Phase 18]: Code review uses three parallel agent teams: security, stability, performance
-- [Phase 18-code-review]: TestClient(raise_server_exceptions=False) required for generic exception handler testing in Starlette 0.52 — ASGITransport ServerErrorMiddleware re-raises exceptions before handler fires
-- [Phase 18-code-review]: Per-provider try/except wraps entire remote loop body (including DB upsert) so any error during result handling also degrades gracefully (STAB-04)
-- [Phase 18-code-review]: CHANGEME placeholders in config.py defaults allow Settings() instantiation without .env while making required credentials obvious; Field(required=...) would break pytest
-- [Phase 18-code-review]: KNOWN_PROVIDERS frozenset in api/geocoding.py as module-level allowlist — O(1) check before service dispatch, sanitized error messages prevent input reflection
-- [Phase 18-code-review]: Annotated[str, Field(min_length=1, max_length=500)] for per-item constraints in Pydantic v2 list fields (batch schemas)
-- [Phase 18-code-review]: PERF-01: db_pool_size=5, db_max_overflow=5 (max 10 connections per worker) — within PostgreSQL default 100 max_connections for single-replica K8s deployment
-- [Phase 18-code-review]: PERF-06: weight_map now uses 'postgis_tiger' and 'national_address_database' matching main.py registration — old 'tiger'/'nad' aliases removed; pool_pre_ping hardcoded True in database.py
-
-### Phase Ordering Constraint
-
-17 (debt) → 18 (review) → 19 (Dockerfile + DB) → 20 (health + K8s manifests) → 21 (CI/CD) → 22 (observability) → 23 (E2E + validation)
-
-Each phase is a hard gate for the next. Infrastructure prerequisites (DNS, DB connectivity) validated in Phase 19 before any pod deployment.
+- Phase 12 is a hard prerequisite for all v1.2 phases: Tiger wrong-county bug and confidence semantics corruption must be fixed before any cascade auto-set logic is built
+- Phase 13 (spell correction + fuzzy) depends on Phase 12 GIN indexes existing and normalization being consistent on both sides of the comparison
+- Phase 14 (orchestrator + consensus) depends on Phase 13 components existing so the orchestrator has meaningful fuzzy results to score
+- Phase 15 (LLM sidecar) is data-driven: execute only if Phase 14 telemetry shows > 1-2% of addresses remain unresolved after deterministic stages
 
 ### Pending Todos
 
 None.
 
-### Blockers/Concerns (Carry Forward from v1.2)
+### Blockers/Concerns (Carry Forward)
 
-- Tiger 2000ms timeout under load — RESOLVED by Phase 17 Plan 1 (DEBT-01)
-- cache_hit hardcoded False — RESOLVED by Phase 17 Plan 1 (DEBT-02)
-- OA accuracy empty string defaulting to 'parcel' — RESOLVED by Phase 17 Plan 1 (DEBT-04)
-- Spell dictionary empty at startup — addressed in Phase 17 Plan 2 (DEBT-03)
+- Google Maps excluded — ToS incompatible with caching model (moved to Out of Scope)
+- VAL-06 delivery_point_verified is always False with scourgify — real DPV needs a paid USPS API adapter (v1.3 candidate)
+- Tiger wrong-county bug is a hard gate: Tiger results must not contribute to auto-set logic until FIX-01 (restrict_region) is deployed and verified
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260324-lqg | fix Tiger extension check predicate | 2026-03-24 | 86ef71b | [260324-lqg-fix-tiger-extension-check-predicate](./quick/260324-lqg-fix-tiger-extension-check-predicate/) |
+| 260324-m7o | add debugpy support to Docker dev setup | 2026-03-24 | a437ca3 | [260324-m7o-modify-the-entrypoint-to-optionally-star](./quick/260324-m7o-modify-the-entrypoint-to-optionally-star/) |
+| 260324-n1e | write comprehensive README.md | 2026-03-24 | d07da6b | [260324-n1e-create-a-well-formatted-and-visually-ple](./quick/260324-n1e-create-a-well-formatted-and-visually-ple/) |
+| 260324-n3c | create Postman collection for all 8 API endpoints | 2026-03-24 | e464ddb | [260324-n3c-create-a-postman-config-that-can-test-al](./quick/260324-n3c-create-a-postman-config-that-can-test-al/) |
+| 260325-0pw | add OpenAddresses parcel boundary staging table and CLI command | 2026-03-25 | fcc0de9 | [260325-0pw-add-openaddresses-parcel-boundary-stagin](./quick/260325-0pw-add-openaddresses-parcel-boundary-stagin/) |
+| 260325-0th | add 4th local geocoder using Macon-Bibb County GIS address points | 2026-03-25 | a99a45d | [260325-0th-add-4th-local-geocoder-using-macon-bibb-](./quick/260325-0th-add-4th-local-geocoder-using-macon-bibb-/) |
+| 260329-2zn | complete local dev env setup with all 5 providers registered | 2026-03-29 | c7ac438 | [260329-2zn-start-a-local-dev-env-ensure-all-5-provi](./quick/260329-2zn-start-a-local-dev-env-ensure-all-5-provi/) |
+| 260329-q2v | test cascade pipeline with 4 degraded addresses; fix VARCHAR(2) crash + fuzzy ST_Y cast | 2026-03-29 | 06dfe1e | [260329-q2v-test-geocoding-providers-and-ai-with-exa](./quick/260329-q2v-test-geocoding-providers-and-ai-with-exa/) |
+| 260329-qm8 | re-run cascade trace for 4 addresses; delta: Tiger now times out vs. prior wrong-county outliers | 2026-03-29 | 5d67294 | [260329-qm8-test-geocoding-providers-and-ai-with-exa](./quick/260329-qm8-test-geocoding-providers-and-ai-with-exa/) |
 
 ## Session Continuity
 
-Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Phase 19 context gathered
-Resume file: .planning/phases/19-dockerfile-and-database-provisioning/19-CONTEXT.md
-Next action: Phase 17 verification
+Last activity: 2026-03-29 — Milestone v1.2 archived
+Stopped at: Completed 19-01-PLAN.md
+Resume file: None
+Next action: `/gsd:new-milestone`

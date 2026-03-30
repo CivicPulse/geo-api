@@ -22,3 +22,12 @@ htmlcov/
 # Editor
 .vscode/
 .idea/
+
+# Large Tiger data files (mounted as a volume at runtime)
+tiger-data/
+
+# Screenshot artifacts
+screenshots/
+
+# SQL backup files
+*.sql.bak
