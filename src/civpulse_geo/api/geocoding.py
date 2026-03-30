@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from civpulse_geo.config import settings
 from civpulse_geo.database import get_db
+from civpulse_geo.observability.metrics import GEO_BATCH_SIZE
 from civpulse_geo.schemas.geocoding import (
     GeocodeRequest,
     GeocodeResponse,
@@ -364,6 +365,7 @@ async def batch_geocode(
     if not body.addresses:
         return BatchGeocodeResponse(total=0, succeeded=0, failed=0, results=[])
 
+    GEO_BATCH_SIZE.observe(len(body.addresses))
     semaphore = asyncio.Semaphore(settings.batch_concurrency_limit)
     service = GeocodingService()
     spell_corrector = getattr(request.app.state, "spell_corrector", None)

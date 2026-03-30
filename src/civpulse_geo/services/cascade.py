@@ -26,12 +26,22 @@ from typing import Any
 
 import httpx
 from loguru import logger
+from opentelemetry import trace as otel_trace
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import selectinload
 
 from civpulse_geo.config import settings
+from civpulse_geo.observability.metrics import (
+    GEO_CACHE_HITS_TOTAL,
+    GEO_CACHE_MISSES_TOTAL,
+    GEO_CASCADE_STAGES_USED,
+    GEO_LLM_CORRECTIONS_TOTAL,
+    GEO_LLM_DURATION,
+    GEO_PROVIDER_DURATION,
+    GEO_PROVIDER_REQUESTS_TOTAL,
+)
 from civpulse_geo.models.address import Address
 from civpulse_geo.services.llm_corrector import (
     LLMAddressCorrector,
@@ -48,6 +58,9 @@ from civpulse_geo.providers.openaddresses import _parse_input_address
 from civpulse_geo.providers.schemas import GeocodingResult as GeocodingResultSchema
 from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.spell.corrector import SpellCorrector
+
+# Module-level OTel tracer — initialized once at import time (D-03)
+_tracer = otel_trace.get_tracer("civpulse-geo")
 
 
 # ---------------------------------------------------------------------------
@@ -284,57 +297,61 @@ class CascadeOrchestrator:
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
-        if spell_corrector is not None:
-            from civpulse_geo.services.geocoding import GeocodingService
-            freeform = GeocodingService._apply_spell_correction(freeform, spell_corrector)
+        with _tracer.start_as_current_span("cascade.normalize") as span:
+            span.set_attribute("stage", "normalize")
 
-        normalized, address_hash = canonical_key(freeform)
+            if spell_corrector is not None:
+                from civpulse_geo.services.geocoding import GeocodingService
+                freeform = GeocodingService._apply_spell_correction(freeform, spell_corrector)
 
-        # Find or create Address record
-        addr_result = await db.execute(
-            select(Address)
-            .options(selectinload(Address.geocoding_results))
-            .where(Address.address_hash == address_hash)
-        )
-        address = addr_result.scalars().first()
+            normalized, address_hash = canonical_key(freeform)
+            span.set_attribute("address_hash", address_hash)
 
-        if address is None:
-            components = parse_address_components(freeform)
-            # Guard component values against DB column width constraints.
-            # Malformed addresses (e.g., zero-for-O substitutions, missing
-            # commas) can cause the parser to misidentify city/state fields.
-            # Clamping prevents StringDataRightTruncationError on flush.
-            raw_state = components.get("state")
-            safe_state = raw_state if (raw_state and len(raw_state) <= 2) else None
-            raw_zip = components.get("zip_code")
-            safe_zip = raw_zip if (raw_zip and len(raw_zip) <= 5) else None
-            address = Address(
-                original_input=freeform,
-                normalized_address=normalized,
-                address_hash=address_hash,
-                street_number=components.get("street_number"),
-                street_name=components.get("street_name"),
-                street_suffix=components.get("street_suffix"),
-                street_predirection=components.get("street_predirection"),
-                street_postdirection=components.get("street_postdirection"),
-                unit_type=components.get("unit_type"),
-                unit_number=components.get("unit_number"),
-                city=components.get("city"),
-                state=safe_state,
-                zip_code=safe_zip,
+            # Find or create Address record
+            addr_result = await db.execute(
+                select(Address)
+                .options(selectinload(Address.geocoding_results))
+                .where(Address.address_hash == address_hash)
             )
-            db.add(address)
-            await db.flush()  # get address.id
+            address = addr_result.scalars().first()
 
-        if trace or dry_run:
-            cascade_trace.append({
-                "stage": "normalize",
-                "input": freeform,
-                "output": normalized,
-                "address_hash": address_hash,
-                "spell_corrected": spell_corrector is not None,
-                "ms": round((time.monotonic() - t_stage) * 1000, 1),
-            })
+            if address is None:
+                components = parse_address_components(freeform)
+                # Guard component values against DB column width constraints.
+                # Malformed addresses (e.g., zero-for-O substitutions, missing
+                # commas) can cause the parser to misidentify city/state fields.
+                # Clamping prevents StringDataRightTruncationError on flush.
+                raw_state = components.get("state")
+                safe_state = raw_state if (raw_state and len(raw_state) <= 2) else None
+                raw_zip = components.get("zip_code")
+                safe_zip = raw_zip if (raw_zip and len(raw_zip) <= 5) else None
+                address = Address(
+                    original_input=freeform,
+                    normalized_address=normalized,
+                    address_hash=address_hash,
+                    street_number=components.get("street_number"),
+                    street_name=components.get("street_name"),
+                    street_suffix=components.get("street_suffix"),
+                    street_predirection=components.get("street_predirection"),
+                    street_postdirection=components.get("street_postdirection"),
+                    unit_type=components.get("unit_type"),
+                    unit_number=components.get("unit_number"),
+                    city=components.get("city"),
+                    state=safe_state,
+                    zip_code=safe_zip,
+                )
+                db.add(address)
+                await db.flush()  # get address.id
+
+            if trace or dry_run:
+                cascade_trace.append({
+                    "stage": "normalize",
+                    "input": freeform,
+                    "output": normalized,
+                    "address_hash": address_hash,
+                    "spell_corrected": spell_corrector is not None,
+                    "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                })
 
         # ----------------------------------------------------------------
         # Cache check: skip remote providers if cached results exist (DEBT-02)
@@ -418,6 +435,7 @@ class CascadeOrchestrator:
                 address_hash, len(address.geocoding_results), cache_ms,
             )
 
+            GEO_CACHE_HITS_TOTAL.inc()
             return CascadeResult(
                 address_hash=address_hash,
                 normalized_address=normalized,
@@ -434,6 +452,7 @@ class CascadeOrchestrator:
         # Stage 2: Exact match — all providers in parallel (D-05)
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
+        GEO_CACHE_MISSES_TOTAL.inc()
 
         candidates: list[ProviderCandidate] = []
         new_results: list[GeocodingResultORM] = []
@@ -443,133 +462,171 @@ class CascadeOrchestrator:
         async def _call_provider(
             provider_name: str, provider: GeocodingProvider
         ) -> tuple[str, GeocodingResultSchema | None]:
+            _provider_start = time.monotonic()
             try:
-                _timeout_map = {
-                    "postgis_tiger": settings.tiger_timeout_ms,
-                }
-                timeout_ms = _timeout_map.get(provider_name, settings.exact_match_timeout_ms)
-                result = await asyncio.wait_for(
-                    provider.geocode(normalized, http_client=http_client),
-                    timeout=timeout_ms / 1000,
-                )
-                return provider_name, result
+                with _tracer.start_as_current_span(f"geocode.{provider_name}") as pspan:
+                    pspan.set_attribute("provider", provider_name)
+                    _timeout_map = {
+                        "postgis_tiger": settings.tiger_timeout_ms,
+                    }
+                    timeout_ms = _timeout_map.get(provider_name, settings.exact_match_timeout_ms)
+                    result = await asyncio.wait_for(
+                        provider.geocode(normalized, http_client=http_client),
+                        timeout=timeout_ms / 1000,
+                    )
+                    _status = "success" if result is not None else "empty"
+                    GEO_PROVIDER_REQUESTS_TOTAL.labels(
+                        provider=provider_name, status=_status
+                    ).inc()
+                    GEO_PROVIDER_DURATION.labels(provider=provider_name).observe(
+                        time.monotonic() - _provider_start
+                    )
+                    return provider_name, result
             except asyncio.TimeoutError:
+                GEO_PROVIDER_REQUESTS_TOTAL.labels(
+                    provider=provider_name, status="timeout"
+                ).inc()
+                GEO_PROVIDER_DURATION.labels(provider=provider_name).observe(
+                    time.monotonic() - _provider_start
+                )
                 logger.warning(
                     "CascadeOrchestrator: provider {} timed out after {}ms",
-                    provider_name, timeout_ms,
+                    provider_name,
+                    settings.tiger_timeout_ms
+                    if provider_name == "postgis_tiger"
+                    else settings.exact_match_timeout_ms,
                 )
                 return provider_name, None
             except Exception as exc:
+                GEO_PROVIDER_REQUESTS_TOTAL.labels(
+                    provider=provider_name, status="error"
+                ).inc()
+                GEO_PROVIDER_DURATION.labels(provider=provider_name).observe(
+                    time.monotonic() - _provider_start
+                )
                 logger.warning(
                     "CascadeOrchestrator: provider {} raised {}: {}",
-                    provider_name, type(exc).__name__, exc,
+                    provider_name,
+                    type(exc).__name__,
+                    exc,
                 )
                 return provider_name, None
 
-        # Gather all provider calls in parallel
-        all_provider_items = list(providers.items())
-        if all_provider_items:
-            tasks = [_call_provider(name, prov) for name, prov in all_provider_items]
-            provider_results = await asyncio.gather(*tasks, return_exceptions=True)
-        else:
-            provider_results = []
+        with _tracer.start_as_current_span("cascade.exact_match") as span:
+            span.set_attribute("stage", "exact_match")
 
-        # Process results
-        for item in provider_results:
-            if isinstance(item, Exception):
-                logger.warning("CascadeOrchestrator: provider task raised exception: {}", item)
-                continue
-
-            provider_name, schema_result = item
-            if schema_result is None:
-                continue
-
-            provider = providers[provider_name]
-
-            if provider.is_local:
-                local_results.append(schema_result)
-                # Add to candidates for consensus (no DB write)
-                if schema_result.confidence > 0.0:
-                    candidates.append(ProviderCandidate(
-                        provider_name=provider_name,
-                        lat=schema_result.lat,
-                        lng=schema_result.lng,
-                        confidence=schema_result.confidence,
-                        weight=get_provider_weight(provider_name),
-                        location_type=schema_result.location_type,
-                        raw_response=schema_result.raw_response,
-                        source_result=schema_result,
-                    ))
+            # Gather all provider calls in parallel
+            all_provider_items = list(providers.items())
+            if all_provider_items:
+                tasks = [_call_provider(name, prov) for name, prov in all_provider_items]
+                provider_results = await asyncio.gather(*tasks, return_exceptions=True)
             else:
-                # Remote provider: upsert into geocoding_results
-                is_match = schema_result.confidence > 0.0
-                ewkt_point = None
-                latitude = None
-                longitude = None
-                location_type_value = None
+                provider_results = []
 
-                if is_match:
-                    ewkt_point = f"SRID=4326;POINT({schema_result.lng} {schema_result.lat})"
-                    latitude = schema_result.lat
-                    longitude = schema_result.lng
-                    location_type_value = schema_result.location_type
-
-                stmt = (
-                    pg_insert(GeocodingResultORM)
-                    .values(
-                        address_id=address.id,
-                        provider_name=provider_name,
-                        location=ewkt_point,
-                        latitude=latitude,
-                        longitude=longitude,
-                        location_type=location_type_value,
-                        confidence=schema_result.confidence,
-                        raw_response=schema_result.raw_response,
+            # Process results
+            for item in provider_results:
+                if isinstance(item, Exception):
+                    logger.warning(
+                        "CascadeOrchestrator: provider task raised exception: {}", item
                     )
-                    .on_conflict_do_update(
-                        constraint="uq_geocoding_address_provider",
-                        set_={
-                            "location": ewkt_point,
-                            "latitude": latitude,
-                            "longitude": longitude,
-                            "location_type": location_type_value,
-                            "confidence": schema_result.confidence,
-                            "raw_response": schema_result.raw_response,
-                        },
+                    continue
+
+                provider_name, schema_result = item
+                if schema_result is None:
+                    continue
+
+                provider = providers[provider_name]
+
+                if provider.is_local:
+                    local_results.append(schema_result)
+                    # Add to candidates for consensus (no DB write)
+                    if schema_result.confidence > 0.0:
+                        candidates.append(
+                            ProviderCandidate(
+                                provider_name=provider_name,
+                                lat=schema_result.lat,
+                                lng=schema_result.lng,
+                                confidence=schema_result.confidence,
+                                weight=get_provider_weight(provider_name),
+                                location_type=schema_result.location_type,
+                                raw_response=schema_result.raw_response,
+                                source_result=schema_result,
+                            )
+                        )
+                else:
+                    # Remote provider: upsert into geocoding_results
+                    is_match = schema_result.confidence > 0.0
+                    ewkt_point = None
+                    latitude = None
+                    longitude = None
+                    location_type_value = None
+
+                    if is_match:
+                        ewkt_point = f"SRID=4326;POINT({schema_result.lng} {schema_result.lat})"
+                        latitude = schema_result.lat
+                        longitude = schema_result.lng
+                        location_type_value = schema_result.location_type
+
+                    stmt = (
+                        pg_insert(GeocodingResultORM)
+                        .values(
+                            address_id=address.id,
+                            provider_name=provider_name,
+                            location=ewkt_point,
+                            latitude=latitude,
+                            longitude=longitude,
+                            location_type=location_type_value,
+                            confidence=schema_result.confidence,
+                            raw_response=schema_result.raw_response,
+                        )
+                        .on_conflict_do_update(
+                            constraint="uq_geocoding_address_provider",
+                            set_={
+                                "location": ewkt_point,
+                                "latitude": latitude,
+                                "longitude": longitude,
+                                "location_type": location_type_value,
+                                "confidence": schema_result.confidence,
+                                "raw_response": schema_result.raw_response,
+                            },
+                        )
+                        .returning(GeocodingResultORM.id)
                     )
-                    .returning(GeocodingResultORM.id)
-                )
-                upsert_result = await db.execute(stmt)
-                result_id = upsert_result.scalar_one()
+                    upsert_result = await db.execute(stmt)
+                    result_id = upsert_result.scalar_one()
 
-                # Re-query full ORM object
-                orm_row_result = await db.execute(
-                    select(GeocodingResultORM).where(GeocodingResultORM.id == result_id)
-                )
-                orm_row = orm_row_result.scalars().first()
-                if orm_row:
-                    new_results.append(orm_row)
+                    # Re-query full ORM object
+                    orm_row_result = await db.execute(
+                        select(GeocodingResultORM).where(GeocodingResultORM.id == result_id)
+                    )
+                    orm_row = orm_row_result.scalars().first()
+                    if orm_row:
+                        new_results.append(orm_row)
 
-                if is_match:
-                    candidates.append(ProviderCandidate(
-                        provider_name=provider_name,
-                        lat=schema_result.lat,
-                        lng=schema_result.lng,
-                        confidence=schema_result.confidence,
-                        weight=get_provider_weight(provider_name),
-                        location_type=schema_result.location_type,
-                        raw_response=schema_result.raw_response,
-                        source_result=schema_result,
-                        geocoding_result_id=result_id,
-                    ))
+                    if is_match:
+                        candidates.append(
+                            ProviderCandidate(
+                                provider_name=provider_name,
+                                lat=schema_result.lat,
+                                lng=schema_result.lng,
+                                confidence=schema_result.confidence,
+                                weight=get_provider_weight(provider_name),
+                                location_type=schema_result.location_type,
+                                raw_response=schema_result.raw_response,
+                                source_result=schema_result,
+                                geocoding_result_id=result_id,
+                            )
+                        )
 
-        if trace or dry_run:
-            cascade_trace.append({
-                "stage": "exact_match",
-                "providers_called": [k for k, _ in all_provider_items],
-                "results_count": len(candidates),
-                "ms": round((time.monotonic() - t_stage) * 1000, 1),
-            })
+            span.set_attribute("results_count", len(candidates))
+
+            if trace or dry_run:
+                cascade_trace.append({
+                    "stage": "exact_match",
+                    "providers_called": [k for k, _ in all_provider_items],
+                    "results_count": len(candidates),
+                    "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                })
 
         # ----------------------------------------------------------------
         # Early-exit check (D-12)
@@ -581,208 +638,245 @@ class CascadeOrchestrator:
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
-        if not skip_fuzzy and fuzzy_matcher is not None:
-            try:
-                street_number, street_name, postal_code, _, _ = _parse_input_address(normalized)
-                if street_name:
-                    fuzzy_result = await asyncio.wait_for(
-                        fuzzy_matcher.find_fuzzy_match(
-                            street_name,
-                            zip_code=postal_code,
-                            street_number=street_number,
-                        ),
-                        timeout=settings.fuzzy_match_timeout_ms / 1000,
+        with _tracer.start_as_current_span("cascade.fuzzy_match") as span:
+            span.set_attribute("stage", "fuzzy_match")
+            span.set_attribute("skipped", skip_fuzzy or fuzzy_matcher is None)
+
+            if not skip_fuzzy and fuzzy_matcher is not None:
+                try:
+                    street_number, street_name, postal_code, _, _ = _parse_input_address(
+                        normalized
                     )
-                    if fuzzy_result is not None and fuzzy_result.lat is not None:
-                        # Effective weight scales by (fuzzy_confidence / 0.80) (D-09)
-                        provider_weight = get_provider_weight(fuzzy_result.source)
-                        effective_weight = provider_weight * (fuzzy_result.confidence / 0.80)
-                        candidates.append(ProviderCandidate(
-                            provider_name=f"fuzzy_{fuzzy_result.source}",
-                            lat=fuzzy_result.lat,
-                            lng=fuzzy_result.lng,
-                            confidence=fuzzy_result.confidence,
-                            weight=effective_weight,
-                            is_fuzzy=True,
-                            source_result=fuzzy_result,
-                        ))
-                        if trace or dry_run:
-                            cascade_trace.append({
-                                "stage": "fuzzy_match",
-                                "matched_street": fuzzy_result.street_name,
-                                "source": fuzzy_result.source,
-                                "score": fuzzy_result.score,
-                                "confidence": fuzzy_result.confidence,
-                                "ms": round((time.monotonic() - t_stage) * 1000, 1),
-                            })
-                    else:
-                        if trace or dry_run:
-                            cascade_trace.append({
-                                "stage": "fuzzy_match",
-                                "matched_street": None,
-                                "ms": round((time.monotonic() - t_stage) * 1000, 1),
-                            })
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "CascadeOrchestrator: fuzzy stage timed out after {}ms",
-                    settings.fuzzy_match_timeout_ms,
-                )
-                if trace or dry_run:
-                    cascade_trace.append({
-                        "stage": "fuzzy_match",
-                        "timeout": True,
-                        "ms": settings.fuzzy_match_timeout_ms,
-                    })
+                    if street_name:
+                        fuzzy_result = await asyncio.wait_for(
+                            fuzzy_matcher.find_fuzzy_match(
+                                street_name,
+                                zip_code=postal_code,
+                                street_number=street_number,
+                            ),
+                            timeout=settings.fuzzy_match_timeout_ms / 1000,
+                        )
+                        if fuzzy_result is not None and fuzzy_result.lat is not None:
+                            # Effective weight scales by (fuzzy_confidence / 0.80) (D-09)
+                            provider_weight = get_provider_weight(fuzzy_result.source)
+                            effective_weight = provider_weight * (fuzzy_result.confidence / 0.80)
+                            candidates.append(
+                                ProviderCandidate(
+                                    provider_name=f"fuzzy_{fuzzy_result.source}",
+                                    lat=fuzzy_result.lat,
+                                    lng=fuzzy_result.lng,
+                                    confidence=fuzzy_result.confidence,
+                                    weight=effective_weight,
+                                    is_fuzzy=True,
+                                    source_result=fuzzy_result,
+                                )
+                            )
+                            if trace or dry_run:
+                                cascade_trace.append({
+                                    "stage": "fuzzy_match",
+                                    "matched_street": fuzzy_result.street_name,
+                                    "source": fuzzy_result.source,
+                                    "score": fuzzy_result.score,
+                                    "confidence": fuzzy_result.confidence,
+                                    "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                                })
+                        else:
+                            if trace or dry_run:
+                                cascade_trace.append({
+                                    "stage": "fuzzy_match",
+                                    "matched_street": None,
+                                    "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                                })
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "CascadeOrchestrator: fuzzy stage timed out after {}ms",
+                        settings.fuzzy_match_timeout_ms,
+                    )
+                    if trace or dry_run:
+                        cascade_trace.append({
+                            "stage": "fuzzy_match",
+                            "timeout": True,
+                            "ms": settings.fuzzy_match_timeout_ms,
+                        })
 
         # ----------------------------------------------------------------
         # Stage 4: LLM correction (LLM-02, D-05) — only when all prior stages produced zero candidates
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
-        if (
-            settings.cascade_llm_enabled
-            and llm_corrector is not None
-            and not skip_fuzzy  # if exact match already produced high-confidence, skip
-            and len(candidates) == 0  # D-05: only fires when all deterministic stages failed
-        ):
-            try:
-                # Extract original state from freeform for guardrail check
-                _components = parse_address_components(freeform)
-                _original_state = _components.get("state")
+        with _tracer.start_as_current_span("cascade.llm_correction") as span:
+            span.set_attribute("stage", "llm_correction")
 
-                correction = await asyncio.wait_for(
-                    llm_corrector.correct_address(freeform, http_client),
-                    timeout=settings.llm_timeout_ms / 1000,  # D-07: 5000ms
-                )
-                if correction is not None and _passes_guardrails(correction, _original_state):
-                    # Build corrected address string for re-verification (D-17)
-                    parts = []
-                    if correction.street_number:
-                        parts.append(correction.street_number)
-                    if correction.street_name:
-                        parts.append(correction.street_name)
-                    if correction.street_suffix:
-                        parts.append(correction.street_suffix)
-                    corrected_street = " ".join(parts)
-                    city_state_zip = []
-                    if correction.city:
-                        city_state_zip.append(correction.city)
-                    if correction.state:
-                        city_state_zip.append(correction.state)
-                    if correction.zip:
-                        city_state_zip.append(correction.zip)
-                    corrected_str = corrected_street
-                    if city_state_zip:
-                        corrected_str += ", " + " ".join(city_state_zip)
+            if (
+                settings.cascade_llm_enabled
+                and llm_corrector is not None
+                and not skip_fuzzy  # if exact match already produced high-confidence, skip
+                and len(candidates) == 0  # D-05: only fires when all deterministic stages failed
+            ):
+                try:
+                    # Extract original state from freeform for guardrail check
+                    _components = parse_address_components(freeform)
+                    _original_state = _components.get("state")
 
-                    # Re-verify corrected address through providers (D-17: never add LLM output directly)
-                    async def _reverify_provider(
-                        provider_name: str, provider: GeocodingProvider
-                    ) -> tuple[str, GeocodingResultSchema | None]:
-                        try:
-                            result = await asyncio.wait_for(
-                                provider.geocode(corrected_str, http_client=http_client),
-                                timeout=settings.exact_match_timeout_ms / 1000,
-                            )
-                            return provider_name, result
-                        except (asyncio.TimeoutError, Exception) as exc:
-                            logger.warning(
-                                "CascadeOrchestrator: LLM re-verify {} failed: {}",
-                                provider_name, exc,
-                            )
-                            return provider_name, None
-
-                    reverify_results = await asyncio.gather(
-                        *[_reverify_provider(name, prov) for name, prov in all_provider_items],
-                        return_exceptions=True,
+                    correction = await asyncio.wait_for(
+                        llm_corrector.correct_address(freeform, http_client),
+                        timeout=settings.llm_timeout_ms / 1000,  # D-07: 5000ms
                     )
+                    if correction is not None and _passes_guardrails(correction, _original_state):
+                        # Build corrected address string for re-verification (D-17)
+                        parts = []
+                        if correction.street_number:
+                            parts.append(correction.street_number)
+                        if correction.street_name:
+                            parts.append(correction.street_name)
+                        if correction.street_suffix:
+                            parts.append(correction.street_suffix)
+                        corrected_street = " ".join(parts)
+                        city_state_zip = []
+                        if correction.city:
+                            city_state_zip.append(correction.city)
+                        if correction.state:
+                            city_state_zip.append(correction.state)
+                        if correction.zip:
+                            city_state_zip.append(correction.zip)
+                        corrected_str = corrected_street
+                        if city_state_zip:
+                            corrected_str += ", " + " ".join(city_state_zip)
 
-                    for item in reverify_results:
-                        if isinstance(item, Exception):
-                            continue
-                        prov_name, schema_result = item
-                        if schema_result is None or schema_result.confidence <= 0.0:
-                            continue
-                        # Add to candidates with is_llm_corrected=True (D-06: normal provider weights)
-                        candidates.append(ProviderCandidate(
-                            provider_name=prov_name,
-                            lat=schema_result.lat,
-                            lng=schema_result.lng,
-                            confidence=schema_result.confidence,
-                            weight=get_provider_weight(prov_name),
-                            location_type=schema_result.location_type,
-                            raw_response=schema_result.raw_response,
-                            is_llm_corrected=True,
-                            source_result=schema_result,
-                        ))
+                        # Re-verify corrected address through providers (D-17: never add LLM output directly)
+                        async def _reverify_provider(
+                            provider_name: str, provider: GeocodingProvider
+                        ) -> tuple[str, GeocodingResultSchema | None]:
+                            try:
+                                result = await asyncio.wait_for(
+                                    provider.geocode(corrected_str, http_client=http_client),
+                                    timeout=settings.exact_match_timeout_ms / 1000,
+                                )
+                                return provider_name, result
+                            except (asyncio.TimeoutError, Exception) as exc:
+                                logger.warning(
+                                    "CascadeOrchestrator: LLM re-verify {} failed: {}",
+                                    provider_name,
+                                    exc,
+                                )
+                                return provider_name, None
 
+                        reverify_results = await asyncio.gather(
+                            *[
+                                _reverify_provider(name, prov)
+                                for name, prov in all_provider_items
+                            ],
+                            return_exceptions=True,
+                        )
+
+                        llm_candidates_added = 0
+                        for item in reverify_results:
+                            if isinstance(item, Exception):
+                                continue
+                            prov_name, schema_result = item
+                            if schema_result is None or schema_result.confidence <= 0.0:
+                                continue
+                            # Add to candidates with is_llm_corrected=True (D-06: normal provider weights)
+                            candidates.append(
+                                ProviderCandidate(
+                                    provider_name=prov_name,
+                                    lat=schema_result.lat,
+                                    lng=schema_result.lng,
+                                    confidence=schema_result.confidence,
+                                    weight=get_provider_weight(prov_name),
+                                    location_type=schema_result.location_type,
+                                    raw_response=schema_result.raw_response,
+                                    is_llm_corrected=True,
+                                    source_result=schema_result,
+                                )
+                            )
+                            llm_candidates_added += 1
+
+                        # Record LLM correction metrics when it produced usable results
+                        if llm_candidates_added > 0:
+                            GEO_LLM_CORRECTIONS_TOTAL.labels(model="qwen2.5:3b").inc()
+                            GEO_LLM_DURATION.observe(time.monotonic() - t_stage)
+
+                        if trace or dry_run:
+                            cascade_trace.append({
+                                "stage": "llm_correction",
+                                "correction": correction.model_dump() if correction else None,
+                                "corrected_address": corrected_str,
+                                "reverified_count": sum(
+                                    1 for c in candidates if c.is_llm_corrected
+                                ),
+                                "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                            })
+                    else:
+                        if trace or dry_run:
+                            cascade_trace.append({
+                                "stage": "llm_correction",
+                                "correction": correction.model_dump() if correction else None,
+                                "guardrail_rejected": correction is not None,
+                                "skipped": correction is None,
+                                "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                            })
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "CascadeOrchestrator: LLM stage timed out after {}ms",
+                        settings.llm_timeout_ms,
+                    )
                     if trace or dry_run:
                         cascade_trace.append({
                             "stage": "llm_correction",
-                            "correction": correction.model_dump() if correction else None,
-                            "corrected_address": corrected_str,
-                            "reverified_count": sum(1 for c in candidates if c.is_llm_corrected),
-                            "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                            "timeout": True,
+                            "ms": settings.llm_timeout_ms,
                         })
-                else:
-                    if trace or dry_run:
-                        cascade_trace.append({
-                            "stage": "llm_correction",
-                            "correction": correction.model_dump() if correction else None,
-                            "guardrail_rejected": correction is not None,
-                            "skipped": correction is None,
-                            "ms": round((time.monotonic() - t_stage) * 1000, 1),
-                        })
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "CascadeOrchestrator: LLM stage timed out after {}ms",
-                    settings.llm_timeout_ms,
-                )
-                if trace or dry_run:
-                    cascade_trace.append({
-                        "stage": "llm_correction",
-                        "timeout": True,
-                        "ms": settings.llm_timeout_ms,
-                    })
 
         # ----------------------------------------------------------------
         # Stage 5: Consensus scoring (CONS-01) — always runs (D-13)
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
 
-        winning_cluster, scored_candidates = run_consensus(candidates)
+        with _tracer.start_as_current_span("cascade.consensus") as span:
+            span.set_attribute("stage", "consensus")
 
-        outlier_providers: set[str] = {
-            c.provider_name for c in scored_candidates if c.is_outlier
-        }
+            winning_cluster, scored_candidates = run_consensus(candidates)
 
-        # Determine set_by_stage
-        set_by_stage: str | None = None
-        if winning_cluster is not None:
-            if len(scored_candidates) == 1:
-                set_by_stage = "single_provider"
-            elif any(m.is_llm_corrected for m in winning_cluster.members):
-                set_by_stage = "llm_correction_consensus"
-            elif any(m.is_fuzzy for m in winning_cluster.members):
-                set_by_stage = "fuzzy_consensus"
-            else:
-                set_by_stage = "exact_match_consensus"
+            outlier_providers: set[str] = {
+                c.provider_name for c in scored_candidates if c.is_outlier
+            }
 
-        if trace or dry_run:
-            cascade_trace.append({
-                "stage": "consensus",
-                "candidates_count": len(scored_candidates),
-                "winning_cluster_size": len(winning_cluster.members) if winning_cluster else 0,
-                "winning_cluster_weight": winning_cluster.total_weight if winning_cluster else 0.0,
-                "set_by_stage": set_by_stage,
-                "outlier_providers": list(outlier_providers),
-                "ms": round((time.monotonic() - t_stage) * 1000, 1),
-            })
+            # Determine set_by_stage
+            set_by_stage: str | None = None
+            if winning_cluster is not None:
+                if len(scored_candidates) == 1:
+                    set_by_stage = "single_provider"
+                elif any(m.is_llm_corrected for m in winning_cluster.members):
+                    set_by_stage = "llm_correction_consensus"
+                elif any(m.is_fuzzy for m in winning_cluster.members):
+                    set_by_stage = "fuzzy_consensus"
+                else:
+                    set_by_stage = "exact_match_consensus"
+
+                span.set_attribute("winning_weight", winning_cluster.total_weight)
+                span.set_attribute("outlier_count", len(outlier_providers))
+
+            if trace or dry_run:
+                cascade_trace.append({
+                    "stage": "consensus",
+                    "candidates_count": len(scored_candidates),
+                    "winning_cluster_size": len(winning_cluster.members) if winning_cluster else 0,
+                    "winning_cluster_weight": winning_cluster.total_weight
+                    if winning_cluster
+                    else 0.0,
+                    "set_by_stage": set_by_stage,
+                    "outlier_providers": list(outlier_providers),
+                    "ms": round((time.monotonic() - t_stage) * 1000, 1),
+                })
 
         # ----------------------------------------------------------------
         # Stage 6: Auto-set official (CONS-04)
         # ----------------------------------------------------------------
         t_stage = time.monotonic()
+
+        with _tracer.start_as_current_span("cascade.auto_set_official") as span:
+            span.set_attribute("stage", "auto_set_official")
 
         official_result: GeocodingResultORM | None = None
         would_set_official: ProviderCandidate | None = None
@@ -918,6 +1012,19 @@ class CascadeOrchestrator:
         # ----------------------------------------------------------------
         # Stage 7: Commit and return
         # ----------------------------------------------------------------
+        # Count stages actually used (normalize always runs = 1, plus additional stages)
+        _stages_used = 1  # normalize
+        if candidates:
+            _stages_used += 1  # exact_match produced results
+        if any(c.is_fuzzy for c in candidates):
+            _stages_used += 1  # fuzzy
+        if any(c.is_llm_corrected for c in candidates):
+            _stages_used += 1  # llm
+        _stages_used += 1  # consensus always runs
+        if winning_cluster is not None and not skip_single_low_conf:
+            _stages_used += 1  # auto-set
+        GEO_CASCADE_STAGES_USED.observe(_stages_used)
+
         await db.commit()
 
         # Reload official after commit if we wrote one (but not if already loaded)

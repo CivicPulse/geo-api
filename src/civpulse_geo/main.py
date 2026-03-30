@@ -11,6 +11,7 @@ from civpulse_geo.api import health, geocoding, validation
 from civpulse_geo.api.metrics import router as metrics_router
 from civpulse_geo.config import settings as _app_settings
 from civpulse_geo.database import AsyncSessionLocal
+from civpulse_geo.middleware.metrics import MetricsMiddleware
 from civpulse_geo.middleware.request_id import RequestIDMiddleware
 from civpulse_geo.observability.logging import configure_logging
 from civpulse_geo.observability.tracing import setup_tracing, teardown_tracing
@@ -212,8 +213,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Request-ID middleware registered at app-definition time (not in lifespan)
+# Middleware registered at app-definition time (not in lifespan)
 # so it is available during all requests including test client startup.
+# Starlette middleware is LIFO: MetricsMiddleware added last, executes first —
+# sees the full request duration before RequestIDMiddleware runs.
+app.add_middleware(MetricsMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
 
