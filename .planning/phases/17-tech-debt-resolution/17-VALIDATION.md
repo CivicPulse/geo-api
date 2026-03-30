@@ -1,10 +1,11 @@
 ---
 phase: 17
 slug: tech-debt-resolution
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-03-29
+validated: 2026-03-29
 ---
 
 # Phase 17 — Validation Strategy
@@ -38,11 +39,11 @@ created: 2026-03-29
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| 17-01-01 | 01 | 1 | DEBT-01 | unit | `uv run pytest tests/test_cascade.py -k timeout -v` | ❌ W0 | ⬜ pending |
-| 17-01-02 | 01 | 1 | DEBT-01 | unit | `uv run pytest tests/test_cascade.py -k tiger -v` | ❌ W0 | ⬜ pending |
-| 17-02-01 | 02 | 1 | DEBT-02 | unit | `uv run pytest tests/test_cascade.py -k cache_hit -v` | ❌ W0 | ⬜ pending |
-| 17-03-01 | 03 | 2 | DEBT-03 | unit | `uv run pytest tests/test_spell_corrector.py -k rebuild -v` | ❌ W0 | ⬜ pending |
-| 17-04-01 | 04 | 1 | DEBT-04 | unit | `uv run pytest tests/test_load_oa_cli.py -v` | ✅ | ⬜ pending |
+| 17-01-01 | 01 | 1 | DEBT-01 | unit | `uv run pytest tests/test_cascade.py -k timeout -v` | ✅ | ✅ green |
+| 17-01-02 | 01 | 1 | DEBT-01 | unit | `uv run pytest tests/test_cascade.py -k tiger -v` | ✅ | ✅ green |
+| 17-02-01 | 02 | 1 | DEBT-02 | unit | `uv run pytest tests/test_cascade.py -k cache_hit -v` | ✅ | ✅ green |
+| 17-03-01 | 03 | 2 | DEBT-03 | unit | `uv run pytest tests/test_spell_startup.py -v` | ✅ | ✅ green |
+| 17-04-01 | 04 | 1 | DEBT-04 | unit | `uv run pytest tests/test_load_oa_cli.py -v` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -50,8 +51,8 @@ created: 2026-03-29
 
 ## Wave 0 Requirements
 
-- [ ] `tests/test_cascade.py` — add timeout and cache_hit test stubs for DEBT-01, DEBT-02
-- [ ] `tests/test_spell_corrector.py` — add rebuild_dictionary auto-populate test stub for DEBT-03
+- [x] `tests/test_cascade.py` — TestPerProviderTimeout, TestCacheHitEarlyExit, TestCacheHitLocalProvidersStillCalled, TestCacheHitConsensusReRun cover DEBT-01, DEBT-02
+- [x] `tests/test_spell_startup.py` — test_spell_dict_auto_rebuild_when_empty, test_spell_dict_skip_rebuild_when_populated, test_spell_dict_skip_rebuild_when_staging_empty cover DEBT-03
 
 *Existing `tests/test_load_oa_cli.py` covers DEBT-04.*
 
@@ -67,11 +68,21 @@ created: 2026-03-29
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verify or Wave 0 dependencies
+- [x] Sampling continuity: no 3 consecutive tasks without automated verify
+- [x] Wave 0 covers all MISSING references
+- [x] No watch-mode flags
+- [x] Feedback latency < 30s
+- [x] `nyquist_compliant: true` set in frontmatter
 
-**Approval:** pending
+**Approval:** approved
+
+## Validation Audit 2026-03-29
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+All 5 tasks have automated test coverage. Tests created during TDD execution (Plans 01 and 02). Suite: 529 passed.
