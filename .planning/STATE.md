@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
-status: executing
-stopped_at: Completed 18-code-review 18-01-PLAN.md
-last_updated: "2026-03-30T00:24:17.437Z"
+status: verifying
+stopped_at: Completed 18-03-PLAN.md
+last_updated: "2026-03-30T00:30:09.517Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
   percent: 7
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 
 Phase: 18 (code-review) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-03-30
 
 Progress: [█░░░░░░░░░] 7% (v1.3)
@@ -44,6 +44,7 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 *Updated after each plan completion*
 | Phase 18-code-review P02 | 3min | 2 tasks | 3 files |
 | Phase 18-code-review P01 | 3min | 2 tasks | 10 files |
+| Phase 18-code-review P03 | 10min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Key decisions affecting v1.3 execution:
 - [Phase 18-code-review]: CHANGEME placeholders in config.py defaults allow Settings() instantiation without .env while making required credentials obvious; Field(required=...) would break pytest
 - [Phase 18-code-review]: KNOWN_PROVIDERS frozenset in api/geocoding.py as module-level allowlist — O(1) check before service dispatch, sanitized error messages prevent input reflection
 - [Phase 18-code-review]: Annotated[str, Field(min_length=1, max_length=500)] for per-item constraints in Pydantic v2 list fields (batch schemas)
+- [Phase 18-code-review]: PERF-01: db_pool_size=5, db_max_overflow=5 (max 10 connections per worker) — within PostgreSQL default 100 max_connections for single-replica K8s deployment
+- [Phase 18-code-review]: PERF-06: weight_map now uses 'postgis_tiger' and 'national_address_database' matching main.py registration — old 'tiger'/'nad' aliases removed; pool_pre_ping hardcoded True in database.py
 
 ### Phase Ordering Constraint
 
@@ -93,6 +96,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Completed 18-code-review 18-01-PLAN.md
+Stopped at: Completed 18-03-PLAN.md
 Resume file: None
 Next action: Phase 17 verification
