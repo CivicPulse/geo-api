@@ -1,16 +1,11 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Cascading Address Resolution
-status: completed
-stopped_at: Milestone v1.2 archived
-last_updated: "2026-03-29T20:30:00.000Z"
+milestone: v1.0
+milestone_name: milestone
+status: Milestone v1.2 shipped — ready for next milestone
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-03-30T01:48:46.053Z"
 last_activity: 2026-03-29
-progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
 ---
 
 # Project State
@@ -50,6 +45,7 @@ v1.2 Progress: [██████████] 5/5 phases — SHIPPED
 | Phase 15-llm-sidecar P03 | 8 | 2 tasks | 5 files |
 | Phase 15-llm-sidecar P02 | 6min | 2 tasks | 5 files |
 | Phase 16-audit-gap-closure P01 | 15min | 3 tasks | 4 files |
+| Phase 19-dockerfile-and-database-provisioning P01 | 3min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -80,6 +76,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 15-llm-sidecar]: is_llm_corrected check precedes is_fuzzy in set_by_stage — LLM stage is more specific than fuzzy and takes priority in set_by_stage labeling
 - [Phase 16]: FuzzyMatcher wiring placed after spell_corrector block, before LLM corrector block — no try/except needed since init only stores session_factory
 - [Phase 16]: 5-tuple discard pattern (_, _) used for street_suffix and street_directional in legacy geocode warning block — not needed in log message
+- [Phase 19-01]: Multi-stage Dockerfile: python:3.12-slim-bookworm builder+runtime; uv --no-editable for portable .venv
+- [Phase 19-01]: provision-db.sql uses \gexec pattern for idempotent CREATE DATABASE outside transaction block
 
 ### Phase Ordering Notes
 
@@ -115,6 +113,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Milestone v1.2 archived
-Stopped at: Milestone v1.2 complete
+Stopped at: Completed 19-01-PLAN.md
 Resume file: None
 Next action: `/gsd:new-milestone`
