@@ -1,28 +1,63 @@
-FROM python:3.12-slim AS base
+FROM python:3.12-slim-bookworm AS builder
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=0
 
 WORKDIR /app
 
-# System libs required by fiona/GDAL and Tiger loader (shp2pgsql, wget, psql, unzip)
+# System build-time deps (GDAL headers required by fiona at compile time)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libexpat1 libgdal-dev postgis postgresql-client unzip wget && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /gisdata/temp
+        libgdal-dev libexpat1-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install dependencies first (cached layer — only rebuilds when lock file changes)
+# Dependency layer (cached unless lock file changes)
 RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --locked --no-install-project
+    uv sync --locked --no-install-project --no-dev
 
-# Copy source and install project
+# Copy source and install project non-editable (embeds package in .venv/site-packages)
 COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+    uv sync --locked --no-dev --no-editable
+
+# ==============================================================================
+# Stage 2: Runtime
+# ==============================================================================
+FROM python:3.12-slim-bookworm
+
+# GDAL runtime libs + PostgreSQL client + data loading tools (D-01)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libgdal-dev libexpat1 postgresql-client unzip wget && \
+    rm -rf /var/lib/apt/lists/*
+
+# Non-root appuser (UID 1000, D-03)
+RUN groupadd -r appuser --gid 1000 && \
+    useradd -r -g appuser --uid 1000 --home /app appuser
+
+WORKDIR /app
+
+# Transfer venv and application artifacts from builder stage
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --from=builder --chown=appuser:appuser /app/src /app/src
+COPY --from=builder --chown=appuser:appuser /app/alembic /app/alembic
+COPY --from=builder --chown=appuser:appuser /app/alembic.ini /app/alembic.ini
+COPY --from=builder --chown=appuser:appuser /app/scripts /app/scripts
+
+# GIS data directory (owned by appuser for Tiger data imports, Pitfall 2)
+RUN mkdir -p /gisdata/temp && chown -R appuser:appuser /gisdata
 
 ARG GIT_COMMIT=unknown
-ENV GIT_COMMIT=${GIT_COMMIT}
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:$PATH" \
+    GIT_COMMIT=${GIT_COMMIT}
 
-CMD ["bash", "scripts/docker-entrypoint.sh"]
+USER appuser
+
+EXPOSE 8000
+
+# Exec-form CMD per D-12 and DEPLOY-01 (no shell wrapper — enables clean SIGTERM)
+CMD ["uvicorn", "civpulse_geo.main:app", "--host", "0.0.0.0", "--port", "8000"]
