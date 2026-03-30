@@ -1,3 +1,5 @@
+import asyncio
+import signal
 from contextlib import asynccontextmanager
 
 import httpx
@@ -33,6 +35,26 @@ from civpulse_geo.providers.macon_bibb import (
 from civpulse_geo.spell import load_spell_corrector, rebuild_dictionary
 from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.services.llm_corrector import LLMAddressCorrector, _ollama_model_available
+
+
+def _install_sigterm_handler() -> None:
+    """Safety-net SIGTERM handler -- disposes async engine if lifespan cleanup is bypassed."""
+    loop = asyncio.get_event_loop()
+
+    def _handle_sigterm():
+        loop.create_task(_sigterm_cleanup())
+
+    try:
+        loop.add_signal_handler(signal.SIGTERM, _handle_sigterm)
+    except NotImplementedError:
+        pass  # Windows -- not applicable to K8s
+
+
+async def _sigterm_cleanup() -> None:
+    from civpulse_geo.database import engine as _engine
+
+    logger.info("SIGTERM received -- disposing async engine (safety net)")
+    await _engine.dispose()
 
 
 @asynccontextmanager
@@ -153,9 +175,20 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"LLM corrector not loaded: {e}")
 
+    # Install SIGTERM handler as belt-and-suspenders (D-10)
+    _install_sigterm_handler()
+
     yield
-    await app.state.http_client.aclose()
+
+    # Shutdown sequence (D-12): preStop sleep handled by K8s, then SIGTERM arrives,
+    # uvicorn drains in-flight requests, then lifespan shutdown runs.
     logger.info("Shutting down CivPulse Geo API")
+    await app.state.http_client.aclose()
+    logger.info("HTTP client closed")
+
+    from civpulse_geo.database import engine as _async_engine
+    await _async_engine.dispose()
+    logger.info("Async engine disposed -- shutdown complete")
 
 
 app = FastAPI(
