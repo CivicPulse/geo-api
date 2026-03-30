@@ -56,7 +56,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 - [x] **Phase 17: Tech Debt Resolution** — Resolve all 4 known defects that corrupt runtime behavior (Tiger timeout, cache_hit hardcode, spell dictionary startup, CLI test failures) (completed 2026-03-29)
 - [x] **Phase 18: Code Review** — Parallel security, stability, and performance audit by three independent agent teams; all blocking findings resolved (completed 2026-03-30)
 - [x] **Phase 19: Dockerfile and Database Provisioning** — Production multi-stage Docker image pushed to GHCR; dev and prod databases provisioned on shared PostgreSQL instance (completed 2026-03-30)
-- [ ] **Phase 20: Health, Resilience, and K8s Manifests** — Split health endpoints, graceful shutdown, K8s Deployment with Ollama sidecar, ClusterIP Service, ArgoCD apps, and Kustomize overlays for dev and prod
+- [x] **Phase 20: Health, Resilience, and K8s Manifests** — Split health endpoints, graceful shutdown, K8s Deployment with Ollama sidecar, ClusterIP Service, ArgoCD apps, and Kustomize overlays for dev and prod (completed 2026-03-30)
 - [ ] **Phase 21: CI/CD Pipeline** — GitHub Actions CI (lint + test) and CD (build + GHCR push + ArgoCD trigger) with Trivy scan; automated dev sync, manual prod gate
 - [ ] **Phase 22: Observability** — Structured JSON logging, Prometheus /metrics, OpenTelemetry traces exported to Tempo, and Loguru trace context middleware for Loki-to-Tempo correlation
 - [ ] **Phase 23: E2E Testing, Load Baselines, and Final Validation** — E2E suite for all 5 providers, Locust cold-cache/warm-cache baselines, observability verification under load, and a top-to-bottom validation pass that repeats until clean
@@ -118,9 +118,9 @@ Plans:
   5. ArgoCD shows both dev and prod applications in Synced/Healthy state
 **Plans**: 3 plans
 Plans:
-- [ ] 20-01-PLAN.md — Health endpoints (/health/live, /health/ready), graceful shutdown with engine disposal and SIGTERM handler
+- [x] 20-01-PLAN.md — Health endpoints (/health/live, /health/ready), graceful shutdown with engine disposal and SIGTERM handler
 - [x] 20-02-PLAN.md — Kustomize base manifests (Deployment with sidecar + init containers, Service, ConfigMap, PVC)
-- [ ] 20-03-PLAN.md — Kustomize overlays for dev/prod, ArgoCD Application CRs, remove old Ollama manifests
+- [x] 20-03-PLAN.md — Kustomize overlays for dev/prod, ArgoCD Application CRs, remove old Ollama manifests
 
 ### Phase 21: CI/CD Pipeline
 **Goal**: Every merge to main automatically builds, scans, and publishes a new image and triggers ArgoCD to deploy to dev; prod requires a manual promotion
@@ -181,7 +181,7 @@ Plans:
 | 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
 | 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
-| 20. Health, Resilience, and K8s Manifests | v1.3 | 1/3 | In Progress|  |
+| 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete   | 2026-03-30 |
 | 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
 | 22. Observability | v1.3 | 0/TBD | Not started | - |
 | 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |

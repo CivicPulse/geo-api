@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
 status: executing
-stopped_at: Completed 20-02-PLAN.md
-last_updated: "2026-03-30T04:03:36.812Z"
+stopped_at: Completed 20-03-PLAN.md
+last_updated: "2026-03-30T04:15:16.768Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 10
   percent: 7
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 20 (health-resilience-and-k8s-manifests) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-30
 
@@ -45,7 +45,9 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 | Phase 18-code-review P02 | 3min | 2 tasks | 3 files |
 | Phase 18-code-review P01 | 3min | 2 tasks | 10 files |
 | Phase 18-code-review P03 | 10min | 2 tasks | 6 files |
+| Phase 20-health-resilience-and-k8s-manifests P01 | 4min | 2 tasks | 4 files |
 | Phase 20-health-resilience-and-k8s-manifests P02 | 2min | 2 tasks | 5 files |
+| Phase 20-health-resilience-and-k8s-manifests P03 | 4min | 2 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -76,9 +78,12 @@ Key decisions affecting v1.3 execution:
 - [Phase 18-code-review]: Annotated[str, Field(min_length=1, max_length=500)] for per-item constraints in Pydantic v2 list fields (batch schemas)
 - [Phase 18-code-review]: PERF-01: db_pool_size=5, db_max_overflow=5 (max 10 connections per worker) — within PostgreSQL default 100 max_connections for single-replica K8s deployment
 - [Phase 18-code-review]: PERF-06: weight_map now uses 'postgis_tiger' and 'national_address_database' matching main.py registration — old 'tiger'/'nad' aliases removed; pool_pre_ping hardcoded True in database.py
+- [Phase 20-01]: /health/live has NO Depends -- returns 200 if process is alive (RESIL-01); /health/ready checks DB and >= 2 geocoding/validation providers (RESIL-02); Shutdown order: http_client.aclose() then engine.dispose(); ASGITransport does not trigger ASGI lifespan -- shutdown tests use lifespan(app) context manager directly
 - [Phase 20-health-resilience-and-k8s-manifests]: Ollama native sidecar as last initContainer (restartPolicy: Always) — guarantees Ollama ready before geo-api main container
 - [Phase 20-health-resilience-and-k8s-manifests]: db-wait init container uses pg_isready (postgresql-client from Phase 19 Dockerfile) before alembic-migrate
 - [Phase 20-health-resilience-and-k8s-manifests]: model-pull skip-if-cached guard (ollama list | grep qwen2.5:3b) avoids 2GB re-download on pod restarts
+- [Phase 20-health-resilience-and-k8s-manifests]: ArgoCD Application CRs must be applied directly (kubectl apply -f) not via kustomize build — top-level namespace: field overrides Application namespace in kustomize v5.0.4 output
+- [Phase 20-health-resilience-and-k8s-manifests]: Secrets excluded from Kustomize resources per D-06/Pitfall 3 — ArgoCD selfHeal would overwrite real credentials with CHANGEME placeholders if managed via kustomize
 
 ### Phase Ordering Constraint
 
@@ -100,6 +105,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Completed 20-02-PLAN.md
+Stopped at: Completed 20-03-PLAN.md
 Resume file: None
 Next action: Phase 17 verification

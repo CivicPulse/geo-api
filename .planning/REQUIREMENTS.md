@@ -35,7 +35,7 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 - [x] **DEPLOY-04**: Init containers for Alembic migrations and spell dictionary rebuild
 - [x] **DEPLOY-05**: ConfigMap and Secret resources for environment-specific configuration
 - [ ] **DEPLOY-06**: GitHub Actions workflow (build → GHCR push with sha-tag → manifest update)
-- [ ] **DEPLOY-07**: ArgoCD Application CRs for dev and prod pointing to manifest paths
+- [x] **DEPLOY-07**: ArgoCD Application CRs for dev and prod pointing to manifest paths
 - [ ] **DEPLOY-08**: Database provisioned on shared PostgreSQL instance (dev + prod)
 
 ### Health & Resilience
@@ -116,7 +116,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | DEPLOY-03 | Phase 20 | Complete |
 | DEPLOY-04 | Phase 20 | Complete |
 | DEPLOY-05 | Phase 20 | Complete |
-| DEPLOY-07 | Phase 20 | Pending |
+| DEPLOY-07 | Phase 20 | Complete |
 | DEPLOY-06 | Phase 21 | Pending |
 | OBS-01 | Phase 22 | Pending |
 | OBS-02 | Phase 22 | Pending |
