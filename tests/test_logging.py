@@ -70,3 +70,36 @@ def test_request_id_appears_in_json_log(capsys):
     line = captured.out.strip().split("\n")[-1]
     entry = json.loads(line)
     assert entry["request_id"] == "test-req-123"
+
+
+def test_trace_id_injection_with_active_span(capsys):
+    """Loguru patcher injects non-empty trace_id during active OTel span (OBS-04)."""
+    from opentelemetry.sdk.trace import TracerProvider as SdkTracerProvider
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    # Set up a real TracerProvider with in-memory exporter
+    # Use provider.get_tracer() directly to avoid global TracerProvider override issues
+    exporter = InMemorySpanExporter()
+    provider = SdkTracerProvider()
+    provider.add_span_processor(SimpleSpanProcessor(exporter))
+
+    settings = FakeSettings()
+    configure_logging(settings)
+    tracer = provider.get_tracer("test")
+
+    with tracer.start_as_current_span("test-span"):
+        logger.info("traced message")
+
+    captured = capsys.readouterr()
+    line = captured.out.strip().split("\n")[-1]
+    entry = json.loads(line)
+
+    # trace_id and span_id should be non-empty hex strings
+    assert entry["trace_id"] != ""
+    assert entry["span_id"] != ""
+    assert len(entry["trace_id"]) == 32  # 128-bit trace_id as 32 hex chars
+    assert len(entry["span_id"]) == 16  # 64-bit span_id as 16 hex chars
+
+    provider.shutdown()
+    exporter.clear()

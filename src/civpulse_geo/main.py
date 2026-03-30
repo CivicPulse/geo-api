@@ -191,9 +191,6 @@ async def lifespan(app: FastAPI):
     # Install SIGTERM handler as belt-and-suspenders (D-10)
     _install_sigterm_handler()
 
-    # 3. Add request-ID middleware
-    app.add_middleware(RequestIDMiddleware)
-
     yield
 
     # Shutdown sequence (D-12): preStop sleep handled by K8s, then SIGTERM arrives,
@@ -214,6 +211,10 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Request-ID middleware registered at app-definition time (not in lifespan)
+# so it is available during all requests including test client startup.
+app.add_middleware(RequestIDMiddleware)
 
 
 @app.exception_handler(Exception)
