@@ -147,7 +147,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 22-01-PLAN.md — Install observability deps, create logging/metrics/middleware modules, extend Settings, update K8s ConfigMap
-- [ ] 22-02-PLAN.md — OTel tracing module, Loguru OTel patcher, wire all observability into main.py lifespan
+- [x] 22-02-PLAN.md — OTel tracing module, Loguru OTel patcher, wire all observability into main.py lifespan
 - [ ] 22-03-PLAN.md — HTTP metrics middleware, manual cascade OTel spans, Tier 2/3 metric instrumentation
 
 ### Phase 23: E2E Testing, Load Baselines, and Final Validation
@@ -189,5 +189,5 @@ Plans:
 | 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 21. CI/CD Pipeline | v1.3 | 2/2 | Complete    | 2026-03-30 |
-| 22. Observability | v1.3 | 1/3 | In Progress|  |
+| 22. Observability | v1.3 | 2/3 | In Progress|  |
 | 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |

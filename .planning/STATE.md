@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
 status: executing
-stopped_at: Completed 22-01-PLAN.md
-last_updated: "2026-03-30T17:30:00.513Z"
+stopped_at: Completed 22-02-PLAN.md
+last_updated: "2026-03-30T17:39:14.978Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
   percent: 7
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 22 (observability) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-03-30
 
@@ -51,6 +51,7 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 | Phase 21-ci-cd-pipeline P02 | 2min | 2 tasks | 2 files |
 | Phase 21-ci-cd-pipeline P01 | 2min | 2 tasks | 3 files |
 | Phase 22-observability P01 | 4min | 2 tasks | 13 files |
+| Phase 22-observability P02 | 6min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -96,6 +97,9 @@ Key decisions affecting v1.3 execution:
 - [Phase 22-01]: OTel patcher for trace_id/span_id deferred to Plan 02 — configure_logging() safe to call before TracerProvider is initialized
 - [Phase 22-01]: generate_latest() + plain FastAPI Response for /metrics — avoids prometheus_client.make_asgi_app() 307 redirect bug
 - [Phase 22-01]: arbitrary_types_allowed=True on SettingsConfigDict — required for @property on Pydantic v2 BaseSettings
+- [Phase 22-02]: RequestIDMiddleware registered at app-definition time (not lifespan) — Starlette raises RuntimeError if add_middleware() called after app starts
+- [Phase 22-02]: Use provider.get_tracer() in OTel tests to avoid global TracerProvider single-override restriction
+- [Phase 22-02]: InMemorySpanExporter from opentelemetry.sdk.trace.export.in_memory_span_exporter in OTel 1.40.0 (not .in_memory)
 
 ### Phase Ordering Constraint
 
@@ -117,6 +121,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Completed 22-01-PLAN.md
+Stopped at: Completed 22-02-PLAN.md
 Resume file: None
 Next action: Phase 17 verification
