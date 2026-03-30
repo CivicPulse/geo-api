@@ -12,7 +12,6 @@ so callers can store one and use the other for fast lookups.
 """
 import hashlib
 import re
-import unicodedata
 
 from scourgify import normalize_address_record
 from scourgify.exceptions import (

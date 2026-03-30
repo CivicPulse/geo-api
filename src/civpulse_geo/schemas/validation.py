@@ -4,7 +4,7 @@ ValidateRequest  — POST /validate request body (freeform or structured)
 ValidationCandidate — per-provider candidate in the response
 ValidateResponse — POST /validate response body
 """
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class ValidateRequest(BaseModel):
@@ -14,11 +14,11 @@ class ValidateRequest(BaseModel):
     Both can be provided, in which case 'address' takes precedence for to_freeform().
     """
 
-    address: str | None = None
-    street: str | None = None
-    city: str | None = None
-    state: str | None = None
-    zip_code: str | None = None
+    address: str | None = Field(None, max_length=500)
+    street: str | None = Field(None, max_length=200)
+    city: str | None = Field(None, max_length=100)
+    state: str | None = Field(None, max_length=2)
+    zip_code: str | None = Field(None, max_length=10)
 
     @model_validator(mode="after")
     def check_at_least_one_input(self) -> "ValidateRequest":

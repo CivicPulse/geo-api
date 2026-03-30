@@ -9,7 +9,9 @@ BatchValidateResultItem   — per-item result in batch validate response
 BatchValidateResponse     — POST /validate/batch response body
 classify_exception        — map exception to (status_code, status, message)
 """
-from pydantic import BaseModel, model_validator
+from typing import Annotated
+
+from pydantic import BaseModel, Field, model_validator
 
 from civpulse_geo.schemas.geocoding import GeocodeResponse
 from civpulse_geo.schemas.validation import ValidateResponse
@@ -24,7 +26,7 @@ class BatchItemError(BaseModel):
 class BatchGeocodeRequest(BaseModel):
     """POST /geocode/batch request body."""
 
-    addresses: list[str]
+    addresses: list[Annotated[str, Field(min_length=1, max_length=500)]]
 
     @model_validator(mode="after")
     def check_batch_size(self) -> "BatchGeocodeRequest":
@@ -61,7 +63,7 @@ class BatchGeocodeResponse(BaseModel):
 class BatchValidateRequest(BaseModel):
     """POST /validate/batch request body."""
 
-    addresses: list[str]
+    addresses: list[Annotated[str, Field(min_length=1, max_length=500)]]
 
     @model_validator(mode="after")
     def check_batch_size(self) -> "BatchValidateRequest":

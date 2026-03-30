@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import usaddress
 from geoalchemy2.types import Geometry
 from scourgify import normalize_address_record
 import sqlalchemy

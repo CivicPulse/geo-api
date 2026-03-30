@@ -35,6 +35,15 @@ from civpulse_geo.services.geocoding import GeocodingService
 
 router = APIRouter(prefix="/geocode", tags=["geocoding"])
 
+# SEC-04: Allowlist of known provider names — rejects unknown values before service layer
+KNOWN_PROVIDERS = frozenset({
+    "census",
+    "openaddresses",
+    "postgis_tiger",
+    "national_address_database",
+    "macon_bibb",
+})
+
 
 @router.post("", response_model=GeocodeResponse)
 async def geocode(
@@ -220,6 +229,8 @@ async def get_provider_result(
 
     Returns 404 if the address_hash or provider_name is not found.
     """
+    if provider_name not in KNOWN_PROVIDERS:
+        raise HTTPException(status_code=404, detail="Unknown provider")
     service = GeocodingService()
     try:
         result = await service.get_by_provider(
@@ -227,8 +238,8 @@ async def get_provider_result(
             provider_name=provider_name,
             db=db,
         )
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="No result found for this provider and address")
 
     r = result["result"]
     return ProviderResultResponse(
