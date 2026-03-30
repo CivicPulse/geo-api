@@ -1550,3 +1550,33 @@ class TestCacheHitConsensusReRun:
         assert result.cache_hit is True
         # nad should be flagged as outlier (>1km from census cluster centroid)
         assert "nad" in result.outlier_providers
+
+
+# ---------------------------------------------------------------------------
+# PERF-06: Provider weight mapping tests
+# ---------------------------------------------------------------------------
+
+class TestProviderWeightMapping:
+    """PERF-06: Verify weight_map keys match provider registration names."""
+
+    def test_postgis_tiger_gets_correct_weight(self):
+        """postgis_tiger must NOT fall through to 0.50 default."""
+        from civpulse_geo.config import settings as s
+        weight = get_provider_weight("postgis_tiger")
+        assert weight != 0.50, "postgis_tiger fell through to default 0.50"
+        assert weight == s.weight_tiger_unrestricted
+
+    def test_national_address_database_gets_correct_weight(self):
+        """national_address_database must match NAD weight."""
+        from civpulse_geo.config import settings as s
+        weight = get_provider_weight("national_address_database")
+        assert weight == s.weight_nad
+
+    def test_census_gets_correct_weight(self):
+        """Known provider gets configured weight."""
+        from civpulse_geo.config import settings as s
+        assert get_provider_weight("census") == s.weight_census
+
+    def test_unknown_provider_gets_default_weight(self):
+        """Unknown provider falls through to 0.50."""
+        assert get_provider_weight("totally_unknown") == 0.50
