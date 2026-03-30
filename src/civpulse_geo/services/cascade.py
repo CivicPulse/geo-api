@@ -65,8 +65,8 @@ def get_provider_weight(provider_name: str) -> float:
         "census": settings.weight_census,
         "openaddresses": settings.weight_openaddresses,
         "macon_bibb": settings.weight_macon_bibb,
-        "tiger": settings.weight_tiger_unrestricted,
-        "nad": settings.weight_nad,
+        "postgis_tiger": settings.weight_tiger_unrestricted,
+        "national_address_database": settings.weight_nad,
     }
     return weight_map.get(provider_name, 0.50)
 

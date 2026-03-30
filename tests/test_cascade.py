@@ -86,10 +86,10 @@ class TestGetProviderWeight:
         assert get_provider_weight("macon_bibb") == pytest.approx(0.80)
 
     def test_nad_weight(self):
-        assert get_provider_weight("nad") == pytest.approx(0.80)
+        assert get_provider_weight("national_address_database") == pytest.approx(0.80)
 
     def test_tiger_weight(self):
-        assert get_provider_weight("tiger") == pytest.approx(0.40)
+        assert get_provider_weight("postgis_tiger") == pytest.approx(0.40)
 
     def test_unknown_provider_fallback(self):
         assert get_provider_weight("unknown_xyz") == pytest.approx(0.50)

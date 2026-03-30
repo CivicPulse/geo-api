@@ -251,12 +251,6 @@ class FuzzyMatcher:
         """
         input_upper = input_street.upper()
 
-        # Build a VALUES list for the candidates
-        candidate_rows = [
-            (c.street_name, c.score, c.source, c.street_number, c.city, c.zip_code, c.lat, c.lng)
-            for c in candidates
-        ]
-
         # Use raw SQL with unnest to compute dmetaphone for each candidate
         # and compare against the input
         placeholders = ", ".join(

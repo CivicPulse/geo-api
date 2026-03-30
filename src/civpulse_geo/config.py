@@ -11,6 +11,11 @@ class Settings(BaseSettings):
     max_batch_size: int = 100
     batch_concurrency_limit: int = 10
 
+    # Connection pool sizing (PERF-01)
+    db_pool_size: int = 5            # connections per worker process
+    db_max_overflow: int = 5         # additional connections under burst
+    db_pool_recycle: int = 3600      # recycle connections after 1 hour (seconds)
+
     # Cascade feature flag (CASC-02, D-02)
     cascade_enabled: bool = True
 
