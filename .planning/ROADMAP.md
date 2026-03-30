@@ -58,7 +58,7 @@ Full details archived in `milestones/v1.2-ROADMAP.md`.
 - [x] **Phase 19: Dockerfile and Database Provisioning** — Production multi-stage Docker image pushed to GHCR; dev and prod databases provisioned on shared PostgreSQL instance (completed 2026-03-30)
 - [x] **Phase 20: Health, Resilience, and K8s Manifests** — Split health endpoints, graceful shutdown, K8s Deployment with Ollama sidecar, ClusterIP Service, ArgoCD apps, and Kustomize overlays for dev and prod (completed 2026-03-30)
 - [x] **Phase 21: CI/CD Pipeline** — GitHub Actions CI (lint + test) and CD (build + GHCR push + ArgoCD trigger) with Trivy scan; automated dev sync, manual prod gate (completed 2026-03-30)
-- [ ] **Phase 22: Observability** — Structured JSON logging, Prometheus /metrics, OpenTelemetry traces exported to Tempo, and Loguru trace context middleware for Loki-to-Tempo correlation
+- [x] **Phase 22: Observability** — Structured JSON logging, Prometheus /metrics, OpenTelemetry traces exported to Tempo, and Loguru trace context middleware for Loki-to-Tempo correlation (completed 2026-03-30)
 - [ ] **Phase 23: E2E Testing, Load Baselines, and Final Validation** — E2E suite for all 5 providers, Locust cold-cache/warm-cache baselines, observability verification under load, and a top-to-bottom validation pass that repeats until clean
 
 ## Phase Details
@@ -148,7 +148,7 @@ Plans:
 Plans:
 - [x] 22-01-PLAN.md — Install observability deps, create logging/metrics/middleware modules, extend Settings, update K8s ConfigMap
 - [x] 22-02-PLAN.md — OTel tracing module, Loguru OTel patcher, wire all observability into main.py lifespan
-- [ ] 22-03-PLAN.md — HTTP metrics middleware, manual cascade OTel spans, Tier 2/3 metric instrumentation
+- [x] 22-03-PLAN.md — HTTP metrics middleware, manual cascade OTel spans, Tier 2/3 metric instrumentation
 
 ### Phase 23: E2E Testing, Load Baselines, and Final Validation
 **Goal**: All 5 providers work correctly in deployed prod, performance baselines are established, observability is validated under load, and a top-to-bottom clean pass confirms production readiness
@@ -189,5 +189,5 @@ Plans:
 | 19. Dockerfile and Database Provisioning | v1.3 | 1/2 | Complete    | 2026-03-30 |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 21. CI/CD Pipeline | v1.3 | 2/2 | Complete    | 2026-03-30 |
-| 22. Observability | v1.3 | 2/3 | In Progress|  |
+| 22. Observability | v1.3 | 3/3 | Complete   | 2026-03-30 |
 | 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |
