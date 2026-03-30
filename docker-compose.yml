@@ -38,6 +38,7 @@ services:
 
   api:
     build: .
+    command: ["bash", "scripts/docker-entrypoint.sh"]
     environment:
       DATABASE_URL: postgresql+asyncpg://civpulse:civpulse@db:5432/civpulse_geo
       DATABASE_URL_SYNC: postgresql+psycopg2://civpulse:civpulse@db:5432/civpulse_geo
