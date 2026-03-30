@@ -172,7 +172,7 @@ Plans:
 | 15. LLM Sidecar | v1.2 | 3/3 | Complete | 2026-03-29 |
 | 16. Audit Gap Closure | v1.2 | 1/1 | Complete | 2026-03-29 |
 | 17. Tech Debt Resolution | v1.3 | 2/2 | Complete    | 2026-03-29 |
-| 18. Code Review | v1.3 | 3/3 | Complete   | 2026-03-30 |
+| 18. Code Review | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 19. Dockerfile and Database Provisioning | v1.3 | 0/TBD | Not started | - |
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 0/TBD | Not started | - |
 | 21. CI/CD Pipeline | v1.3 | 0/TBD | Not started | - |
