@@ -34,7 +34,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 - [ ] Resolve all known tech debt and errors
 - [ ] Thorough code review (security, stability, performance, logic, exceptions)
-- [ ] Structured logging and distributed tracing for AI-assisted debugging
+- [x] Structured logging and distributed tracing for AI-assisted debugging
 - [ ] K8s deployment to civpulse-dev and civpulse-prod (internal ClusterIP only)
 - [ ] Ollama LLM sidecar in both environments
 - [ ] Database provisioning (dev + prod)
@@ -85,6 +85,7 @@ Provide a single, reliable source of geocoded and validated address data across 
 - ✓ Graceful shutdown with engine disposal, SIGTERM handler, preStop hook — v1.3, Phase 20
 - ✓ K8s Kustomize base + overlays (dev/prod) with native Ollama sidecar, init containers, ArgoCD CRs — v1.3, Phase 20
 - ✓ CI/CD pipeline: GitHub Actions CI gate (ruff + pytest), CD (Docker build → Trivy scan → GHCR push → ArgoCD dev deploy), production promotion via git tag — v1.3, Phase 21
+- ✓ Structured JSON logging (Loguru, env-based format switching), Prometheus /metrics (3-tier), OpenTelemetry traces (OTLP → Tempo), log-trace correlation (trace_id/span_id injection) — v1.3, Phase 22
 
 ### Out of Scope
 
@@ -174,4 +175,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 21 complete*
+*Last updated: 2026-03-30 after Phase 22 complete*
