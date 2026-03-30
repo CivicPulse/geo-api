@@ -30,10 +30,10 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 ### Deployment
 
 - [ ] **DEPLOY-01**: Multi-stage Dockerfile (uv builder, non-root runtime, exec-form CMD, read-only FS compatible)
-- [ ] **DEPLOY-02**: K8s Deployment manifests for civpulse-dev and civpulse-prod with Ollama sidecar container
-- [ ] **DEPLOY-03**: ClusterIP Service (internal only) for both environments
-- [ ] **DEPLOY-04**: Init containers for Alembic migrations and spell dictionary rebuild
-- [ ] **DEPLOY-05**: ConfigMap and Secret resources for environment-specific configuration
+- [x] **DEPLOY-02**: K8s Deployment manifests for civpulse-dev and civpulse-prod with Ollama sidecar container
+- [x] **DEPLOY-03**: ClusterIP Service (internal only) for both environments
+- [x] **DEPLOY-04**: Init containers for Alembic migrations and spell dictionary rebuild
+- [x] **DEPLOY-05**: ConfigMap and Secret resources for environment-specific configuration
 - [ ] **DEPLOY-06**: GitHub Actions workflow (build → GHCR push with sha-tag → manifest update)
 - [ ] **DEPLOY-07**: ArgoCD Application CRs for dev and prod pointing to manifest paths
 - [ ] **DEPLOY-08**: Database provisioned on shared PostgreSQL instance (dev + prod)
@@ -43,7 +43,7 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 - [ ] **RESIL-01**: /health/live endpoint (process-only, no DB) for K8s liveness probe
 - [ ] **RESIL-02**: /health/ready endpoint (DB + all registered providers verified) for K8s readiness probe
 - [ ] **RESIL-03**: Graceful shutdown with preStop hook and SIGTERM handling for asyncpg pool cleanup
-- [ ] **RESIL-04**: Startup data initialization — spell dictionary rebuild and provider data verification on boot
+- [x] **RESIL-04**: Startup data initialization — spell dictionary rebuild and provider data verification on boot
 
 ### E2E & Load Testing
 
@@ -111,11 +111,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | RESIL-01 | Phase 20 | Pending |
 | RESIL-02 | Phase 20 | Pending |
 | RESIL-03 | Phase 20 | Pending |
-| RESIL-04 | Phase 20 | Pending |
-| DEPLOY-02 | Phase 20 | Pending |
-| DEPLOY-03 | Phase 20 | Pending |
-| DEPLOY-04 | Phase 20 | Pending |
-| DEPLOY-05 | Phase 20 | Pending |
+| RESIL-04 | Phase 20 | Complete |
+| DEPLOY-02 | Phase 20 | Complete |
+| DEPLOY-03 | Phase 20 | Complete |
+| DEPLOY-04 | Phase 20 | Complete |
+| DEPLOY-05 | Phase 20 | Complete |
 | DEPLOY-07 | Phase 20 | Pending |
 | DEPLOY-06 | Phase 21 | Pending |
 | OBS-01 | Phase 22 | Pending |

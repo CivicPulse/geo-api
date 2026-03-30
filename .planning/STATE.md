@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
 status: executing
-stopped_at: Phase 20 context gathered
-last_updated: "2026-03-30T03:28:19.584Z"
+stopped_at: Completed 20-02-PLAN.md
+last_updated: "2026-03-30T04:03:36.812Z"
 last_activity: 2026-03-30
 progress:
   total_phases: 7
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 7
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 19 — dockerfile-and-database-provisioning
+**Current focus:** Phase 20 — health-resilience-and-k8s-manifests
 
 ## Current Position
 
-Phase: 20
-Plan: Not started
-Status: Executing Phase 19
+Phase: 20 (health-resilience-and-k8s-manifests) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-03-30
 
 Progress: [█░░░░░░░░░] 7% (v1.3)
@@ -45,6 +45,7 @@ Progress: [█░░░░░░░░░] 7% (v1.3)
 | Phase 18-code-review P02 | 3min | 2 tasks | 3 files |
 | Phase 18-code-review P01 | 3min | 2 tasks | 10 files |
 | Phase 18-code-review P03 | 10min | 2 tasks | 6 files |
+| Phase 20-health-resilience-and-k8s-manifests P02 | 2min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,9 @@ Key decisions affecting v1.3 execution:
 - [Phase 18-code-review]: Annotated[str, Field(min_length=1, max_length=500)] for per-item constraints in Pydantic v2 list fields (batch schemas)
 - [Phase 18-code-review]: PERF-01: db_pool_size=5, db_max_overflow=5 (max 10 connections per worker) — within PostgreSQL default 100 max_connections for single-replica K8s deployment
 - [Phase 18-code-review]: PERF-06: weight_map now uses 'postgis_tiger' and 'national_address_database' matching main.py registration — old 'tiger'/'nad' aliases removed; pool_pre_ping hardcoded True in database.py
+- [Phase 20-health-resilience-and-k8s-manifests]: Ollama native sidecar as last initContainer (restartPolicy: Always) — guarantees Ollama ready before geo-api main container
+- [Phase 20-health-resilience-and-k8s-manifests]: db-wait init container uses pg_isready (postgresql-client from Phase 19 Dockerfile) before alembic-migrate
+- [Phase 20-health-resilience-and-k8s-manifests]: model-pull skip-if-cached guard (ollama list | grep qwen2.5:3b) avoids 2GB re-download on pod restarts
 
 ### Phase Ordering Constraint
 
@@ -96,6 +100,6 @@ None.
 ## Session Continuity
 
 Last activity: 2026-03-29 — Phase 17 Plans 1 & 2 complete
-Stopped at: Phase 20 context gathered
-Resume file: .planning/phases/20-health-resilience-and-k8s-manifests/20-CONTEXT.md
+Stopped at: Completed 20-02-PLAN.md
+Resume file: None
 Next action: Phase 17 verification
