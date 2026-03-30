@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: geo-api-config
+data:
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "DEBUG"
+  CASCADE_LLM_ENABLED: "false"

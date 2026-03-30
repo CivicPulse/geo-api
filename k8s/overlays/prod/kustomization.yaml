@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Secret is NOT managed by Kustomize/ArgoCD (D-06, Pitfall 3).
+# Apply manually: kubectl create secret generic geo-api-secret \
+#   --from-literal=DATABASE_URL='postgresql+asyncpg://geo_prod:<password>@postgresql.civpulse-infra.svc.cluster.local:5432/civpulse_geo_prod' \
+#   --from-literal=DATABASE_URL_SYNC='postgresql+psycopg2://geo_prod:<password>@postgresql.civpulse-infra.svc.cluster.local:5432/civpulse_geo_prod' \
+#   -n civpulse-prod
+
+namespace: civpulse-prod
+
+resources:
+  - ../../base
+  - argocd-app.yaml
+
+images:
+  - name: ghcr.io/civicpulse/geo-api
+    newTag: latest
+
+patches:
+  - path: configmap-patch.yaml
+    target:
+      kind: ConfigMap
+      name: geo-api-config
