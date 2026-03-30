@@ -162,7 +162,12 @@ Plans:
   4. Structured JSON logs appear in Loki under load with correct request_id and trace_id fields on every entry
   5. Traces appear in Tempo under load with DB and provider child spans; metrics appear in VictoriaMetrics with correct labels
   6. A top-to-bottom validation pass covering all 7 categories (debt, review, observability, deployment, resilience, testing, validation) completes with no blockers
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 23-01-PLAN.md — E2E test suite: conftest, provider fixtures, parametrized geocode/validate tests, cascade pipeline test
+- [ ] 23-02-PLAN.md — Locust load tests: cold-cache/warm-cache address files, weighted task locustfile, baseline capture CLI
+- [ ] 23-03-PLAN.md — Observability verification scripts: Loki log assertions, Tempo trace assertions, VictoriaMetrics metric assertions
+- [ ] 23-04-PLAN.md — Final validation checklist: 7-category production readiness pass with blocker/non-blocker triage
 
 ## Progress
 
@@ -190,4 +195,4 @@ Plans:
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 21. CI/CD Pipeline | v1.3 | 2/2 | Complete    | 2026-03-30 |
 | 22. Observability | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/TBD | Not started | - |
+| 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/4 | Not started | - |
