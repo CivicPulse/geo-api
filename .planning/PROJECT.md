@@ -81,6 +81,9 @@ Provide a single, reliable source of geocoded and validated address data across 
 - ✓ Performance audit — explicit connection pool sizing, corrected provider weight mapping — v1.3, Phase 18
 - ✓ Multi-stage production Dockerfile with non-root appuser, pushed to GHCR — v1.3, Phase 19
 - ✓ Database provisioned on shared PostgreSQL instance (dev + prod) with Alembic migrations — v1.3, Phase 19
+- ✓ Health probes (/health/live liveness, /health/ready readiness with DB + provider threshold) — v1.3, Phase 20
+- ✓ Graceful shutdown with engine disposal, SIGTERM handler, preStop hook — v1.3, Phase 20
+- ✓ K8s Kustomize base + overlays (dev/prod) with native Ollama sidecar, init containers, ArgoCD CRs — v1.3, Phase 20
 
 ### Out of Scope
 
@@ -170,4 +173,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-29 after Phase 19 complete*
+*Last updated: 2026-03-30 after Phase 20 complete*
