@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
 status: executing
-stopped_at: "Completed 23-06-PLAN.md - checkpoint:human-verify reached at Task 2 (findings presented)"
-last_updated: "2026-04-03T20:48:14.885Z"
+stopped_at: "Completed 23-05-PLAN.md — all 5 providers registered in prod, /health/ready: 5/5"
+last_updated: "2026-04-03T21:24:20.908Z"
 last_activity: 2026-04-03
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 24
-  completed_plans: 21
+  completed_plans: 22
   percent: 95
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-29)
 ## Current Position
 
 Phase: 23 (e2e-testing-load-baselines-and-final-validation) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-04-03
 
@@ -55,6 +55,7 @@ Progress: [█████████░] 95% (v1.3)
 | Phase 22-observability P03 | 4min | 2 tasks | 5 files |
 | Phase 23-e2e-testing-load-baselines-and-final-validation P00 | 5min | 1 tasks | 0 files |
 | Phase 23-e2e-testing-load-baselines-and-final-validation P06 | 1min | 1 tasks | 0 files |
+| Phase 23-e2e-testing-load-baselines-and-final-validation P05 | 2min | 2 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -108,6 +109,9 @@ Key decisions affecting v1.3 execution:
 - [Phase 23-e2e-testing-load-baselines-and-final-validation]: Plan 23-00: Deployment pre-existing — all cluster resources (secrets, ArgoCD apps, pods) verified in place; /health/ready returns 5 providers in prod and dev
 - [Phase 23-06]: Tempo OTLP StatusCode.UNAVAILABLE errors were from prior pod generation; current pods export traces to tempo.civpulse-infra.svc.cluster.local:4317 without errors
 - [Phase 23-06]: postgis_tiger_geocoder v3.4.2 is installed in prod DB; Tiger provider registers at startup in both dev and prod; both issues from VERIFICATION.md are self-healed in current pod generation
+- [Phase 23-e2e-testing-load-baselines-and-final-validation]: Connected to prod PostgreSQL via Tailscale IP (100.67.17.69:5432) — headless K8s service has no selector, port-forward fails
+- [Phase 23-e2e-testing-load-baselines-and-final-validation]: Always retrieve DB credentials from K8s secrets (kubectl get secret), not project memory — memory had stale user/password for prod
+- [Phase 23-e2e-testing-load-baselines-and-final-validation]: Tiger provider registered without Plan 06 intervention — postgis_tiger_geocoder extension became available between blocker assessment and data load
 
 ### Phase Ordering Constraint
 
@@ -136,6 +140,6 @@ Each phase is a hard gate for the next. Infrastructure prerequisites (DNS, DB co
 ## Session Continuity
 
 Last activity: 2026-04-03 — Phase 23 verification recorded as blocked
-Stopped at: Completed 23-06-PLAN.md - checkpoint:human-verify reached at Task 2 (findings presented)
+Stopped at: Completed 23-05-PLAN.md — all 5 providers registered in prod, /health/ready: 5/5
 Resume file: None
 Next action: load provider datasets into deployed DBs, restore Tiger/Tempo connectivity, then rerun Phase 23 validation
