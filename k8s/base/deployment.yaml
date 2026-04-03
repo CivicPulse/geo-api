@@ -84,7 +84,7 @@ spec:
               if ! ollama list | grep -q "qwen2.5:3b"; then
                 ollama pull qwen2.5:3b
               fi
-              kill %1
+              kill %1 2>/dev/null || true
           volumeMounts:
             - name: ollama-data
               mountPath: /root/.ollama
