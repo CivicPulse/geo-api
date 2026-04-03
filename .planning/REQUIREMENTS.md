@@ -47,9 +47,9 @@ Requirements for Production Readiness & Deployment milestone. Each maps to roadm
 
 ### E2E & Load Testing
 
-- [ ] **TEST-01**: E2E tests for all 5 providers against deployed prod (geocode + validate per provider)
-- [ ] **TEST-02**: E2E test of full cascade pipeline end-to-end on deployed prod
-- [ ] **TEST-03**: Locust load tests with cold-cache/warm-cache separation, P50/P95/P99 baselines derived
+- [x] **TEST-01**: E2E tests for all 5 providers against deployed prod (geocode + validate per provider)
+- [x] **TEST-02**: E2E test of full cascade pipeline end-to-end on deployed prod
+- [x] **TEST-03**: Locust load tests with cold-cache/warm-cache separation, P50/P95/P99 baselines derived
 - [ ] **TEST-04**: Logs verified in Loki under load (structured JSON, request_id, trace correlation)
 - [ ] **TEST-05**: Traces verified in Tempo under load (request spans, DB spans, provider spans)
 - [ ] **TEST-06**: Metrics verified in VictoriaMetrics under load (request rate, latency histograms, error rate)
@@ -122,9 +122,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | OBS-02 | Phase 22 | Complete |
 | OBS-03 | Phase 22 | Complete |
 | OBS-04 | Phase 22 | Complete |
-| TEST-01 | Phase 23 | Pending |
-| TEST-02 | Phase 23 | Pending |
-| TEST-03 | Phase 23 | Pending |
+| TEST-01 | Phase 23 | Complete |
+| TEST-02 | Phase 23 | Complete |
+| TEST-03 | Phase 23 | Complete |
 | TEST-04 | Phase 23 | Pending |
 | TEST-05 | Phase 23 | Pending |
 | TEST-06 | Phase 23 | Pending |
