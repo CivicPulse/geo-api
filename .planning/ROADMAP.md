@@ -162,13 +162,17 @@ Plans:
   4. Structured JSON logs appear in Loki under load with correct request_id and trace_id fields on every entry
   5. Traces appear in Tempo under load with DB and provider child spans; metrics appear in VictoriaMetrics with correct labels
   6. A top-to-bottom validation pass covering all 7 categories (debt, review, observability, deployment, resilience, testing, validation) completes with no blockers
-**Plans**: 5 plans
+**Plans**: 9 plans
 Plans:
 - [ ] 23-00-PLAN.md — Deployment prerequisite: apply ArgoCD CRs, create K8s Secrets, verify pod Running
-- [ ] 23-01-PLAN.md — E2E test suite: conftest, provider fixtures, parametrized geocode/validate tests, cascade pipeline test
-- [ ] 23-02-PLAN.md — Locust load tests: cold-cache/warm-cache address files, weighted task locustfile, baseline capture CLI
-- [ ] 23-03-PLAN.md — Observability verification scripts: Loki log assertions, Tempo trace assertions, VictoriaMetrics metric assertions
-- [ ] 23-04-PLAN.md — Final validation checklist: 7-category production readiness pass with blocker/non-blocker triage
+- [x] 23-01-PLAN.md — E2E test suite: conftest, provider fixtures, parametrized geocode/validate tests, cascade pipeline test
+- [x] 23-02-PLAN.md — Locust load tests: cold-cache/warm-cache address files, weighted task locustfile, baseline capture CLI
+- [x] 23-03-PLAN.md — Observability verification scripts: Loki log assertions, Tempo trace assertions, VictoriaMetrics metric assertions
+- [x] 23-04-PLAN.md — Final validation checklist: 7-category production readiness pass with blocker/non-blocker triage
+- [ ] 23-05-PLAN.md — Gap closure: load OA/NAD/Macon-Bibb datasets into prod DB, restart pod for provider registration
+- [ ] 23-06-PLAN.md — Gap closure: diagnose and fix Tempo OTLP connectivity and Tiger extension availability
+- [ ] 23-07-PLAN.md — Gap closure: run E2E tests, Locust baselines, and observability verification against remediated environment
+- [ ] 23-08-PLAN.md — Gap closure: final validation checklist pass with results from environment remediation
 
 ## Progress
 
@@ -196,4 +200,4 @@ Plans:
 | 20. Health, Resilience, and K8s Manifests | v1.3 | 3/3 | Complete    | 2026-03-30 |
 | 21. CI/CD Pipeline | v1.3 | 2/2 | Complete    | 2026-03-30 |
 | 22. Observability | v1.3 | 3/3 | Complete    | 2026-03-30 |
-| 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 0/5 | Not started | - |
+| 23. E2E Testing, Load Baselines, and Final Validation | v1.3 | 4/9 | In progress | - |
