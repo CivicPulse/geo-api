@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Production Readiness & Deployment
-status: verifying
+status: executing
 stopped_at: Phase 23 context gathered
-last_updated: "2026-03-30T18:18:10.875Z"
-last_activity: 2026-03-30
+last_updated: "2026-03-30T18:51:37.258Z"
+last_activity: 2026-03-30 -- Phase 23 execution started
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 15
+  total_plans: 20
   completed_plans: 15
   percent: 7
 ---
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-29)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Phase 22 — observability
+**Current focus:** Phase 23 — e2e-testing-load-baselines-and-final-validation
 
 ## Current Position
 
-Phase: 23
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-03-30
+Phase: 23 (e2e-testing-load-baselines-and-final-validation) — EXECUTING
+Plan: 1 of 5
+Status: Executing Phase 23
+Last activity: 2026-03-30 -- Phase 23 execution started
 
 Progress: [█░░░░░░░░░] 7% (v1.3)
 
@@ -112,7 +112,7 @@ Each phase is a hard gate for the next. Infrastructure prerequisites (DNS, DB co
 
 ### Pending Todos
 
-None.
+- [Reset ArgoCD targetRevision to main after merge](.planning/todos/pending/2026-04-03-reset-argocd-targetrevision-to-main-after-merge.md) - restore `spec.source.targetRevision: main` in both geo-api ArgoCD Application manifests after the Phase 23 deployment fixes are merged
 
 ### Blockers/Concerns (Carry Forward from v1.2)
 
