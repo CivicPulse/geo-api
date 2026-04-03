@@ -4,6 +4,8 @@ metadata:
   name: geo-api
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: geo-api
@@ -78,7 +80,7 @@ spec:
           args:
             - |
               /bin/ollama serve &
-              until curl -sf http://localhost:11434/api/tags > /dev/null 2>&1; do sleep 2; done
+              until ollama list > /dev/null 2>&1; do sleep 2; done
               if ! ollama list | grep -q "qwen2.5:3b"; then
                 ollama pull qwen2.5:3b
               fi

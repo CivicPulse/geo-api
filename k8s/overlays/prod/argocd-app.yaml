@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/CivicPulse/geo-api.git
-    targetRevision: main
+    targetRevision: phase-23-deploy-fix
     path: k8s/overlays/prod
   destination:
     server: https://kubernetes.default.svc
