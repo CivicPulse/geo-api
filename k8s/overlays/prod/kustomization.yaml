@@ -15,7 +15,7 @@ resources:
 
 images:
   - name: ghcr.io/civicpulse/geo-api
-    newTag: phase-23-deploy-fix-454a876
+    newTag: latest
 
 patches:
   - path: configmap-patch.yaml
