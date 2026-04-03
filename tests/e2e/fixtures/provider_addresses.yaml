@@ -1,0 +1,22 @@
+census:
+  geocode_address: "700 Poplar St, Macon, GA 31201"
+  expected_provider: "census"
+openaddresses:
+  geocode_address: "548 Moss Hill, Macon, GA 31204"
+  validate_address: "548 Moss Hill, Macon, GA 31204"
+  expected_provider: "openaddresses"
+postgis_tiger:
+  geocode_address: "700 Poplar St, Macon, GA 31201"
+  validate_address: "700 Poplar St, Macon, GA 31201"
+  expected_provider: "postgis_tiger"
+national_address_database:
+  geocode_address: "548 Moss Hill, Macon, GA 31204"
+  validate_address: "548 Moss Hill, Macon, GA 31204"
+  expected_provider: "national_address_database"
+macon_bibb:
+  geocode_address: "548 Moss Hill, Macon, GA 31204"
+  validate_address: "548 Moss Hill, Macon, GA 31204"
+  expected_provider: "macon_bibb"
+cascade_test:
+  degraded_address: "548 Moss Hl, MacOn, GA 31204"
+  note: "Known-good Macon-Bibb address with degraded casing and suffix"
