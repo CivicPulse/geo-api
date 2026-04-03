@@ -1,5 +1,30 @@
 # Milestones
 
+## v1.3 Production Readiness & Deployment (Shipped: 2026-04-03)
+
+**Phases completed:** 7 phases, 24 plans, 34 tasks
+
+**Key accomplishments:**
+
+- OA accuracy parser fixed (None not 'parcel'), Tiger gets dedicated 3s timeout via per-provider map, and cascade cache-hit early exit wired with consensus re-run populating would_set_official retroactively
+- Startup auto-rebuilds spell_dictionary when empty and staging tables have data, eliminating manual CLI step after data loads
+- 4 security blockers resolved via Pydantic field constraints and provider allowlist: hardcoded DB credentials removed (CHANGEME placeholders), all address inputs capped at 500 chars, lat/lng range validated, unknown provider names rejected before service dispatch
+- Global FastAPI exception handler (STAB-01/02) and per-provider loop guards (STAB-04) resolving all three stability blockers with 3 regression tests
+- One-liner:
+- Docker image pushed to ghcr.io/civicpulse/geo-api:sha-42d5282 (public), both dev/prod databases provisioned on host PG with PostGIS/pg_trgm/fuzzystrmatch, Alembic migrations applied (12 tables), and connectivity verified from K8s pods in both namespaces
+- Split K8s health probes with /health/live (process-only) and /health/ready (DB + provider threshold), plus lifespan engine disposal and SIGTERM safety-net handler
+- Kustomize dev and prod overlays with env-specific ConfigMap patches, ArgoCD Application CRs for GitOps sync, and obsolete standalone Ollama manifests removed
+- GitHub Actions CI workflow (ruff lint + pytest) with SHA-pinned actions, minimal read permissions, and .trivyignore skeleton for CVE suppression
+- Loguru JSON structured logging, Prometheus metric definitions (3 tiers), RequestIDMiddleware with UUID4 propagation, and GET /metrics endpoint installed as standalone importable modules
+- OpenTelemetry TracerProvider with OTLP gRPC exporter, Loguru trace_id/span_id patcher via lazy get_current_span(), and fully wired main.py lifespan (configure_logging -> setup_tracing -> providers -> teardown_tracing -> engine.dispose)
+- geo-api deployed to civpulse-prod and civpulse-dev with all 5 providers registered, ArgoCD Synced/Healthy, and /health/ready returning 200 — prerequisite for E2E, load, and observability plans
+- Loaded OpenAddresses (67,731), NAD (206,699), and Macon-Bibb (67,730) address datasets into prod PostgreSQL, triggering spell_dictionary rebuild (4,456 words) and enabling all 5 providers to register at pod startup — /health/ready now reports geocoding_providers:5, validation_providers:5
+- Tempo OTLP connectivity and Tiger provider registration both confirmed operational in dev and prod - all 5 providers register at startup with no OTLP errors
+- 12/12 E2E tests pass for all 5 providers; Locust baselines captured (cold/warm, 30 users); Loki + Tempo + VictoriaMetrics all verified passing after adding geo-api scrape targets to VictoriaMetrics
+- 23-VALIDATION-CHECKLIST.md populated with run 1 results across all 7 categories — VAL-03 clean pass achieved with 35 PASS items, 2 DEFERRED non-blockers (load test P95 thresholds due to port-forward infra constraints), and no open blockers
+
+---
+
 ## v1.2 Cascading Address Resolution (Shipped: 2026-03-29)
 
 **Phases:** 5 | **Plans:** 11 | **Commits:** 94 | **Files:** 107 | **LOC:** 8,153 Python
