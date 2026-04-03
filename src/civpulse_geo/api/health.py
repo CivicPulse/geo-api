@@ -29,6 +29,16 @@ def _git_commit() -> str:
         return "unknown"
 
 
+@lru_cache(maxsize=1)
+def _min_ready_geocoding_providers() -> int:
+    return max(1, int(os.environ.get("MIN_READY_GEOCODING_PROVIDERS", "1")))
+
+
+@lru_cache(maxsize=1)
+def _min_ready_validation_providers() -> int:
+    return max(1, int(os.environ.get("MIN_READY_VALIDATION_PROVIDERS", "1")))
+
+
 @router.get("/health")
 async def health(db: AsyncSession = Depends(get_db)):
     info = {
@@ -56,7 +66,7 @@ async def health_live():
 
 @router.get("/health/ready")
 async def health_ready(request: Request, db: AsyncSession = Depends(get_db)):
-    """Readiness probe -- DB connected AND provider threshold met (RESIL-02)."""
+    """Readiness probe -- DB connected AND minimum provider thresholds met."""
     try:
         await db.execute(text("SELECT 1"))
     except Exception as exc:
@@ -66,13 +76,17 @@ async def health_ready(request: Request, db: AsyncSession = Depends(get_db)):
         )
     geo_count = len(request.app.state.providers)
     val_count = len(request.app.state.validation_providers)
-    if geo_count < 2 or val_count < 2:
+    min_geo = _min_ready_geocoding_providers()
+    min_val = _min_ready_validation_providers()
+    if geo_count < min_geo or val_count < min_val:
         raise HTTPException(
             status_code=503,
             detail={
                 "status": "not_ready",
                 "geocoding_providers": geo_count,
                 "validation_providers": val_count,
+                "minimum_geocoding_providers": min_geo,
+                "minimum_validation_providers": min_val,
                 "reason": "insufficient providers",
             },
         )
@@ -80,4 +94,6 @@ async def health_ready(request: Request, db: AsyncSession = Depends(get_db)):
         "status": "ready",
         "geocoding_providers": geo_count,
         "validation_providers": val_count,
+        "minimum_geocoding_providers": min_geo,
+        "minimum_validation_providers": min_val,
     }
