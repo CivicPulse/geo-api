@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tile-server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tile-server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tile-server
+    spec:
+      containers:
+        - name: tile-server
+          image: overv/openstreetmap-tile-server:latest
+          args: ["run"]
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: osm-tile-data
+              mountPath: /data/database
+            - name: osm-pbf
+              mountPath: /data/osm
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "1500m"
+      volumes:
+        - name: osm-tile-data
+          persistentVolumeClaim:
+            claimName: osm-tile-data-pvc
+        - name: osm-pbf
+          persistentVolumeClaim:
+            claimName: osm-pbf-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tile-server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: tile-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 80
+      protocol: TCP
