@@ -112,3 +112,25 @@ Task 3 is `type="checkpoint:human-verify"` — awaiting operator to run 8 docker
 ---
 *Phase: 24-osm-data-pipeline-docker-compose-sidecars*
 *Completed: 2026-04-04*
+
+---
+
+## T3 Checkpoint Resolved (2026-04-04)
+
+Manual Docker verification performed by Claude with operator authorization. Steps 1, 2, 3, 4, 7, 8 passed. Steps 5-6 revealed two architectural gaps:
+
+1. **nominatim `:ro` bind mount** → `chown: Read-only file system` on startup (mediagis/nominatim:5.2 chowns `/nominatim/*` including bind mounts). **Fixed** by removing `:ro` flag.
+
+2. **Shared `osm-postgres` premise was incorrect** → Both `mediagis/nominatim:5.2` and `overv/openstreetmap-tile-server:2.3.0` bundle and manage their own internal PostgreSQL. They cannot be wired to an external PG without custom image builds. **Fixed via architectural refactor** (commit `f5060fd`): dropped `osm-postgres` service entirely; each sidecar uses its own bundled PG; isolation from `civpulse_geo` preserved via separate volumes.
+
+3. **tile-server / valhalla need prior data** → Documented as known image workflow requirements. `tile-server` requires `docker compose run --rm tile-server import` before `up` works cleanly. `valhalla` is run-based (exits until routing tiles are built).
+
+### Post-refactor verification
+
+- `docker compose config -q` exits 0
+- `docker compose --profile osm config --services` lists: `api`, `db`, `nominatim`, `tile-server`, `valhalla`
+- All 12 `test_osm_cli.py` tests pass
+- `osm-import-nominatim` CLI rewired to `docker compose --profile osm up -d nominatim` (image auto-imports on first up)
+- `ruff check src/civpulse_geo/cli/__init__.py` clean
+
+**T3 status:** resolved. CONTEXT.md Decision D-02 (shared `osm-postgres`) is **superseded** by architectural reality documented above.
