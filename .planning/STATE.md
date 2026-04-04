@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
-status: verifying
-stopped_at: Completed 27-valhalla-routing plan 03 (27-03-PLAN.md)
-last_updated: "2026-04-04T22:25:40.294Z"
+status: executing
+stopped_at: Completed 28-k8s-manifests-health-probe-updates plan 01 (28-01-PLAN.md)
+last_updated: "2026-04-04T23:00:03.782Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 15
-  completed_plans: 15
+  total_plans: 17
+  completed_plans: 16
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — now expanded to include self-hosted map tiles, POI search, reverse geocoding, and routing
-**Current focus:** Phase 27 — Valhalla Routing
+**Current focus:** Phase 28 — K8s Manifests & Health Probe Updates
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 28 (K8s Manifests & Health Probe Updates) — EXECUTING
+Plan: 2 of 2
+Status: Ready to execute
 Last activity: 2026-04-04
 
 Progress: [░░░░░░░░░░] 0%
@@ -56,6 +56,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 27-valhalla-routing P02 | 5 | 2 tasks | 2 files |
 | Phase 27-valhalla-routing P01 | 8 | 1 tasks | 1 files |
 | Phase 27-valhalla-routing P03 | 2 | 2 tasks | 3 files |
+| Phase 28-k8s-manifests-health-probe-updates P01 | 1min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,9 @@ Key research decisions for v1.4:
 - [Phase 27-valhalla-routing]: POST body spot-check for exact Valhalla JSON shape embedded in pedestrian happy-path test
 - [Phase 27-valhalla-routing]: Valhalla uses app.state.valhalla_enabled flag (not providers dict) — it is not a GeocodingProvider
 - [Phase 27-valhalla-routing]: _valhalla_reachable mirrors _nominatim_reachable exactly: GET /status, 2s timeout, bool return
+- [Phase 28-k8s-manifests-health-probe-updates]: Sidecar Deployments use explicit app.kubernetes.io/name selectors to avoid commonLabels collision with geo-api
+- [Phase 28-k8s-manifests-health-probe-updates]: storageClassName omitted from OSM PVCs to inherit cluster default per overlay
+- [Phase 28-k8s-manifests-health-probe-updates]: No readiness/liveness probes on OSM sidecars in base — health surfaced via geo-api /health/ready (plan 02)
 
 ### Pending Todos
 
@@ -106,6 +110,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 27-valhalla-routing plan 03 (27-03-PLAN.md)
+Stopped at: Completed 28-k8s-manifests-health-probe-updates plan 01 (28-01-PLAN.md)
 Resume file: None
 Next action: `/gsd:plan-phase 24`
