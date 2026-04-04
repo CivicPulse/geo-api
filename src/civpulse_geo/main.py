@@ -38,6 +38,7 @@ from civpulse_geo.providers.macon_bibb import (
     MaconBibbValidationProvider,
     _macon_bibb_data_available,
 )
+from civpulse_geo.providers.nominatim import NominatimGeocodingProvider, _nominatim_reachable
 from civpulse_geo.spell import load_spell_corrector, rebuild_dictionary
 from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.services.llm_corrector import LLMAddressCorrector, _ollama_model_available
@@ -113,6 +114,18 @@ async def lifespan(app: FastAPI):
         logger.warning(
             "macon_bibb_points table is empty — Macon-Bibb provider not registered"
         )
+    # Nominatim provider (conditional on HTTP health probe + toggle) — GEO-01, GEO-05
+    if _app_settings.nominatim_enabled:
+        if await _nominatim_reachable(_app_settings.osm_nominatim_url, app.state.http_client):
+            app.state.providers["nominatim"] = NominatimGeocodingProvider(app.state.http_client)
+            logger.info("Nominatim provider registered")
+        else:
+            logger.warning(
+                "nominatim unreachable at {} — Nominatim provider not registered",
+                _app_settings.osm_nominatim_url,
+            )
+    else:
+        logger.info("Nominatim provider disabled via settings.nominatim_enabled=False")
     logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     logger.info(f"Loaded {len(app.state.validation_providers)} validation provider(s)")
 

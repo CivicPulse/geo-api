@@ -94,6 +94,10 @@ class TestGetProviderWeight:
     def test_unknown_provider_fallback(self):
         assert get_provider_weight("unknown_xyz") == pytest.approx(0.50)
 
+    def test_get_provider_weight_nominatim(self):
+        """nominatim weight must equal settings.weight_nominatim (0.70)."""
+        assert get_provider_weight("nominatim") == pytest.approx(0.70)
+
 
 # ---------------------------------------------------------------------------
 # Cluster tests
@@ -271,6 +275,64 @@ def make_mock_db(address_id: int = 1):
 
 
 class TestCascadeOrchestratorEarlyExit:
+    @pytest.mark.asyncio
+    async def test_new_address_refreshes_geocoding_results_before_cache_check(self):
+        """New addresses must preload geocoding_results on async sessions."""
+        orchestrator = CascadeOrchestrator()
+        provider = make_mock_provider(provider_name="census", confidence=0.95, is_local=False)
+
+        db, _ = make_mock_db()
+
+        async def _flush_side_effect():
+            created = db.add.call_args[0][0]
+            created.id = 123
+
+        db.flush.side_effect = _flush_side_effect
+
+        upsert_result = MagicMock()
+        upsert_result.scalar_one.return_value = 42
+
+        orm_row_result = MagicMock()
+        mock_orm_row = MagicMock()
+        mock_orm_row.id = 42
+        mock_orm_row.confidence = 0.95
+        mock_orm_row.provider_name = "census"
+        mock_orm_row.latitude = 32.8407
+        mock_orm_row.longitude = -83.6324
+        orm_row_result.scalars.return_value.first.return_value = mock_orm_row
+
+        admin_check = MagicMock()
+        admin_check.scalars.return_value.first.return_value = None
+        official_result_mock = MagicMock()
+        official_result_mock.scalars.return_value.first.return_value = None
+
+        db.execute.side_effect = [
+            MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None)))),
+            upsert_result,
+            orm_row_result,
+            admin_check,
+            admin_check,
+            upsert_result,
+            official_result_mock,
+            official_result_mock,
+        ]
+
+        with patch("civpulse_geo.services.cascade.canonical_key",
+                   return_value=("123 MAIN ST MACON GA 31201", "abc123")), \
+             patch("civpulse_geo.services.cascade.parse_address_components",
+                   return_value={"city": "MACON", "state": "GA"}), \
+             patch("civpulse_geo.services.cascade._parse_input_address",
+                   return_value=("123", "MAIN", "31201", "ST", None)):
+            await orchestrator.run(
+                freeform="123 MAIN ST MACON GA 31201",
+                db=db,
+                providers={"census": provider},
+                http_client=MagicMock(),
+            )
+
+        db.refresh.assert_awaited_once()
+        assert db.refresh.await_args.kwargs == {"attribute_names": ["geocoding_results"]}
+
     @pytest.mark.asyncio
     async def test_early_exit_skips_fuzzy_when_high_confidence(self):
         """Early-exit fires when exact-match result has confidence >= 0.80."""
@@ -1345,6 +1407,65 @@ class TestCacheHitEarlyExit:
 
         assert result.cache_hit is True
         assert cached_row in result.results
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_with_trace_returns_cascade_trace(self):
+        """Cache hits should still emit trace metadata when trace=True."""
+        from civpulse_geo.services.cascade import CascadeOrchestrator
+        from civpulse_geo.models.geocoding import GeocodingResult as GeocodingResultORM
+
+        orchestrator = CascadeOrchestrator()
+
+        cached_row = MagicMock(spec=GeocodingResultORM)
+        cached_row.provider_name = "census"
+        cached_row.latitude = 32.8407
+        cached_row.longitude = -83.6324
+        cached_row.confidence = 0.95
+
+        db, mock_address = make_mock_db()
+        mock_address.geocoding_results = [cached_row]
+
+        with patch("civpulse_geo.services.cascade.canonical_key",
+                   return_value=("123 MAIN ST MACON GA 31201", "abc123")), \
+             patch("civpulse_geo.services.cascade.parse_address_components",
+                   return_value={}), \
+             patch("civpulse_geo.services.cascade._parse_input_address",
+                   return_value=("123", "MAIN", "31201", "ST", None)), \
+             patch("civpulse_geo.services.cascade.settings") as mock_settings:
+
+            mock_settings.cascade_llm_enabled = False
+            mock_settings.exact_match_timeout_ms = 2000
+            mock_settings.tiger_timeout_ms = 3000
+            mock_settings.fuzzy_match_timeout_ms = 500
+            mock_settings.llm_timeout_ms = 5000
+            mock_settings.weight_census = 0.90
+            mock_settings.weight_openaddresses = 0.80
+            mock_settings.weight_macon_bibb = 0.80
+            mock_settings.weight_tiger_unrestricted = 0.40
+            mock_settings.weight_nad = 0.80
+
+            addr_res = MagicMock()
+            addr_res.scalars.return_value.first.return_value = mock_address
+            official_mock = MagicMock()
+            official_mock.scalars.return_value.first.return_value = None
+
+            db.execute.side_effect = [
+                addr_res,
+                official_mock,
+                official_mock,
+            ]
+
+            result = await orchestrator.run(
+                freeform="123 MAIN ST MACON GA 31201",
+                db=db,
+                providers={},
+                http_client=MagicMock(),
+                trace=True,
+            )
+
+        assert result.cache_hit is True
+        assert result.cascade_trace is not None
+        assert any(entry.get("stage") == "cache_hit" for entry in result.cascade_trace)
 
 
 class TestCacheHitLocalProvidersStillCalled:
