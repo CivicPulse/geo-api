@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
 status: executing
-stopped_at: Completed 24-osm-data-pipeline-docker-compose-sidecars-03-PLAN.md
-last_updated: "2026-04-04T15:46:50.100Z"
+stopped_at: Completed 24-osm-data-pipeline-docker-compose-sidecars-04-PLAN.md
+last_updated: "2026-04-04T15:52:09.476Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 ## Current Position
 
 Phase: 24 (OSM Data Pipeline & Docker Compose Sidecars) — EXECUTING
-Plan: 4 of 5
+Plan: 5 of 5
 Status: Ready to execute
 Last activity: 2026-04-04
 
@@ -44,6 +44,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P01 | 8min | 2 tasks | 3 files |
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P02 | 15min | 3 tasks | 3 files |
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P03 | 3min | 2 tasks | 2 files |
+| Phase 24-osm-data-pipeline-docker-compose-sidecars P04 | 5min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -60,6 +61,9 @@ Key research decisions for v1.4:
 - [Phase 24]: noqa: F401 on stub imports (patch, MagicMock, app) in test_osm_cli.py — intentional scaffolding for Plan 03/04/05 implementation
 - [Phase 24-osm-data-pipeline-docker-compose-sidecars]: All 4 OSM services gated under profiles: [osm]; tile-server uses isolated internal PostgreSQL; Nominatim DSN uses libpq format; valhalla_tiles volume persists routing graph (D-02)
 - [Phase 24-osm-data-pipeline-docker-compose-sidecars]: osm-download uses module-level PBF_PATH constant so tests can monkeypatch without touching disk
+- [Phase 24-osm-data-pipeline-docker-compose-sidecars]: _run_docker_cmd helper centralizes elapsed-time echo and CalledProcessError -> typer.Exit(1) translation
+- [Phase 24-osm-data-pipeline-docker-compose-sidecars]: osm-import-tiles uses docker compose run --rm (not exec) per Pitfall 3; PBF mounted at /data/region.osm.pbf:ro per Pitfall 4
+- [Phase 24-osm-data-pipeline-docker-compose-sidecars]: osm-build-valhalla passes all four env flags (serve_tiles=False, force_rebuild=True, build_admins=False, build_elevation=False) per Pitfall 5
 
 ### Pending Todos
 
@@ -72,6 +76,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 24-osm-data-pipeline-docker-compose-sidecars-03-PLAN.md
+Stopped at: Completed 24-osm-data-pipeline-docker-compose-sidecars-04-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
