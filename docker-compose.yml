@@ -57,6 +57,97 @@ services:
       - ./src:/app/src
       - ./tiger-data:/gisdata/www2.census.gov/geo/tiger/TIGER2024:ro
 
+
+  osm-postgres:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: nominatim
+      POSTGRES_USER: nominatim
+      POSTGRES_PASSWORD: nominatim
+    volumes:
+      - osm_postgres_data:/var/lib/postgresql/data
+      - ./scripts/30_osm_setup.sh:/docker-entrypoint-initdb.d/30_osm_setup.sh
+    ports:
+      - "5463:5432"
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nominatim -d nominatim"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - osm
+
+  nominatim:
+    image: mediagis/nominatim:5.2
+    environment:
+      NOMINATIM_DATABASE_DSN: "pgsql:host=osm-postgres;port=5432;dbname=nominatim;user=nominatim;password=nominatim"
+      PBF_PATH: /nominatim/pbf/georgia-latest.osm.pbf
+      REPLICATION_URL: ""
+    volumes:
+      - nominatim_data:/nominatim/data
+      - ./data/osm:/nominatim/pbf:ro
+    ports:
+      - "8093:8080"
+    depends_on:
+      osm-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 600s
+    profiles:
+      - osm
+
+  tile-server:
+    image: overv/openstreetmap-tile-server:2.3.0
+    # NOTE: This container uses its own internal PostgreSQL (db: gis, user: renderer).
+    # It does NOT connect to osm-postgres. Isolation from civpulse_geo is via separate volume.
+    volumes:
+      - osm_tile_data:/data/database/
+      - osm_tile_cache:/data/tiles/
+      - ./data/osm:/data/osm:ro
+    ports:
+      - "8094:8080"
+    command: run
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/tile/0/0/0.png || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    profiles:
+      - osm
+
+  valhalla:
+    image: ghcr.io/valhalla/valhalla:latest
+    environment:
+      serve_tiles: "True"
+      use_tiles_ignore_pbf: "True"
+      build_admins: "False"
+      build_elevation: "False"
+      force_rebuild: "False"
+    volumes:
+      - valhalla_tiles:/custom_files
+      - ./data/osm:/custom_files/pbf:ro
+    ports:
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8002/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    profiles:
+      - osm
+
 volumes:
   postgres_data:
   ollama_data:
+  osm_postgres_data:
+  nominatim_data:
+  osm_tile_data:
+  osm_tile_cache:
+  valhalla_tiles:
