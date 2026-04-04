@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
 status: verifying
-stopped_at: Completed 26-nominatim-provider-reverse-geocoding-poi-search/26-04-PLAN.md
-last_updated: "2026-04-04T20:15:45.959Z"
+stopped_at: Completed 26-05-PLAN.md
+last_updated: "2026-04-04T20:15:58.377Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
@@ -52,6 +52,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P02 | 5 | 1 tasks | 1 files |
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P03 | 8 | 2 tasks | 6 files |
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P04 | 1 | 1 tasks | 2 files |
+| Phase 26-nominatim-provider-reverse-geocoding-poi-search P05 | 8 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,7 @@ Key research decisions for v1.4:
 - [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: _nominatim_reachable placed in nominatim.py for co-location; toggle checked before probe to skip network when disabled
 - [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: weight_nominatim=0.70 positions Nominatim below census/OA/NAD but above fallback default
 - [Phase 26-04]: GET /geocode/reverse uses direct HTTP pass-through to Nominatim /reverse; 503 guard checks app.state.providers key before any upstream call
+- [Phase 26-05]: Validate bbox before provider check in /poi/search so malformed bbox always returns 400
 
 ### Pending Todos
 
@@ -95,6 +97,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 26-nominatim-provider-reverse-geocoding-poi-search/26-04-PLAN.md
+Stopped at: Completed 26-05-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
