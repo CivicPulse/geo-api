@@ -73,7 +73,7 @@ Full details archived in `milestones/v1.3-ROADMAP.md`.
 - [x] **Phase 25: Tile Server & FastAPI Tile Proxy** — Tile sidecar serving raster z/x/y PNGs and FastAPI proxy endpoint with caching headers (completed 2026-04-04)
 - [x] **Phase 26: Nominatim Provider, Reverse Geocoding & POI Search** — NominatimProvider in cascade pipeline, reverse geocode endpoint, and POI search endpoint (completed 2026-04-04)
 - [x] **Phase 27: Valhalla Routing** — Walking and driving route endpoints backed by Valhalla sidecar with pre-built graph (completed 2026-04-04)
-- [ ] **Phase 28: K8s Manifests & Health Probe Updates** — Kustomize manifests for all new sidecars and updated health probes for Nominatim, tile server, and Valhalla
+- [x] **Phase 28: K8s Manifests & Health Probe Updates** — Kustomize manifests for all new sidecars and updated health probes for Nominatim, tile server, and Valhalla (completed 2026-04-04)
 
 ## Phase Details
 
@@ -154,7 +154,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 28-01-PLAN.md — K8s manifests for Nominatim, tile-server, Valhalla sidecars + PVCs + kustomization update (INFRA-04)
-- [ ] 28-02-PLAN.md — Extend /health/ready with non-blocking sidecars block + tile-server probe helper + tests (INFRA-05)
+- [x] 28-02-PLAN.md — Extend /health/ready with non-blocking sidecars block + tile-server probe helper + tests (INFRA-05)
 **UI hint**: no
 
 ## Progress
@@ -169,4 +169,4 @@ Plans:
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 27. Valhalla Routing | v1.4 | 3/3 | Complete    | 2026-04-04 |
-| 28. K8s Manifests & Health Probe Updates | v1.4 | 1/2 | In Progress|  |
+| 28. K8s Manifests & Health Probe Updates | v1.4 | 2/2 | Complete   | 2026-04-04 |

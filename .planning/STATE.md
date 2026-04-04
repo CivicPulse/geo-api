@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
-status: executing
-stopped_at: Completed 28-k8s-manifests-health-probe-updates plan 01 (28-01-PLAN.md)
-last_updated: "2026-04-04T23:00:03.782Z"
+status: verifying
+stopped_at: Completed 28-k8s-manifests-health-probe-updates-02-PLAN.md
+last_updated: "2026-04-04T23:01:42.839Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 17
-  completed_plans: 16
+  completed_plans: 17
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 
 Phase: 28 (K8s Manifests & Health Probe Updates) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-04
 
 Progress: [░░░░░░░░░░] 0%
@@ -57,6 +57,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 27-valhalla-routing P01 | 8 | 1 tasks | 1 files |
 | Phase 27-valhalla-routing P03 | 2 | 2 tasks | 3 files |
 | Phase 28-k8s-manifests-health-probe-updates P01 | 1min | 3 tasks | 5 files |
+| Phase 28-k8s-manifests-health-probe-updates P02 | 15 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Key research decisions for v1.4:
 - [Phase 28-k8s-manifests-health-probe-updates]: Sidecar Deployments use explicit app.kubernetes.io/name selectors to avoid commonLabels collision with geo-api
 - [Phase 28-k8s-manifests-health-probe-updates]: storageClassName omitted from OSM PVCs to inherit cluster default per overlay
 - [Phase 28-k8s-manifests-health-probe-updates]: No readiness/liveness probes on OSM sidecars in base — health surfaced via geo-api /health/ready (plan 02)
+- [Phase 28-k8s-manifests-health-probe-updates]: Tile server always probed live — no tile_server_enabled flag, unlike nominatim/valhalla
+- [Phase 28-k8s-manifests-health-probe-updates]: Sidecar probe failures return unavailable; disabled is exclusively for settings flags
 
 ### Pending Todos
 
@@ -110,6 +113,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 28-k8s-manifests-health-probe-updates plan 01 (28-01-PLAN.md)
+Stopped at: Completed 28-k8s-manifests-health-probe-updates-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
