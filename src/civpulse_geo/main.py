@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from civpulse_geo.api import health, geocoding, validation, tiles, poi
+from civpulse_geo.api import health, geocoding, validation, tiles, poi, route
 from civpulse_geo.api.metrics import router as metrics_router
 from civpulse_geo.config import settings as _app_settings
 from civpulse_geo.database import AsyncSessionLocal
@@ -39,6 +39,7 @@ from civpulse_geo.providers.macon_bibb import (
     _macon_bibb_data_available,
 )
 from civpulse_geo.providers.nominatim import NominatimGeocodingProvider, _nominatim_reachable
+from civpulse_geo.providers.valhalla import _valhalla_reachable
 from civpulse_geo.spell import load_spell_corrector, rebuild_dictionary
 from civpulse_geo.services.fuzzy import FuzzyMatcher
 from civpulse_geo.services.llm_corrector import LLMAddressCorrector, _ollama_model_available
@@ -126,6 +127,20 @@ async def lifespan(app: FastAPI):
             )
     else:
         logger.info("Nominatim provider disabled via settings.nominatim_enabled=False")
+    # Valhalla routing sidecar (conditional on HTTP health probe + toggle) — ROUTE-01, ROUTE-02
+    if _app_settings.valhalla_enabled:
+        if await _valhalla_reachable(_app_settings.osm_valhalla_url, app.state.http_client):
+            app.state.valhalla_enabled = True
+            logger.info("Valhalla routing enabled at {}", _app_settings.osm_valhalla_url)
+        else:
+            app.state.valhalla_enabled = False
+            logger.warning(
+                "valhalla unreachable at {} — routing disabled",
+                _app_settings.osm_valhalla_url,
+            )
+    else:
+        app.state.valhalla_enabled = False
+        logger.info("Valhalla routing disabled via settings.valhalla_enabled=False")
     logger.info(f"Loaded {len(app.state.providers)} geocoding provider(s)")
     logger.info(f"Loaded {len(app.state.validation_providers)} validation provider(s)")
 
@@ -255,3 +270,4 @@ app.include_router(validation.router)
 app.include_router(metrics_router)
 app.include_router(tiles.router)
 app.include_router(poi.router)
+app.include_router(route.router)
