@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: nominatim
-          image: mediagis/nominatim:4.5
+          image: mediagis/nominatim:5.2
           ports:
             - containerPort: 8080
           env:

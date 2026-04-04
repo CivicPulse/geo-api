@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: tile-server
-          image: overv/openstreetmap-tile-server:latest
+          image: overv/openstreetmap-tile-server:2.3.0
           args: ["run"]
           ports:
             - containerPort: 80
