@@ -11,6 +11,10 @@ resources:
   - valhalla.yaml
   - osm-pvcs.yaml
 
+# part-of scopes the whole stack; each resource manifest sets its own
+# app.kubernetes.io/name explicitly (geo-api, nominatim, tile-server, valhalla).
+# Do NOT include app.kubernetes.io/name in commonLabels — kustomize applies
+# commonLabels to selectors, which would collapse all 4 Deployments onto the
+# same pods.
 commonLabels:
-  app.kubernetes.io/name: geo-api
   app.kubernetes.io/part-of: civpulse-geo
