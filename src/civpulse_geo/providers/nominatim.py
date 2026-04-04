@@ -171,3 +171,21 @@ class NominatimGeocodingProvider(GeocodingProvider):
             result = await self.geocode(addr, http_client=http_client)
             results.append(result)
         return results
+
+
+async def _nominatim_reachable(
+    base_url: str,
+    http_client: httpx.AsyncClient,
+    timeout_s: float = 2.0,
+) -> bool:
+    """HTTP probe — GET {base_url}/status with 2s timeout.
+
+    Returns True on HTTP 200, False on any error (network, timeout, non-200).
+    Used by main.py lifespan to conditionally register the Nominatim provider.
+    """
+    url = f"{base_url.rstrip('/')}/status"
+    try:
+        response = await http_client.get(url, timeout=timeout_s)
+        return response.status_code == 200
+    except Exception:
+        return False

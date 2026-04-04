@@ -43,6 +43,7 @@ KNOWN_PROVIDERS = frozenset({
     "postgis_tiger",
     "national_address_database",
     "macon_bibb",
+    "nominatim",
 })
 
 

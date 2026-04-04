@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     weight_tiger_unrestricted: float = 0.40
     weight_tiger_restricted: float = 0.75
     weight_nad: float = 0.80
+    weight_nominatim: float = 0.70
+    nominatim_enabled: bool = True
 
 
 settings = Settings()

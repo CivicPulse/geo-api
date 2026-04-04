@@ -80,6 +80,7 @@ def get_provider_weight(provider_name: str) -> float:
         "macon_bibb": settings.weight_macon_bibb,
         "postgis_tiger": settings.weight_tiger_unrestricted,
         "national_address_database": settings.weight_nad,
+        "nominatim": settings.weight_nominatim,
     }
     return weight_map.get(provider_name, 0.50)
 
@@ -342,6 +343,9 @@ class CascadeOrchestrator:
                 )
                 db.add(address)
                 await db.flush()  # get address.id
+                # Async sessions cannot lazy-load this relationship safely later
+                # in the request path, so load it immediately for new addresses.
+                await db.refresh(address, attribute_names=["geocoding_results"])
 
             if trace or dry_run:
                 cascade_trace.append({
@@ -427,6 +431,13 @@ class CascadeOrchestrator:
                 cache_would_set_official = best_candidate
 
             official_result = await self._get_official(db, address.id)
+            if trace or dry_run:
+                cascade_trace.append({
+                    "stage": "cache_hit",
+                    "cached_results": len(address.geocoding_results),
+                    "local_results": len(local_results_cache),
+                    "ms": round((time.monotonic() - t_total_start) * 1000, 1),
+                })
             await db.commit()
 
             cache_ms = round((time.monotonic() - t_total_start) * 1000, 1)
@@ -446,6 +457,7 @@ class CascadeOrchestrator:
                 official=official_result,
                 would_set_official=cache_would_set_official,
                 outlier_providers=cache_outlier_providers,
+                cascade_trace=cascade_trace if (trace or dry_run) else None,
             )
 
         # ----------------------------------------------------------------
