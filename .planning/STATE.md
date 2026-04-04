@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
 status: executing
-stopped_at: Completed 27-02-PLAN.md
-last_updated: "2026-04-04T22:20:25.649Z"
+stopped_at: "Completed 27-01-PLAN.md (TDD RED: 11 failing contract tests for GET /route)"
+last_updated: "2026-04-04T22:20:47.251Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 15
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 ## Current Position
 
 Phase: 27 (Valhalla Routing) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-04-04
 
@@ -54,6 +54,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P04 | 1 | 1 tasks | 2 files |
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P05 | 8 | 2 tasks | 3 files |
 | Phase 27-valhalla-routing P02 | 5 | 2 tasks | 2 files |
+| Phase 27-valhalla-routing P01 | 8 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -88,6 +89,8 @@ Key research decisions for v1.4:
 - [Phase 26-05]: Validate bbox before provider check in /poi/search so malformed bbox always returns 400
 - [Phase 27-valhalla-routing]: Valhalla upstream 400 maps to 404 (no-route semantics, not client error)
 - [Phase 27-valhalla-routing]: Router not mounted in main.py for Plan 02 — Plan 03 handles mount atomically with startup probe
+- [Phase 27-valhalla-routing]: test_route_valhalla_empty_returns_404 passes coincidentally in RED phase (FastAPI 404 for missing route); real handler logic exercised in Plan 02
+- [Phase 27-valhalla-routing]: POST body spot-check for exact Valhalla JSON shape embedded in pedestrian happy-path test
 
 ### Pending Todos
 
@@ -100,6 +103,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 27-02-PLAN.md
+Stopped at: Completed 27-01-PLAN.md (TDD RED: 11 failing contract tests for GET /route)
 Resume file: None
 Next action: `/gsd:plan-phase 24`
