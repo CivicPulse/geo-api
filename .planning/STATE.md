@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
-status: verifying
-stopped_at: Completed 25-tile-server-fastapi-tile-proxy-02-PLAN.md
-last_updated: "2026-04-04T18:43:46.244Z"
+status: executing
+stopped_at: Completed 26-01-PLAN.md, beginning 26-02
+last_updated: "2026-04-04T20:07:15.999Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 12
+  completed_plans: 8
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — now expanded to include self-hosted map tiles, POI search, reverse geocoding, and routing
-**Current focus:** Phase 25 — Tile Server & FastAPI Tile Proxy
+**Current focus:** Phase 26 — Nominatim Provider, Reverse Geocoding & POI Search
 
 ## Current Position
 
-Phase: 26
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 26 (Nominatim Provider, Reverse Geocoding & POI Search) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
 Last activity: 2026-04-04
 
 Progress: [░░░░░░░░░░] 0%
@@ -48,6 +48,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P05 | 2min | 2 tasks | 2 files |
 | Phase 25-tile-server-fastapi-tile-proxy P01 | 2min | 2 tasks | 3 files |
 | Phase 25-tile-server-fastapi-tile-proxy P02 | 5 | 2 tasks | 1 files |
+| Phase 26-nominatim-provider-reverse-geocoding-poi-search P01 | 12 | 3 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,8 @@ Key research decisions for v1.4:
 - [Phase 25-tile-server-fastapi-tile-proxy]: Tile router skeleton raises HTTPException(501) — route wired, streaming implementation deferred to Plan 02
 - [Phase 25-tile-server-fastapi-tile-proxy]: client.get() over client.stream() with StreamingResponse(iter([bytes])) — keeps mock-friendly interface while satisfying streaming contract
 - [Phase 25-tile-server-fastapi-tile-proxy]: Upstream 404 checked before generic >=400 catch-all to ensure clean 404 passthrough (not 502)
+- [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: POI radius tests assert viewbox param present to enforce radius-to-bbox conversion in implementation
+- [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: Malformed bbox test accepts 400 or 422 — both custom validator and FastAPI Pydantic error are acceptable behaviors
 
 ### Pending Todos
 
@@ -85,6 +88,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 25-tile-server-fastapi-tile-proxy-02-PLAN.md
+Stopped at: Completed 26-01-PLAN.md, beginning 26-02
 Resume file: None
 Next action: `/gsd:plan-phase 24`

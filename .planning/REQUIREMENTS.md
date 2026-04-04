@@ -23,11 +23,11 @@ Requirements for Self-Hosted OSM Stack milestone. Each maps to roadmap phases.
 
 ### Geocoding & Search
 
-- [ ] **GEO-01**: NominatimProvider registered as 6th cascade provider with conditional startup guard
-- [ ] **GEO-02**: NominatimProvider participates in cross-provider consensus scoring (no cascade changes needed)
-- [ ] **GEO-03**: User can reverse geocode coordinates to an address via `GET /geocode/reverse`
-- [ ] **GEO-04**: User can search for POIs by category and location via `GET /poi/search`
-- [ ] **GEO-05**: User can constrain POI search to a bounding box via `bbox` query parameter
+- [x] **GEO-01**: NominatimProvider registered as 6th cascade provider with conditional startup guard
+- [x] **GEO-02**: NominatimProvider participates in cross-provider consensus scoring (no cascade changes needed)
+- [x] **GEO-03**: User can reverse geocode coordinates to an address via `GET /geocode/reverse`
+- [x] **GEO-04**: User can search for POIs by category and location via `GET /poi/search`
+- [x] **GEO-05**: User can constrain POI search to a bounding box via `bbox` query parameter
 
 ### Routing
 
@@ -92,11 +92,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TILE-01 | Phase 25 | Complete |
 | TILE-02 | Phase 25 | Complete |
 | TILE-03 | Phase 25 | Complete |
-| GEO-01 | Phase 26 | Pending |
-| GEO-02 | Phase 26 | Pending |
-| GEO-03 | Phase 26 | Pending |
-| GEO-04 | Phase 26 | Pending |
-| GEO-05 | Phase 26 | Pending |
+| GEO-01 | Phase 26 | Complete |
+| GEO-02 | Phase 26 | Complete |
+| GEO-03 | Phase 26 | Complete |
+| GEO-04 | Phase 26 | Complete |
+| GEO-05 | Phase 26 | Complete |
 | ROUTE-01 | Phase 27 | Pending |
 | ROUTE-02 | Phase 27 | Pending |
 | ROUTE-03 | Phase 27 | Pending |
