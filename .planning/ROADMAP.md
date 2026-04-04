@@ -136,7 +136,11 @@ Plans:
   1. `GET /route?start=...&end=...&mode=pedestrian` returns a valid walking route for two Georgia points
   2. `GET /route?start=...&end=...&mode=auto` returns a valid driving route for two Georgia points
   3. Route response includes turn-by-turn maneuvers, an encoded polyline, total duration in seconds, and total distance in meters
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 27-01-PLAN.md — TDD test scaffolding (11 contract tests) for GET /route (ROUTE-01, ROUTE-02, ROUTE-03)
+- [ ] 27-02-PLAN.md — route.py router implementation + RouteResponse/Maneuver schemas (ROUTE-01, ROUTE-02, ROUTE-03)
+- [ ] 27-03-PLAN.md — valhalla_enabled setting + _valhalla_reachable probe + main.py wiring + router mount
 **UI hint**: no
 
 ### Phase 28: K8s Manifests & Health Probe Updates
@@ -161,5 +165,5 @@ Plans:
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 5/5 | Complete    | 2026-04-04 |
-| 27. Valhalla Routing | v1.4 | 0/TBD | Not started | - |
+| 27. Valhalla Routing | v1.4 | 0/3 | Not started | - |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
