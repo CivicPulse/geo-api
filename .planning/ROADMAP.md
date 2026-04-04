@@ -72,7 +72,7 @@ Full details archived in `milestones/v1.3-ROADMAP.md`.
 - [x] **Phase 24: OSM Data Pipeline & Docker Compose Sidecars** — Georgia PBF download, dedicated osm-postgres instance, Nominatim/tile-server/Valhalla Docker Compose services, and unified CLI pipeline command (completed 2026-04-04)
 - [x] **Phase 25: Tile Server & FastAPI Tile Proxy** — Tile sidecar serving raster z/x/y PNGs and FastAPI proxy endpoint with caching headers (completed 2026-04-04)
 - [x] **Phase 26: Nominatim Provider, Reverse Geocoding & POI Search** — NominatimProvider in cascade pipeline, reverse geocode endpoint, and POI search endpoint (completed 2026-04-04)
-- [ ] **Phase 27: Valhalla Routing** — Walking and driving route endpoints backed by Valhalla sidecar with pre-built graph
+- [x] **Phase 27: Valhalla Routing** — Walking and driving route endpoints backed by Valhalla sidecar with pre-built graph (completed 2026-04-04)
 - [ ] **Phase 28: K8s Manifests & Health Probe Updates** — Kustomize manifests for all new sidecars and updated health probes for Nominatim, tile server, and Valhalla
 
 ## Phase Details
@@ -140,7 +140,7 @@ Plans:
 Plans:
 - [x] 27-01-PLAN.md — TDD test scaffolding (11 contract tests) for GET /route (ROUTE-01, ROUTE-02, ROUTE-03)
 - [x] 27-02-PLAN.md — route.py router implementation + RouteResponse/Maneuver schemas (ROUTE-01, ROUTE-02, ROUTE-03)
-- [ ] 27-03-PLAN.md — valhalla_enabled setting + _valhalla_reachable probe + main.py wiring + router mount
+- [x] 27-03-PLAN.md — valhalla_enabled setting + _valhalla_reachable probe + main.py wiring + router mount
 **UI hint**: no
 
 ### Phase 28: K8s Manifests & Health Probe Updates
@@ -165,5 +165,5 @@ Plans:
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 5/5 | Complete    | 2026-04-04 |
-| 27. Valhalla Routing | v1.4 | 2/3 | In Progress|  |
+| 27. Valhalla Routing | v1.4 | 3/3 | Complete   | 2026-04-04 |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
