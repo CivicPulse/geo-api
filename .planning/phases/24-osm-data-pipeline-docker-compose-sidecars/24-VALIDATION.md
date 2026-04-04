@@ -44,7 +44,7 @@ created: 2026-04-04
 | 24-03-01 | 03 | 3 | PIPE-02 | unit | `uv run pytest tests/osm/test_nominatim_import.py -v` | ❌ W0 | ⬜ pending |
 | 24-04-01 | 04 | 3 | PIPE-03 | unit | `uv run pytest tests/osm/test_tile_import.py -v` | ❌ W0 | ⬜ pending |
 | 24-05-01 | 05 | 3 | PIPE-04 | unit | `uv run pytest tests/osm/test_valhalla_build.py -v` | ❌ W0 | ⬜ pending |
-| 24-06-01 | 06 | 4 | PIPE-05 | integration | `uv run pytest tests/osm/test_pipeline_cli.py -v` | ❌ W0 | ⬜ pending |
+| 24-05-02 | 05 | 3 | PIPE-05 | integration | `uv run pytest tests/test_osm_cli.py::TestOsmPipeline -v` | ✅ (Plan 01) | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
