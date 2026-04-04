@@ -18,7 +18,7 @@ Requirements for Self-Hosted OSM Stack milestone. Each maps to roadmap phases.
 ### Tile Serving
 
 - [ ] **TILE-01**: Tile server sidecar serves raster z/x/y PNG tiles for Georgia from Docker Compose
-- [ ] **TILE-02**: User can request tiles via FastAPI proxy endpoint `GET /tiles/{z}/{x}/{y}.png`
+- [x] **TILE-02**: User can request tiles via FastAPI proxy endpoint `GET /tiles/{z}/{x}/{y}.png`
 - [ ] **TILE-03**: Tile proxy returns appropriate Cache-Control headers for downstream caching
 
 ### Geocoding & Search
@@ -90,7 +90,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PIPE-04 | Phase 24 | Complete |
 | PIPE-05 | Phase 24 | Complete |
 | TILE-01 | Phase 25 | Pending |
-| TILE-02 | Phase 25 | Pending |
+| TILE-02 | Phase 25 | Complete |
 | TILE-03 | Phase 25 | Pending |
 | GEO-01 | Phase 26 | Pending |
 | GEO-02 | Phase 26 | Pending |
