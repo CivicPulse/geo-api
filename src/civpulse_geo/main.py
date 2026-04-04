@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from loguru import logger
 
-from civpulse_geo.api import health, geocoding, validation, tiles
+from civpulse_geo.api import health, geocoding, validation, tiles, poi
 from civpulse_geo.api.metrics import router as metrics_router
 from civpulse_geo.config import settings as _app_settings
 from civpulse_geo.database import AsyncSessionLocal
@@ -254,3 +254,4 @@ app.include_router(geocoding.router)
 app.include_router(validation.router)
 app.include_router(metrics_router)
 app.include_router(tiles.router)
+app.include_router(poi.router)
