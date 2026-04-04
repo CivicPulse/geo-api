@@ -1340,3 +1340,125 @@ def osm_build_valhalla() -> None:
         ],
         stage="valhalla-build",
     )
+
+
+# ---------------------------------------------------------------------------
+# Idempotency check helpers (PIPE-05 / D-14)
+# ---------------------------------------------------------------------------
+
+
+def _check_pbf_exists() -> bool:
+    """PIPE-01 idempotency: PBF file exists on host."""
+    return PBF_PATH.exists()
+
+
+def _check_nominatim_populated() -> bool:
+    """PIPE-02 idempotency: Nominatim database passes admin --check-database."""
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "nominatim",
+         "nominatim", "admin", "--check-database"],
+        check=False, capture_output=True,
+    )
+    return result.returncode == 0
+
+
+def _check_tiles_populated() -> bool:
+    """PIPE-03 idempotency: tile-server has planet_osm_* tables."""
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "tile-server",
+         "psql", "-U", "renderer", "-d", "gis", "-tAc",
+         "SELECT COUNT(*) FROM pg_tables WHERE tablename LIKE 'planet_osm_%';"],
+        check=False, capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        return int(result.stdout.strip()) > 0
+    except (ValueError, AttributeError):
+        return False
+
+
+def _check_valhalla_built() -> bool:
+    """PIPE-04 idempotency: valhalla_tiles volume contains tile files."""
+    result = subprocess.run(
+        ["docker", "compose", "exec", "-T", "valhalla",
+         "sh", "-c", "ls /custom_files/valhalla_tiles 2>/dev/null | head -1"],
+        check=False, capture_output=True, text=True,
+    )
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+# ---------------------------------------------------------------------------
+# osm-pipeline unified orchestrator (PIPE-05 / D-12 / D-14)
+# ---------------------------------------------------------------------------
+
+
+@app.command("osm-pipeline")
+def osm_pipeline(
+    force: bool = typer.Option(
+        False, "--force",
+        help="Re-run all steps even if already complete (bypass idempotency checks).",
+    ),
+) -> None:
+    """Run unified OSM data pipeline (PIPE-05).
+
+    Orchestrates: osm-download -> osm-import-nominatim -> osm-import-tiles
+    -> osm-build-valhalla. Continues after step failures and reports a summary
+    with re-run hints (D-12). Idempotent — skips completed steps unless --force
+    is passed (D-14).
+
+    Exit code: 0 if all steps succeeded/skipped, 1 if any failed.
+
+    Prerequisite: `docker compose --profile osm up -d osm-postgres nominatim
+    tile-server valhalla` must be running before invocation.
+    """
+
+    def _invoke(cmd_name: str) -> None:
+        """Invoke a sibling command via subprocess."""
+        result = subprocess.run(
+            ["uv", "run", "geo-import", cmd_name], check=True,
+        )
+        if result.returncode != 0:
+            raise subprocess.CalledProcessError(result.returncode, cmd_name)
+
+    steps = [
+        ("download",         lambda: _invoke("osm-download"),         _check_pbf_exists),
+        ("import-nominatim", lambda: _invoke("osm-import-nominatim"), _check_nominatim_populated),
+        ("import-tiles",     lambda: _invoke("osm-import-tiles"),     _check_tiles_populated),
+        ("build-valhalla",   lambda: _invoke("osm-build-valhalla"),   _check_valhalla_built),
+    ]
+
+    results: dict[str, str] = {}  # step name -> "OK" | "FAIL" | "SKIP"
+    typer.echo("=" * 60)
+    typer.echo("OSM Data Pipeline (PIPE-05)")
+    typer.echo("=" * 60)
+
+    for name, run_fn, check_fn in steps:
+        if not force:
+            try:
+                already_done = check_fn()
+            except Exception:
+                already_done = False
+            if already_done:
+                typer.echo(f"  SKIP  osm-{name} (already complete)")
+                results[name] = "SKIP"
+                continue
+        try:
+            run_fn()
+            results[name] = "OK"
+            typer.echo(f"  OK    osm-{name}")
+        except Exception as e:
+            results[name] = "FAIL"
+            typer.echo(f"  FAIL  osm-{name}: {e}", err=True)
+            typer.echo(f"        To retry: uv run geo-import osm-{name}", err=True)
+
+    typer.echo("=" * 60)
+    typer.echo("Pipeline Summary:")
+    for name, status in results.items():
+        typer.echo(f"  [{status:4s}] osm-{name}")
+
+    failed = [k for k, v in results.items() if v == "FAIL"]
+    if failed:
+        typer.echo(f"\nCompleted with {len(failed)} failure(s). See above for re-run hints.", err=True)
+        raise typer.Exit(1)
+    typer.echo("\nAll steps complete.")
