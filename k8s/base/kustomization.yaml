@@ -6,6 +6,10 @@ resources:
   - service.yaml
   - configmap.yaml
   - pvc.yaml
+  - nominatim.yaml
+  - tile-server.yaml
+  - valhalla.yaml
+  - osm-pvcs.yaml
 
 commonLabels:
   app.kubernetes.io/name: geo-api
