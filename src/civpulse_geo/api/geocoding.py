@@ -32,6 +32,7 @@ from civpulse_geo.schemas.batch import (
     BatchItemError,
     classify_exception,
 )
+from civpulse_geo.schemas.reverse import ReverseGeocodeResponse
 from civpulse_geo.services.geocoding import GeocodingService
 
 router = APIRouter(prefix="/geocode", tags=["geocoding"])
@@ -252,6 +253,35 @@ async def get_provider_result(
         location_type=r.location_type.value if r.location_type else None,
         confidence=r.confidence,
         raw_response=r.raw_response,
+    )
+
+
+@router.get("/reverse", response_model=ReverseGeocodeResponse)
+async def reverse_geocode(
+    request: Request,
+    lat: float = Query(..., ge=-90.0, le=90.0, description="Latitude WGS84"),
+    lon: float = Query(..., ge=-180.0, le=180.0, description="Longitude WGS84"),
+):
+    """Reverse geocode coordinates to address via Nominatim (GEO-03).
+
+    Returns 503 when the Nominatim provider was not registered at startup.
+    Returns 404 when Nominatim has no address for the given coordinates.
+    """
+    if "nominatim" not in request.app.state.providers:
+        raise HTTPException(status_code=503, detail="Nominatim provider not registered")
+    url = f"{settings.osm_nominatim_url.rstrip('/')}/reverse"
+    response = await request.app.state.http_client.get(
+        url, params={"lat": lat, "lon": lon, "format": "json"}
+    )
+    body = response.json()
+    if not isinstance(body, dict) or "error" in body or "display_name" not in body:
+        raise HTTPException(status_code=404, detail="No address found for coordinates")
+    return ReverseGeocodeResponse(
+        address=body["display_name"],
+        lat=float(body["lat"]),
+        lon=float(body["lon"]),
+        place_id=body.get("place_id"),
+        raw=body,
     )
 
 
