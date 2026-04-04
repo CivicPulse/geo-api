@@ -119,7 +119,13 @@ Plans:
   3. `GET /poi/search?q=...&lat=...&lon=...` returns a list of POI results near the given location
   4. `GET /poi/search?q=...&bbox=...` constrains results to the given bounding box
   5. NominatimProvider is not registered at startup when the `nominatim` HTTP service is unreachable (conditional startup guard; post-Phase-24 refactor: osm-postgres was removed, so the guard probes nominatim's HTTP endpoint directly instead of a shared PG)
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 26-01-PLAN.md — TDD test scaffolding (19 tests): nominatim provider, /geocode/reverse, /poi/search contracts (GEO-01..05)
+- [ ] 26-02-PLAN.md — NominatimGeocodingProvider HTTP class against /search endpoint (GEO-01, GEO-02)
+- [ ] 26-03-PLAN.md — Conditional startup guard + cascade weight_nominatim + config toggle + KNOWN_PROVIDERS (GEO-01, GEO-05)
+- [ ] 26-04-PLAN.md — GET /geocode/reverse endpoint + ReverseGeocodeResponse schema (GEO-03)
+- [ ] 26-05-PLAN.md — GET /poi/search endpoint + POI schemas + bbox/radius handling + router mount (GEO-03, GEO-04, GEO-05)
 **UI hint**: no
 
 ### Phase 27: Valhalla Routing
@@ -134,7 +140,7 @@ Plans:
 **UI hint**: no
 
 ### Phase 28: K8s Manifests & Health Probe Updates
-**Goal**: All new OSM sidecar services are deployable via Kustomize to dev and prod, and geo-api's health endpoints reflect the readiness of Nominatim, the tile server, and Valhalla
+**Goal**: All new OSM sidecar services are deployable via Kustomize to dev and prod, and geo-api's health endpoints reflect the readiness of Nominatim, tile server, and Valhalla
 **Depends on**: Phase 27
 **Requirements**: INFRA-04, INFRA-05
 **Success Criteria** (what must be TRUE):
@@ -154,6 +160,6 @@ Plans:
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
-| 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 0/TBD | Not started | - |
+| 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 0/5 | Not started | - |
 | 27. Valhalla Routing | v1.4 | 0/TBD | Not started | - |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
