@@ -38,16 +38,23 @@ Provide a single, reliable source of geocoded and validated address data across 
 - [ ] Self-hosted raster tile server (z/x/y PNGs) for Leaflet frontends
 - [ ] Self-hosted routing engine (walking + driving directions)
 
-## Current Milestone: v1.4 Self-Hosted OSM Stack
+## Shipped: v1.4 Self-Hosted OSM Stack (2026-04-04)
 
-**Goal:** Add a fully self-hosted OpenStreetMap-based geospatial stack to geo-api — tile serving, geocoding, POI search, reverse geocoding, and routing — eliminating all third-party map service dependencies for the CivPulse ecosystem.
+**Delivered:** Fully self-hosted OpenStreetMap-based geospatial stack — tile serving, geocoding, POI search, reverse geocoding, and routing — eliminating third-party map service dependencies.
 
-**Target features:**
-- OSM data pipeline: download, process, and serve Georgia (USA) state extract
-- OSM geocoding provider integrated into existing cascade pipeline (address geocoding)
-- Nominatim-style search: POI search, reverse geocoding, location detail lookups
-- Self-hosted raster tile server (z/x/y PNGs) replacing current free online tile service
-- Self-hosted routing engine (walking + driving directions) for canvass routing (run) and polling place directions (vote)
+**Shipped features:**
+- OSM data pipeline: Georgia PBF download + Nominatim/tile-server/Valhalla imports via `osm-*` CLI commands
+- NominatimGeocodingProvider as 6th cascade provider with conditional startup guard
+- `GET /geocode/reverse` and `GET /poi/search` endpoints (with bbox + radius support)
+- `GET /tiles/{z}/{x}/{y}.png` FastAPI proxy with streaming + Cache-Control + ETag passthrough
+- `GET /route` Valhalla-backed routing (pedestrian + auto modes) with maneuvers, polyline, duration, distance
+- Kubernetes manifests (Kustomize) for 3 OSM sidecars + `/health/ready` sidecars status block
+
+**Notable architectural decision:** Dropped planned shared `osm-postgres` service — both Nominatim and tile-server images bundle their own internal PostgreSQL and cannot be pointed at external PG without custom builds. Each sidecar now owns its PG, isolation from civpulse_geo preserved via separate volumes.
+
+## Current Milestone: (not yet started)
+
+Run `/gsd:new-milestone` to define v1.5 goals and requirements.
 
 ### Validated (v1.2)
 
@@ -162,4 +169,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-04 after v1.4 milestone started*
+*Last updated: 2026-04-04 — v1.4 milestone shipped*
