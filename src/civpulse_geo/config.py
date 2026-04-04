@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     weight_nad: float = 0.80
     weight_nominatim: float = 0.70
     nominatim_enabled: bool = True
+    valhalla_enabled: bool = True
 
 
 settings = Settings()
