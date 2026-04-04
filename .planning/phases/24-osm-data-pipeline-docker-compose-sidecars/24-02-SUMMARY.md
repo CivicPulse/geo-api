@@ -107,6 +107,18 @@ None - no external service configuration required for this plan. OSM data (PBF f
 - `docker compose --profile osm up -d osm-postgres` will initialize nominatim DB extensions on first start
 - Plans 03-05 can now implement CLI commands to download/import PBF data using these service URLs
 
+## Self-Check: PASSED
+
+All files and commits verified:
+- scripts/30_osm_setup.sh: FOUND
+- docker-compose.yml: FOUND (modified)
+- src/civpulse_geo/config.py: FOUND (modified)
+- 24-02-SUMMARY.md: FOUND
+- Commit 60ff6bc (Task 1): FOUND
+- Commit f2d5a4f (Task 2): FOUND
+- Commit aa7e6d6 (Task 3): FOUND
+- Commit c95501a (docs): FOUND
+
 ---
 *Phase: 24-osm-data-pipeline-docker-compose-sidecars*
 *Completed: 2026-04-04*
