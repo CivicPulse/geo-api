@@ -7,7 +7,7 @@ stopped_at: ""
 last_updated: "2026-04-04"
 last_activity: 2026-04-04
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,15 +20,17 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-04-04)
 
-**Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — minimizing cost through caching, local data sources, and giving admins authority over the official answer
-**Current focus:** Defining requirements for v1.4 Self-Hosted OSM Stack
+**Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — now expanded to include self-hosted map tiles, POI search, reverse geocoding, and routing
+**Current focus:** Phase 24 — OSM Data Pipeline & Docker Compose Sidecars
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-04-04 — Milestone v1.4 started
+Phase: 24 of 28 (OSM Data Pipeline & Docker Compose Sidecars)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-04-04 — v1.4 roadmap created (5 phases, 21 requirements)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -38,7 +40,7 @@ Last activity: 2026-04-04 — Milestone v1.4 started
 | v1.1 | 5 | 6/6 | Shipped 2026-03-29 |
 | v1.2 | 5 | 25/25 | Shipped 2026-03-29 |
 | v1.3 | 7 | 30/30 | Shipped 2026-04-03 |
-| v1.4 | — | — | In progress |
+| v1.4 | 5 | 0/21 | In progress |
 
 ## Accumulated Context
 
@@ -46,17 +48,23 @@ Last activity: 2026-04-04 — Milestone v1.4 started
 
 Decisions are logged in PROJECT.md Key Decisions table.
 
+Key research decisions for v1.4:
+- Nominatim gets dedicated PostgreSQL database on `osm-postgres` instance (never shares civpulse_geo — import is destructive)
+- Valhalla uses Job/Deployment split so graph is built once to PVC, not rebuilt on every pod restart
+- Tile server and Nominatim can be parallelized after PBF download (separate data stores)
+- Raster vs. vector tile decision still open — must be resolved before Phase 25 planning begins
+
 ### Pending Todos
 
 - [Reset ArgoCD targetRevision to main after merge](.planning/todos/pending/2026-04-03-reset-argocd-targetrevision-to-main-after-merge.md) - restore `spec.source.targetRevision: main` in both geo-api ArgoCD Application manifests after the Phase 23 deployment fixes are merged
 
 ### Blockers/Concerns
 
-(None yet)
+- Raster vs. vector tile decision unresolved — PITFALLS.md recommends Martin + Tilemaker (pre-generated MBTiles) over renderd/mod_tile; FEATURES.md specifies raster PNGs. Must be resolved before Phase 25 planning.
 
 ## Session Continuity
 
-Last activity: 2026-04-04 — Milestone v1.4 started
-Stopped at: —
+Last activity: 2026-04-04 — v1.4 roadmap created
+Stopped at: Roadmap written, ready to plan Phase 24
 Resume file: None
-Next action: Research and define requirements
+Next action: `/gsd:plan-phase 24`

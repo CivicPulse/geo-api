@@ -84,33 +84,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | — | Pending |
-| PIPE-02 | — | Pending |
-| PIPE-03 | — | Pending |
-| PIPE-04 | — | Pending |
-| PIPE-05 | — | Pending |
-| TILE-01 | — | Pending |
-| TILE-02 | — | Pending |
-| TILE-03 | — | Pending |
-| GEO-01 | — | Pending |
-| GEO-02 | — | Pending |
-| GEO-03 | — | Pending |
-| GEO-04 | — | Pending |
-| GEO-05 | — | Pending |
-| ROUTE-01 | — | Pending |
-| ROUTE-02 | — | Pending |
-| ROUTE-03 | — | Pending |
-| INFRA-01 | — | Pending |
-| INFRA-02 | — | Pending |
-| INFRA-03 | — | Pending |
-| INFRA-04 | — | Pending |
-| INFRA-05 | — | Pending |
+| PIPE-01 | Phase 24 | Pending |
+| PIPE-02 | Phase 24 | Pending |
+| PIPE-03 | Phase 24 | Pending |
+| PIPE-04 | Phase 24 | Pending |
+| PIPE-05 | Phase 24 | Pending |
+| TILE-01 | Phase 25 | Pending |
+| TILE-02 | Phase 25 | Pending |
+| TILE-03 | Phase 25 | Pending |
+| GEO-01 | Phase 26 | Pending |
+| GEO-02 | Phase 26 | Pending |
+| GEO-03 | Phase 26 | Pending |
+| GEO-04 | Phase 26 | Pending |
+| GEO-05 | Phase 26 | Pending |
+| ROUTE-01 | Phase 27 | Pending |
+| ROUTE-02 | Phase 27 | Pending |
+| ROUTE-03 | Phase 27 | Pending |
+| INFRA-01 | Phase 24 | Pending |
+| INFRA-02 | Phase 24 | Pending |
+| INFRA-03 | Phase 24 | Pending |
+| INFRA-04 | Phase 28 | Pending |
+| INFRA-05 | Phase 28 | Pending |
 
 **Coverage:**
 - v1.4 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 ⚠️
+- Mapped to phases: 21
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-04-04*
-*Last updated: 2026-04-04 after initial definition*
+*Last updated: 2026-04-04 after roadmap creation*
