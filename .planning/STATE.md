@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
 status: executing
-stopped_at: Completed 26-01-PLAN.md, beginning 26-02
-last_updated: "2026-04-04T20:07:15.999Z"
+stopped_at: Completed 26-02-PLAN.md
+last_updated: "2026-04-04T20:09:19.227Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 12
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 ## Current Position
 
 Phase: 26 (Nominatim Provider, Reverse Geocoding & POI Search) — EXECUTING
-Plan: 2 of 5
+Plan: 3 of 5
 Status: Ready to execute
 Last activity: 2026-04-04
 
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 25-tile-server-fastapi-tile-proxy P01 | 2min | 2 tasks | 3 files |
 | Phase 25-tile-server-fastapi-tile-proxy P02 | 5 | 2 tasks | 1 files |
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P01 | 12 | 3 tasks | 3 files |
+| Phase 26-nominatim-provider-reverse-geocoding-poi-search P02 | 5 | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -76,6 +77,7 @@ Key research decisions for v1.4:
 - [Phase 25-tile-server-fastapi-tile-proxy]: Upstream 404 checked before generic >=400 catch-all to ensure clean 404 passthrough (not 502)
 - [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: POI radius tests assert viewbox param present to enforce radius-to-bbox conversion in implementation
 - [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: Malformed bbox test accepts 400 or 422 — both custom validator and FastAPI Pydantic error are acceptable behaviors
+- [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: NominatimGeocodingProvider maps Nominatim importance to confidence (clamped 0.0-1.0, default 0.70) and OSM type to location_type via OSM_TYPE_TO_LOCATION_TYPE constant
 
 ### Pending Todos
 
@@ -88,6 +90,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 26-01-PLAN.md, beginning 26-02
+Stopped at: Completed 26-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
