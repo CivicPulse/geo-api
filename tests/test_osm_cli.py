@@ -6,7 +6,8 @@ remove remaining xfail markers as they implement their commands.
 """
 from __future__ import annotations
 
-import pytest
+import subprocess
+
 import httpx
 from typer.testing import CliRunner
 from unittest.mock import patch, MagicMock
@@ -187,22 +188,80 @@ class TestOsmBuildValhalla:
 
 
 class TestOsmPipeline:
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 05", strict=False)
     def test_runs_all_steps_in_order(self):
-        pass  # Plan 05 implements
+        # All idempotency checks return False -> all steps run
+        # All run_fn (_invoke -> subprocess.run) succeed
+        with patch("civpulse_geo.cli.subprocess.run") as mock_run:
+            with patch("civpulse_geo.cli._check_pbf_exists", return_value=False), \
+                 patch("civpulse_geo.cli._check_nominatim_populated", return_value=False), \
+                 patch("civpulse_geo.cli._check_tiles_populated", return_value=False), \
+                 patch("civpulse_geo.cli._check_valhalla_built", return_value=False):
+                mock_run.return_value = MagicMock(returncode=0)
+                result = runner.invoke(app, ["osm-pipeline"])
+        assert result.exit_code == 0, result.output
+        # Verify all 4 steps attempted (each _invoke calls subprocess.run once)
+        assert mock_run.call_count == 4
+        # Verify order by inspecting command names in calls
+        commands_called = [call[0][0][3] for call in mock_run.call_args_list]
+        assert commands_called == [
+            "osm-download", "osm-import-nominatim", "osm-import-tiles", "osm-build-valhalla"
+        ]
 
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 05", strict=False)
     def test_continues_after_step_failure(self):
-        pass  # Plan 05 implements
+        # Second step fails but third and fourth still run
+        def side_effect(*args, **kwargs):
+            cmd = args[0]
+            # cmd is ["uv", "run", "geo-import", "osm-<name>"]
+            if cmd[3] == "osm-import-nominatim":
+                raise subprocess.CalledProcessError(1, cmd)
+            return MagicMock(returncode=0)
 
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 05", strict=False)
+        with patch("civpulse_geo.cli._check_pbf_exists", return_value=False), \
+             patch("civpulse_geo.cli._check_nominatim_populated", return_value=False), \
+             patch("civpulse_geo.cli._check_tiles_populated", return_value=False), \
+             patch("civpulse_geo.cli._check_valhalla_built", return_value=False), \
+             patch("civpulse_geo.cli.subprocess.run", side_effect=side_effect) as mock_run:
+            result = runner.invoke(app, ["osm-pipeline"])
+        # All 4 steps attempted even though step 2 failed
+        assert mock_run.call_count == 4
+        assert "FAIL" in result.output
+        assert "osm-import-nominatim" in result.output
+        assert "To retry:" in result.output
+
     def test_exits_nonzero_on_any_failure(self):
-        pass  # Plan 05 implements
+        def side_effect(*args, **kwargs):
+            raise subprocess.CalledProcessError(1, args[0])
 
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 05", strict=False)
+        with patch("civpulse_geo.cli._check_pbf_exists", return_value=False), \
+             patch("civpulse_geo.cli._check_nominatim_populated", return_value=False), \
+             patch("civpulse_geo.cli._check_tiles_populated", return_value=False), \
+             patch("civpulse_geo.cli._check_valhalla_built", return_value=False), \
+             patch("civpulse_geo.cli.subprocess.run", side_effect=side_effect):
+            result = runner.invoke(app, ["osm-pipeline"])
+        assert result.exit_code == 1
+
     def test_skips_completed_steps_when_idempotent(self):
-        pass  # Plan 05 implements
+        # All check functions return True -> all skip
+        with patch("civpulse_geo.cli._check_pbf_exists", return_value=True), \
+             patch("civpulse_geo.cli._check_nominatim_populated", return_value=True), \
+             patch("civpulse_geo.cli._check_tiles_populated", return_value=True), \
+             patch("civpulse_geo.cli._check_valhalla_built", return_value=True), \
+             patch("civpulse_geo.cli.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            result = runner.invoke(app, ["osm-pipeline"])
+        assert result.exit_code == 0, result.output
+        assert mock_run.call_count == 0  # no steps actually ran
+        assert result.output.count("SKIP") >= 4
 
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 05", strict=False)
     def test_force_reruns_all_steps(self):
-        pass  # Plan 05 implements
+        # Even when check functions return True, --force runs everything
+        with patch("civpulse_geo.cli._check_pbf_exists", return_value=True), \
+             patch("civpulse_geo.cli._check_nominatim_populated", return_value=True), \
+             patch("civpulse_geo.cli._check_tiles_populated", return_value=True), \
+             patch("civpulse_geo.cli._check_valhalla_built", return_value=True), \
+             patch("civpulse_geo.cli.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            result = runner.invoke(app, ["osm-pipeline", "--force"])
+        assert result.exit_code == 0, result.output
+        assert mock_run.call_count == 4  # all 4 ran despite check=True
+        assert "SKIP" not in result.output
