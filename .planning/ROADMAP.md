@@ -151,7 +151,10 @@ Plans:
   1. `GET /health/ready` reports the readiness status of Nominatim, tile server, and Valhalla alongside existing providers
   2. Kustomize `kustomization.yaml` includes manifests for Nominatim, tile server, and Valhalla with resource limits defined (osm-postgres was removed in Phase 24 refactor — each sidecar uses its own bundled PG)
   3. ArgoCD syncs the new manifests to dev without errors
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 28-01-PLAN.md — K8s manifests for Nominatim, tile-server, Valhalla sidecars + PVCs + kustomization update (INFRA-04)
+- [ ] 28-02-PLAN.md — Extend /health/ready with non-blocking sidecars block + tile-server probe helper + tests (INFRA-05)
 **UI hint**: no
 
 ## Progress
@@ -166,4 +169,4 @@ Plans:
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 27. Valhalla Routing | v1.4 | 3/3 | Complete    | 2026-04-04 |
-| 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
+| 28. K8s Manifests & Health Probe Updates | v1.4 | 0/2 | Not started | - |
