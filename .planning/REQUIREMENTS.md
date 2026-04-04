@@ -9,11 +9,11 @@ Requirements for Self-Hosted OSM Stack milestone. Each maps to roadmap phases.
 
 ### OSM Data Pipeline
 
-- [ ] **PIPE-01**: Operator can download the Georgia state OSM PBF extract via CLI command
-- [ ] **PIPE-02**: Operator can import PBF into Nominatim's dedicated PostgreSQL database via CLI command
-- [ ] **PIPE-03**: Operator can import PBF into the tile server's PostGIS database via CLI command
-- [ ] **PIPE-04**: Operator can build Valhalla routing graph from PBF via CLI command
-- [ ] **PIPE-05**: Operator can run a single unified CLI command that executes all imports (PIPE-01 through PIPE-04)
+- [x] **PIPE-01**: Operator can download the Georgia state OSM PBF extract via CLI command
+- [x] **PIPE-02**: Operator can import PBF into Nominatim's dedicated PostgreSQL database via CLI command
+- [x] **PIPE-03**: Operator can import PBF into the tile server's PostGIS database via CLI command
+- [x] **PIPE-04**: Operator can build Valhalla routing graph from PBF via CLI command
+- [x] **PIPE-05**: Operator can run a single unified CLI command that executes all imports (PIPE-01 through PIPE-04)
 
 ### Tile Serving
 
@@ -84,11 +84,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PIPE-01 | Phase 24 | Pending |
-| PIPE-02 | Phase 24 | Pending |
-| PIPE-03 | Phase 24 | Pending |
-| PIPE-04 | Phase 24 | Pending |
-| PIPE-05 | Phase 24 | Pending |
+| PIPE-01 | Phase 24 | Complete |
+| PIPE-02 | Phase 24 | Complete |
+| PIPE-03 | Phase 24 | Complete |
+| PIPE-04 | Phase 24 | Complete |
+| PIPE-05 | Phase 24 | Complete |
 | TILE-01 | Phase 25 | Pending |
 | TILE-02 | Phase 25 | Pending |
 | TILE-03 | Phase 25 | Pending |
