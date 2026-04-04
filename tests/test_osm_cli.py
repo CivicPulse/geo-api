@@ -113,36 +113,72 @@ class TestOsmDownloadRetry:
 
 
 # ---------------------------------------------------------------------------
-# osm-import-nominatim (Plan 04 — Wave 0 stub)
+# osm-import-nominatim (Plan 04 — IMPLEMENTED)
 # ---------------------------------------------------------------------------
 
 
 class TestOsmImportNominatim:
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 04", strict=False)
     def test_calls_docker_compose_exec_nominatim_import(self):
-        pass  # Plan 04 implements
+        with patch("civpulse_geo.cli.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            result = runner.invoke(app, ["osm-import-nominatim"])
+        assert result.exit_code == 0, result.output
+        mock_run.assert_called_once()
+        called_args = mock_run.call_args[0][0]
+        assert called_args[:5] == ["docker", "compose", "exec", "nominatim", "nominatim"]
+        assert "import" in called_args
+        assert "--osm-file" in called_args
+        assert "/nominatim/pbf/georgia-latest.osm.pbf" in called_args
+        assert "--threads" in called_args
+        assert "4" in called_args
 
 
 # ---------------------------------------------------------------------------
-# osm-import-tiles (Plan 04 — Wave 0 stub)
+# osm-import-tiles (Plan 04 — IMPLEMENTED)
 # ---------------------------------------------------------------------------
 
 
 class TestOsmImportTiles:
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 04", strict=False)
-    def test_calls_docker_compose_run_with_pbf_volume(self):
-        pass  # Plan 04 implements
+    def test_calls_docker_compose_run_with_pbf_volume(self, tmp_path, monkeypatch):
+        import civpulse_geo.cli as cli_module
+        fake_pbf = tmp_path / "georgia-latest.osm.pbf"
+        fake_pbf.write_bytes(b"fake")
+        monkeypatch.setattr(cli_module, "PBF_PATH", fake_pbf)
+
+        with patch("civpulse_geo.cli.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            result = runner.invoke(app, ["osm-import-tiles"])
+        assert result.exit_code == 0, result.output
+        mock_run.assert_called_once()
+        called_args = mock_run.call_args[0][0]
+        assert called_args[:5] == ["docker", "compose", "run", "--rm", "-v"]
+        # Volume mount spec should end with :/data/region.osm.pbf:ro
+        volume_spec = called_args[5]
+        assert volume_spec.endswith(":/data/region.osm.pbf:ro")
+        assert str(fake_pbf) in volume_spec
+        assert called_args[-2:] == ["tile-server", "import"]
 
 
 # ---------------------------------------------------------------------------
-# osm-build-valhalla (Plan 04 — Wave 0 stub)
+# osm-build-valhalla (Plan 04 — IMPLEMENTED)
 # ---------------------------------------------------------------------------
 
 
 class TestOsmBuildValhalla:
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 04", strict=False)
     def test_calls_docker_compose_run_with_force_rebuild(self):
-        pass  # Plan 04 implements
+        with patch("civpulse_geo.cli.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+            result = runner.invoke(app, ["osm-build-valhalla"])
+        assert result.exit_code == 0, result.output
+        mock_run.assert_called_once()
+        called_args = mock_run.call_args[0][0]
+        assert called_args[:4] == ["docker", "compose", "run", "--rm"]
+        assert called_args[-1] == "valhalla"
+        # Must pass all four env flags per Pitfall 5
+        assert "serve_tiles=False" in called_args
+        assert "force_rebuild=True" in called_args
+        assert "build_admins=False" in called_args
+        assert "build_elevation=False" in called_args
 
 
 # ---------------------------------------------------------------------------
