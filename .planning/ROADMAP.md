@@ -165,5 +165,5 @@ Plans:
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 5/5 | Complete    | 2026-04-04 |
-| 27. Valhalla Routing | v1.4 | 3/3 | Complete   | 2026-04-04 |
+| 27. Valhalla Routing | v1.4 | 3/3 | Complete    | 2026-04-04 |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
