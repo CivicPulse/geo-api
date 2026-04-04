@@ -124,7 +124,7 @@ Plans:
 - [x] 26-01-PLAN.md — TDD test scaffolding (19 tests): nominatim provider, /geocode/reverse, /poi/search contracts (GEO-01..05)
 - [x] 26-02-PLAN.md — NominatimGeocodingProvider HTTP class against /search endpoint (GEO-01, GEO-02)
 - [x] 26-03-PLAN.md — Conditional startup guard + cascade weight_nominatim + config toggle + KNOWN_PROVIDERS (GEO-01, GEO-05)
-- [ ] 26-04-PLAN.md — GET /geocode/reverse endpoint + ReverseGeocodeResponse schema (GEO-03)
+- [x] 26-04-PLAN.md — GET /geocode/reverse endpoint + ReverseGeocodeResponse schema (GEO-03)
 - [ ] 26-05-PLAN.md — GET /poi/search endpoint + POI schemas + bbox/radius handling + router mount (GEO-03, GEO-04, GEO-05)
 **UI hint**: no
 
@@ -160,6 +160,6 @@ Plans:
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete    | 2026-04-04 |
-| 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 3/5 | In Progress|  |
+| 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 4/5 | In Progress|  |
 | 27. Valhalla Routing | v1.4 | 0/TBD | Not started | - |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
