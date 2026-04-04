@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     ollama_url: str = "http://ollama:11434"
     llm_timeout_ms: int = 5000
 
+    # OSM sidecar service URLs (Phase 24 — INFRA-01, INFRA-02, INFRA-03)
+    osm_nominatim_url: str = "http://nominatim:8080"
+    osm_tile_url: str = "http://tile-server:8080"
+    osm_valhalla_url: str = "http://valhalla:8002"
+
     # Provider trust weights (CONS-02, D-08)
     weight_census: float = 0.90
     weight_openaddresses: float = 0.80
