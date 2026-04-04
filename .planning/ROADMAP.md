@@ -149,7 +149,7 @@ Plans:
 **Requirements**: INFRA-04, INFRA-05
 **Success Criteria** (what must be TRUE):
   1. `GET /health/ready` reports the readiness status of Nominatim, tile server, and Valhalla alongside existing providers
-  2. Kustomize `kustomization.yaml` includes manifests for osm-postgres, Nominatim, tile server, and Valhalla with resource limits defined
+  2. Kustomize `kustomization.yaml` includes manifests for Nominatim, tile server, and Valhalla with resource limits defined (osm-postgres was removed in Phase 24 refactor — each sidecar uses its own bundled PG)
   3. ArgoCD syncs the new manifests to dev without errors
 **Plans**: TBD
 **UI hint**: no
