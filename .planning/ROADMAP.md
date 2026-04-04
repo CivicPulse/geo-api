@@ -70,7 +70,7 @@ Full details archived in `milestones/v1.3-ROADMAP.md`.
 **Milestone Goal:** Add a fully self-hosted OpenStreetMap-based geospatial stack — tile serving, geocoding, POI search, reverse geocoding, and routing — eliminating all third-party map service dependencies.
 
 - [x] **Phase 24: OSM Data Pipeline & Docker Compose Sidecars** — Georgia PBF download, dedicated osm-postgres instance, Nominatim/tile-server/Valhalla Docker Compose services, and unified CLI pipeline command (completed 2026-04-04)
-- [ ] **Phase 25: Tile Server & FastAPI Tile Proxy** — Tile sidecar serving raster z/x/y PNGs and FastAPI proxy endpoint with caching headers
+- [x] **Phase 25: Tile Server & FastAPI Tile Proxy** — Tile sidecar serving raster z/x/y PNGs and FastAPI proxy endpoint with caching headers (completed 2026-04-04)
 - [ ] **Phase 26: Nominatim Provider, Reverse Geocoding & POI Search** — NominatimProvider in cascade pipeline, reverse geocode endpoint, and POI search endpoint
 - [ ] **Phase 27: Valhalla Routing** — Walking and driving route endpoints backed by Valhalla sidecar with pre-built graph
 - [ ] **Phase 28: K8s Manifests & Health Probe Updates** — Kustomize manifests for all new sidecars and updated health probes for Nominatim, tile server, and Valhalla
@@ -106,7 +106,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 - [x] 25-01-PLAN.md — TDD test scaffolding (8 tests) + tiles router skeleton mounted in main.py (TILE-02)
-- [ ] 25-02-PLAN.md — Streaming httpx proxy with Cache-Control, ETag forward, 404 passthrough, 502 on upstream failure (TILE-01, TILE-03)
+- [x] 25-02-PLAN.md — Streaming httpx proxy with Cache-Control, ETag forward, 404 passthrough, 502 on upstream failure (TILE-01, TILE-03)
 **UI hint**: no
 
 ### Phase 26: Nominatim Provider, Reverse Geocoding & POI Search
@@ -153,7 +153,7 @@ Plans:
 | 12-16 | v1.2 | — | Complete | 2026-03-29 |
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
-| 25. Tile Server & FastAPI Tile Proxy | v1.4 | 1/2 | In Progress|  |
+| 25. Tile Server & FastAPI Tile Proxy | v1.4 | 2/2 | Complete   | 2026-04-04 |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 0/TBD | Not started | - |
 | 27. Valhalla Routing | v1.4 | 0/TBD | Not started | - |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |

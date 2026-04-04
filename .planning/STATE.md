@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
-status: executing
-stopped_at: Completed 25-tile-server-fastapi-tile-proxy-01-PLAN.md
-last_updated: "2026-04-04T18:38:21.820Z"
+status: verifying
+stopped_at: Completed 25-tile-server-fastapi-tile-proxy-02-PLAN.md
+last_updated: "2026-04-04T18:41:21.420Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 7
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 
 Phase: 25 (Tile Server & FastAPI Tile Proxy) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-04-04
 
 Progress: [░░░░░░░░░░] 0%
@@ -47,6 +47,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P04 | 5min | 2 tasks | 2 files |
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P05 | 2min | 2 tasks | 2 files |
 | Phase 25-tile-server-fastapi-tile-proxy P01 | 2min | 2 tasks | 3 files |
+| Phase 25-tile-server-fastapi-tile-proxy P02 | 5 | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -70,6 +71,8 @@ Key research decisions for v1.4:
 - [Phase 24-osm-data-pipeline-docker-compose-sidecars]: Idempotency check functions use subprocess.run check=False — if docker exec fails (container not running), check silently returns False and step runs normally
 - [Phase 25-tile-server-fastapi-tile-proxy]: Used AsyncClient + ASGITransport (not sync TestClient) for tile tests — matches existing project test pattern
 - [Phase 25-tile-server-fastapi-tile-proxy]: Tile router skeleton raises HTTPException(501) — route wired, streaming implementation deferred to Plan 02
+- [Phase 25-tile-server-fastapi-tile-proxy]: client.get() over client.stream() with StreamingResponse(iter([bytes])) — keeps mock-friendly interface while satisfying streaming contract
+- [Phase 25-tile-server-fastapi-tile-proxy]: Upstream 404 checked before generic >=400 catch-all to ensure clean 404 passthrough (not 502)
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 25-tile-server-fastapi-tile-proxy-01-PLAN.md
+Stopped at: Completed 25-tile-server-fastapi-tile-proxy-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
