@@ -103,7 +103,10 @@ Plans:
   1. `GET /tiles/{z}/{x}/{y}.png` returns a valid PNG image for Georgia coordinates
   2. Tile response includes `Cache-Control` headers appropriate for downstream caching
   3. Tile requests that miss the tile server return a 404 (not a 500), and geo-api logs the failure without crashing
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 25-01-PLAN.md — TDD test scaffolding (8 tests) + tiles router skeleton mounted in main.py (TILE-02)
+- [ ] 25-02-PLAN.md — Streaming httpx proxy with Cache-Control, ETag forward, 404 passthrough, 502 on upstream failure (TILE-01, TILE-03)
 **UI hint**: no
 
 ### Phase 26: Nominatim Provider, Reverse Geocoding & POI Search
@@ -150,7 +153,7 @@ Plans:
 | 12-16 | v1.2 | — | Complete | 2026-03-29 |
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 5/5 | Complete    | 2026-04-04 |
-| 25. Tile Server & FastAPI Tile Proxy | v1.4 | 0/TBD | Not started | - |
+| 25. Tile Server & FastAPI Tile Proxy | v1.4 | 0/2 | Not started | - |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 0/TBD | Not started | - |
 | 27. Valhalla Routing | v1.4 | 0/TBD | Not started | - |
 | 28. K8s Manifests & Health Probe Updates | v1.4 | 0/TBD | Not started | - |
