@@ -15,6 +15,7 @@ import time
 import zipfile
 from pathlib import Path
 
+import httpx
 import typer
 import usaddress
 from loguru import logger
@@ -30,6 +31,12 @@ app = typer.Typer(help="CivPulse Geo CLI -- GIS data import tools.")
 
 OA_BATCH_SIZE = 1000
 NAD_BATCH_SIZE = 50_000  # Rows per COPY+upsert cycle
+
+# Phase 24 — OSM data pipeline (PIPE-01)
+GEORGIA_PBF_URL = "https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf"
+OSM_DATA_DIR = Path("data/osm")
+PBF_PATH = OSM_DATA_DIR / "georgia-latest.osm.pbf"
+OSM_DOWNLOAD_MAX_ATTEMPTS = 3
 
 NAD_COPY_SQL = """
     COPY nad_temp (
@@ -1203,3 +1210,47 @@ def rebuild_spell_dictionary(
     with engine.connect() as conn:
         count = rebuild_dictionary(conn)
     typer.echo(f"Spell dictionary rebuilt: {count} words")
+
+
+@app.command("osm-download")
+def osm_download(
+    force: bool = typer.Option(
+        False, "--force", help="Re-download even if PBF already exists."
+    ),
+) -> None:
+    """Download the Georgia OSM PBF extract from Geofabrik.
+
+    PIPE-01: Downloads to data/osm/georgia-latest.osm.pbf. Skips if file
+    exists unless --force is passed. Retries up to 3 times with exponential
+    backoff (1s, 2s, 4s) on transient network failures (D-13).
+    """
+    OSM_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    if PBF_PATH.exists() and not force:
+        typer.echo(f"PBF already exists at {PBF_PATH}. Use --force to re-download.")
+        return
+
+    for attempt in range(OSM_DOWNLOAD_MAX_ATTEMPTS):
+        try:
+            typer.echo(f"Downloading {GEORGIA_PBF_URL} -> {PBF_PATH} ...")
+            with httpx.stream(
+                "GET", GEORGIA_PBF_URL, follow_redirects=True, timeout=60.0
+            ) as r:
+                r.raise_for_status()
+                with open(PBF_PATH, "wb") as f:
+                    for chunk in r.iter_bytes(chunk_size=8192):
+                        f.write(chunk)
+            typer.echo(f"Downloaded to {PBF_PATH}")
+            return
+        except Exception as e:
+            if attempt == OSM_DOWNLOAD_MAX_ATTEMPTS - 1:
+                typer.echo(
+                    f"Download failed after {OSM_DOWNLOAD_MAX_ATTEMPTS} attempts: {e}",
+                    err=True,
+                )
+                raise typer.Exit(1)
+            wait = 2**attempt
+            typer.echo(
+                f"Attempt {attempt + 1}/{OSM_DOWNLOAD_MAX_ATTEMPTS} failed: {e}. "
+                f"Retrying in {wait}s..."
+            )
+            time.sleep(wait)
