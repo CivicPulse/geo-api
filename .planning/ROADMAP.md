@@ -118,7 +118,7 @@ Plans:
   2. `GET /geocode/reverse?lat=...&lon=...` returns a valid address string for Georgia coordinates
   3. `GET /poi/search?q=...&lat=...&lon=...` returns a list of POI results near the given location
   4. `GET /poi/search?q=...&bbox=...` constrains results to the given bounding box
-  5. NominatimProvider is not registered at startup when `osm-postgres` is unreachable (conditional startup guard)
+  5. NominatimProvider is not registered at startup when the `nominatim` HTTP service is unreachable (conditional startup guard; post-Phase-24 refactor: osm-postgres was removed, so the guard probes nominatim's HTTP endpoint directly instead of a shared PG)
 **Plans**: TBD
 **UI hint**: no
 
