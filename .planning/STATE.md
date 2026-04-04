@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
 status: planning
-stopped_at: ""
-last_updated: "2026-04-04"
-last_activity: 2026-04-04
+stopped_at: Phase 24 context gathered
+last_updated: "2026-04-04T15:04:40.477Z"
+last_activity: 2026-04-04 — v1.4 roadmap created (5 phases, 21 requirements)
 progress:
   total_phases: 5
   completed_phases: 0
@@ -49,6 +49,7 @@ Progress: [░░░░░░░░░░] 0%
 Decisions are logged in PROJECT.md Key Decisions table.
 
 Key research decisions for v1.4:
+
 - Nominatim gets dedicated PostgreSQL database on `osm-postgres` instance (never shares civpulse_geo — import is destructive)
 - Valhalla uses Job/Deployment split so graph is built once to PVC, not rebuilt on every pod restart
 - Tile server and Nominatim can be parallelized after PBF download (separate data stores)
@@ -65,6 +66,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Roadmap written, ready to plan Phase 24
-Resume file: None
+Stopped at: Phase 24 context gathered
+Resume file: .planning/phases/24-osm-data-pipeline-docker-compose-sidecars/24-CONTEXT.md
 Next action: `/gsd:plan-phase 24`
