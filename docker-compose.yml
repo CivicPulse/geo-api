@@ -59,40 +59,35 @@ services:
       - ./tiger-data:/gisdata/www2.census.gov/geo/tiger/TIGER2024:ro
 
 
-  osm-postgres:
-    image: postgis/postgis:17-3.5
-    environment:
-      POSTGRES_DB: nominatim
-      POSTGRES_USER: nominatim
-      POSTGRES_PASSWORD: nominatim
-    volumes:
-      - osm_postgres_data:/var/lib/postgresql/data
-      - ./scripts/30_osm_setup.sh:/docker-entrypoint-initdb.d/30_osm_setup.sh
-    ports:
-      - "5463:5432"
-    mem_limit: 4g
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nominatim -d nominatim"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - osm
+  # ARCHITECTURAL NOTE (Phase 24 refactor):
+  # We originally planned a shared `osm-postgres` service to host the nominatim database
+  # (D-02 in 24-CONTEXT.md). During the Phase 24 checkpoint, manual verification revealed
+  # that BOTH mediagis/nominatim:5.2 AND overv/openstreetmap-tile-server:2.3.0 bundle and
+  # manage their OWN internal PostgreSQL instances. They do not support being pointed at
+  # an external PG via a single env var — they would require custom image builds.
+  #
+  # Decision: drop `osm-postgres` entirely. Each OSM sidecar owns its own PG:
+  #   - nominatim → internal PG (persisted in nominatim_data volume)
+  #   - tile-server → internal PG (persisted in osm_tile_data volume)
+  #   - valhalla → no PG (file-based routing tiles)
+  # Isolation from civpulse_geo is achieved via separate volumes per service.
+  # The `nominatim` DB is automatically provisioned by the image on first `up`.
 
   nominatim:
     image: mediagis/nominatim:5.2
     environment:
-      NOMINATIM_DATABASE_DSN: "pgsql:host=osm-postgres;port=5432;dbname=nominatim;user=nominatim;password=nominatim"
+      # PBF_PATH triggers auto-import on first `up` (~30 min for Georgia extract).
+      # Our `osm-import-nominatim` CLI wraps `docker compose up -d nominatim` + health poll.
       PBF_PATH: /nominatim/pbf/georgia-latest.osm.pbf
       REPLICATION_URL: ""
     volumes:
       - nominatim_data:/nominatim/data
-      - ./data/osm:/nominatim/pbf:ro
+      # NOTE: NOT :ro — mediagis/nominatim:5.2 chowns /nominatim/* on startup
+      # and fails read-only bind mounts with "Read-only file system" error.
+      - ./data/osm:/nominatim/pbf
     ports:
       - "8093:8080"
-    depends_on:
-      osm-postgres:
-        condition: service_healthy
+    restart: "no"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/status || exit 1"]
       interval: 30s
@@ -106,6 +101,9 @@ services:
     image: overv/openstreetmap-tile-server:2.3.0
     # NOTE: This container uses its own internal PostgreSQL (db: gis, user: renderer).
     # It does NOT connect to osm-postgres. Isolation from civpulse_geo is via separate volume.
+    # WORKFLOW: Run `osm-import-tiles` FIRST (which invokes `docker compose run --rm tile-server import`)
+    # to initialize the internal PG + renderer role + import PBF. Only THEN will `docker compose up tile-server`
+    # start cleanly. Before first import, this service exits with: `ERROR: role "renderer" does not exist`.
     volumes:
       - osm_tile_data:/data/database/
       - osm_tile_cache:/data/tiles/
@@ -113,6 +111,7 @@ services:
     ports:
       - "8094:8080"
     command: run
+    restart: "no"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8080/tile/0/0/0.png || exit 1"]
       interval: 30s
@@ -124,6 +123,10 @@ services:
 
   valhalla:
     image: ghcr.io/valhalla/valhalla:latest
+    # NOTE: The official valhalla image is RUN-BASED — it exits on `up` unless tiles exist.
+    # WORKFLOW: Run `osm-build-valhalla` FIRST (which invokes `docker compose run --rm valhalla`
+    # with force_rebuild=True) to build routing tiles. Only THEN will `docker compose up valhalla`
+    # stay running and serve routes. Before first build, this service exits with code 0.
     environment:
       serve_tiles: "True"
       use_tiles_ignore_pbf: "True"
@@ -135,6 +138,7 @@ services:
       - ./data/osm:/custom_files/pbf:ro
     ports:
       - "8002:8002"
+    restart: "no"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:8002/status || exit 1"]
       interval: 30s
@@ -147,7 +151,6 @@ services:
 volumes:
   postgres_data:
   ollama_data:
-  osm_postgres_data:
   nominatim_data:
   osm_tile_data:
   osm_tile_cache:

@@ -119,19 +119,15 @@ class TestOsmDownloadRetry:
 
 
 class TestOsmImportNominatim:
-    def test_calls_docker_compose_exec_nominatim_import(self):
+    def test_calls_docker_compose_up_nominatim(self):
+        """nominatim auto-imports on first `up` via the image's start.sh — no separate import cmd."""
         with patch("civpulse_geo.cli.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             result = runner.invoke(app, ["osm-import-nominatim"])
         assert result.exit_code == 0, result.output
         mock_run.assert_called_once()
         called_args = mock_run.call_args[0][0]
-        assert called_args[:5] == ["docker", "compose", "exec", "nominatim", "nominatim"]
-        assert "import" in called_args
-        assert "--osm-file" in called_args
-        assert "/nominatim/pbf/georgia-latest.osm.pbf" in called_args
-        assert "--threads" in called_args
-        assert "4" in called_args
+        assert called_args == ["docker", "compose", "--profile", "osm", "up", "-d", "nominatim"]
 
 
 # ---------------------------------------------------------------------------

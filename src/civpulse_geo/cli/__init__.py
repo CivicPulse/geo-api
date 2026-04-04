@@ -1278,21 +1278,22 @@ def _run_docker_cmd(args: list[str], *, stage: str) -> None:
 
 @app.command("osm-import-nominatim")
 def osm_import_nominatim(
-    threads: int = typer.Option(4, "--threads", help="Import threads."),
+    threads: int = typer.Option(4, "--threads", help="Import threads (reserved; image uses its own defaults on first up)."),  # noqa: ARG001
 ) -> None:
     """Import Georgia PBF into Nominatim database (PIPE-02).
 
-    Shells out to `docker compose exec nominatim nominatim import ...`.
-    Requires the nominatim and osm-postgres services to be running:
-      docker compose --profile osm up -d osm-postgres nominatim
-    Expected runtime: 60-120 minutes for Georgia extract.
+    The mediagis/nominatim:5.2 image auto-imports the PBF during first container
+    startup via its bundled start.sh script — there is no separate `import` entrypoint.
+    This command is equivalent to `docker compose --profile osm up -d nominatim` and
+    triggers the auto-import on first run. On subsequent runs (volume already populated),
+    the image starts the web server instead of re-importing.
+
+    Expected runtime: 60-120 minutes for Georgia extract on first invocation.
+    To force a re-import: `docker compose --profile osm down -v` then re-run this command.
     """
     _run_docker_cmd(
         [
-            "docker", "compose", "exec", "nominatim",
-            "nominatim", "import",
-            "--osm-file", "/nominatim/pbf/georgia-latest.osm.pbf",
-            "--threads", str(threads),
+            "docker", "compose", "--profile", "osm", "up", "-d", "nominatim",
         ],
         stage="nominatim-import",
     )
