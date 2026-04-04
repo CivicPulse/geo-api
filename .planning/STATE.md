@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
 status: executing
-stopped_at: Completed 24-01-PLAN.md
-last_updated: "2026-04-04T15:45:30.387Z"
+stopped_at: Completed 24-osm-data-pipeline-docker-compose-sidecars-03-PLAN.md
+last_updated: "2026-04-04T15:46:50.100Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 ## Current Position
 
 Phase: 24 (OSM Data Pipeline & Docker Compose Sidecars) — EXECUTING
-Plan: 2 of 5
+Plan: 4 of 5
 Status: Ready to execute
 Last activity: 2026-04-04
 
@@ -42,6 +42,8 @@ Progress: [░░░░░░░░░░] 0%
 | v1.3 | 7 | 30/30 | Shipped 2026-04-03 |
 | v1.4 | 5 | 0/21 | In progress |
 | Phase 24-osm-data-pipeline-docker-compose-sidecars P01 | 8min | 2 tasks | 3 files |
+| Phase 24-osm-data-pipeline-docker-compose-sidecars P02 | 15min | 3 tasks | 3 files |
+| Phase 24-osm-data-pipeline-docker-compose-sidecars P03 | 3min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -56,6 +58,8 @@ Key research decisions for v1.4:
 - Tile server and Nominatim can be parallelized after PBF download (separate data stores)
 - Raster vs. vector tile decision still open — must be resolved before Phase 25 planning begins
 - [Phase 24]: noqa: F401 on stub imports (patch, MagicMock, app) in test_osm_cli.py — intentional scaffolding for Plan 03/04/05 implementation
+- [Phase 24-osm-data-pipeline-docker-compose-sidecars]: All 4 OSM services gated under profiles: [osm]; tile-server uses isolated internal PostgreSQL; Nominatim DSN uses libpq format; valhalla_tiles volume persists routing graph (D-02)
+- [Phase 24-osm-data-pipeline-docker-compose-sidecars]: osm-download uses module-level PBF_PATH constant so tests can monkeypatch without touching disk
 
 ### Pending Todos
 
@@ -68,6 +72,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 24-01-PLAN.md
+Stopped at: Completed 24-osm-data-pipeline-docker-compose-sidecars-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`

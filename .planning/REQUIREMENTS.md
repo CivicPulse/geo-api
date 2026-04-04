@@ -37,9 +37,9 @@ Requirements for Self-Hosted OSM Stack milestone. Each maps to roadmap phases.
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Nominatim runs as Docker Compose sidecar service with dedicated PostgreSQL
-- [ ] **INFRA-02**: Valhalla runs as Docker Compose sidecar service with pre-built graph on persistent volume
-- [ ] **INFRA-03**: Tile server runs as Docker Compose sidecar service
+- [x] **INFRA-01**: Nominatim runs as Docker Compose sidecar service with dedicated PostgreSQL
+- [x] **INFRA-02**: Valhalla runs as Docker Compose sidecar service with pre-built graph on persistent volume
+- [x] **INFRA-03**: Tile server runs as Docker Compose sidecar service
 - [ ] **INFRA-04**: K8s manifests for all new sidecar services (Kustomize base + overlays)
 - [ ] **INFRA-05**: Health probes updated to include Nominatim, tile server, and Valhalla readiness
 
@@ -100,9 +100,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ROUTE-01 | Phase 27 | Pending |
 | ROUTE-02 | Phase 27 | Pending |
 | ROUTE-03 | Phase 27 | Pending |
-| INFRA-01 | Phase 24 | Pending |
-| INFRA-02 | Phase 24 | Pending |
-| INFRA-03 | Phase 24 | Pending |
+| INFRA-01 | Phase 24 | Complete |
+| INFRA-02 | Phase 24 | Complete |
+| INFRA-03 | Phase 24 | Complete |
 | INFRA-04 | Phase 28 | Pending |
 | INFRA-05 | Phase 28 | Pending |
 
