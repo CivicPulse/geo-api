@@ -978,3 +978,355 @@ The entries below document the validated v1.0 stack. No changes are required for
 ---
 *Stack research for: CivPulse Geo API v1.3 Production Readiness & Deployment — new capabilities*
 *Researched: 2026-03-29*
+
+
+---
+
+## v1.4 Milestone: Stack Additions for Self-Hosted OSM Stack
+
+**Research date:** 2026-04-04
+**Scope:** New capabilities only — OSM data pipeline, raster tile serving, Nominatim geocoding/POI/reverse-geocoding, and routing. Everything from v1.0–v1.3 is unchanged and validated. No existing Python packages are removed or upgraded by this milestone.
+
+**Confidence:** HIGH (osm2pgsql — official releases page), HIGH (Nominatim — official docs + PyPI), HIGH (OSRM — GitHub releases), HIGH (overv/openstreetmap-tile-server — GitHub), MEDIUM (mediagis/nominatim external DB — community issue reports), MEDIUM (Python integration patterns — community + official FastAPI patterns)
+
+---
+
+### Executive Finding
+
+**No new Python runtime packages are required.** The OSM stack consists entirely of infrastructure sidecar services (Docker images) that the existing FastAPI app calls via HTTP using the already-present `httpx.AsyncClient`. One new Python provider class (OSM Nominatim geocoding provider) plugs into the existing cascade pipeline using zero new library dependencies. The data pipeline (PBF import) is a CLI-triggered one-time operation, not runtime code.
+
+The v1.4 additions are:
+
+1. **overv/openstreetmap-tile-server** — raster tile server sidecar (Docker Compose service)
+2. **mediagis/nominatim** — geocoding/POI/reverse-geocoding sidecar (Docker Compose service)
+3. **osrm/osrm-backend** — routing engine sidecar, two instances: one `car` profile, one `foot` profile (Docker Compose services)
+4. **NominatimGeocodingProvider** — new provider class (Python, no new dependencies)
+5. **OSM data pipeline** — Typer CLI command + shell script for PBF download and import (no new dependencies)
+
+---
+
+### Raster Tile Server
+
+**Chosen: `overv/openstreetmap-tile-server` v2.3.0**
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `overv/openstreetmap-tile-server` | 2.3.0 | Docker Compose service | Self-contained OSM raster tile server exposing `/{z}/{x}/{y}.png` tiles for Leaflet |
+
+**What it bundles:**
+- `osm2pgsql` (OSM data import to PostGIS)
+- `renderd` + `mod_tile` (tile rendering daemon + Apache module)
+- `Mapnik` (rendering engine using openstreetmap-carto style)
+- Embedded PostgreSQL/PostGIS (used internally for tile rendering data — **separate from the geo-api application database**)
+- Apache HTTP server (serves tiles via `mod_tile`)
+
+**Why this image over bare mod_tile + Mapnik + Apache:**
+The `overv` image provides a single-container, batteries-included tile stack that handles all configuration (renderd.conf, mapnik style, Postgres tuning) with a documented Docker Compose pattern. Setting up Apache + mod_tile + Mapnik + renderd manually from the switch2osm guide requires 2–3 hours of system configuration that adds no value to the geo-api project. The image is well-maintained, actively used in production OSM self-hosting deployments, and the source is open on GitHub. Confidence: HIGH.
+
+**Docker Compose pattern:**
+
+```yaml
+# Import service (one-shot, run before server)
+tile-import:
+  image: overv/openstreetmap-tile-server:2.3.0
+  volumes:
+    - ./data/georgia-latest.osm.pbf:/data/region.osm.pbf
+    - osm-data:/data/database/
+  command: import
+  environment:
+    THREADS: "4"
+    FLAT_NODES: "false"   # set true for planet-scale imports; Georgia at ~330MB does not need it
+
+# Tile server (persistent service)
+tile-server:
+  image: overv/openstreetmap-tile-server:2.3.0
+  volumes:
+    - osm-data:/data/database/
+    - osm-tiles:/data/tiles/
+  ports:
+    - "8080:80"
+  environment:
+    UPDATES: "disabled"
+    ALLOW_CORS: "true"
+    THREADS: "4"
+  restart: unless-stopped
+  depends_on:
+    tile-import:
+      condition: service_completed_successfully
+
+volumes:
+  osm-data:
+  osm-tiles:
+```
+
+**Tile URL pattern for Leaflet:**
+```
+http://{tile-server-host}:8080/tile/{z}/{x}/{y}.png
+```
+
+**Key environment variables:**
+- `UPDATES`: `disabled` (for static Georgia extract) — no replication polling
+- `ALLOW_CORS`: `true` — required for browser-side Leaflet
+- `THREADS`: Match available CPU cores (4 is safe default)
+- `FLAT_NODES`: `false` for state-level extracts; `true` only needed for planet-scale
+
+**Georgia PBF source:** `https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf` (~330 MB as of late 2025). Download via the OSM data pipeline CLI command before first import.
+
+**Important: Tile rendering database is isolated.** The `overv` container runs its own PostgreSQL instance internally. It does NOT connect to the geo-api application database. They share no schema. Keep them completely separate — do not attempt to share the PostGIS instance.
+
+---
+
+### Geocoding / POI Search / Reverse Geocoding
+
+**Chosen: `mediagis/nominatim` 5.2 Docker image + `NominatimGeocodingProvider` (new provider class)**
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `mediagis/nominatim` | 5.2 | Docker Compose service | Self-hosted Nominatim geocoding/reverse-geocoding/POI search API |
+
+**What Nominatim 5.2 provides (HIGH confidence — official docs):**
+
+- Forward geocoding: address string → `(lat, lon)` (plugs into cascade pipeline as `NominatimGeocodingProvider`)
+- Reverse geocoding: `(lat, lon)` → address string (new endpoint capability)
+- POI search: find amenities, landmarks, businesses by name or type near a location
+- Structured search: `street=`, `city=`, `county=`, `state=`, `country=` parameter-based lookup
+- HTTP API: `/search`, `/reverse`, `/lookup`, `/details` endpoints — all JSON
+- Built on OSM data — same source as the tile server
+
+**Why Nominatim over custom PostGIS geocoder:**
+Nominatim has 15+ years of production use as the geocoder for openstreetmap.org. It handles address ambiguity, abbreviations, POI indexing, and the full OSM feature graph out of the box. Building equivalent functionality on raw PostGIS + osm2pgsql data would require months of query engineering. For the geo-api cascade, Nominatim is a single additional HTTP provider call — the integration cost is minimal.
+
+**Why version 5.2 not 5.3:**
+`mediagis/nominatim:5.2` is the current stable Docker image tag as confirmed from the mediagis/nominatim-docker README. The nominatim-api PyPI package is at 5.3.0 (April 3, 2026), but the mediagis Docker image lags by one minor version. Use `5.2` for the Docker deployment. The `nominatim-api` PyPI package is NOT used — see below.
+
+**Database isolation:** Nominatim requires its own PostgreSQL database (`nominatim` db). The mediagis image bundles its own PostgreSQL. While `NOMINATIM_DATABASE_DSN` theoretically allows pointing at an external PostgreSQL, there are reported issues (mediagis/nominatim-docker issue #615) where external DSN is ignored during import. Use the bundled PostgreSQL. Keep Nominatim's PostgreSQL instance completely separate from the geo-api application database.
+
+**Docker Compose pattern:**
+
+```yaml
+nominatim:
+  image: mediagis/nominatim:5.2
+  ports:
+    - "8081:8080"
+  environment:
+    PBF_URL: ""          # leave empty when using local file
+    PBF_PATH: /nominatim/data/georgia-latest.osm.pbf
+    NOMINATIM_PASSWORD: nominatim_secret
+    REPLICATION_URL: ""  # disabled — static Georgia extract
+    IMPORT_WIKIPEDIA: "false"   # reduces import time; not needed for address geocoding
+    IMPORT_STYLE: "extratags"   # includes amenity/POI tags needed for POI search
+  volumes:
+    - ./data/georgia-latest.osm.pbf:/nominatim/data/georgia-latest.osm.pbf:ro
+    - nominatim-data:/var/lib/postgresql/14/main
+  restart: unless-stopped
+
+volumes:
+  nominatim-data:
+```
+
+**Python integration — no new dependencies:**
+
+The `NominatimGeocodingProvider` calls the Nominatim HTTP `/search` endpoint via the existing `httpx.AsyncClient`. This is identical to how the Census Geocoder provider works today. No new Python packages are required.
+
+Do NOT install `nominatim-api` (the PyPI package). That package is for running Nominatim as a Python ASGI app connected to a local Nominatim database on the same host — it is not a client library. For geo-api, Nominatim is a sidecar service accessed over HTTP. Use `httpx`.
+
+**Example provider sketch (no new imports):**
+
+```python
+# src/civpulse_geo/providers/nominatim.py
+import httpx
+from .base import GeocodingProvider, GeocodingResult
+
+class NominatimGeocodingProvider(GeocodingProvider):
+    BASE_URL = "http://nominatim:8080"   # Docker Compose service name
+
+    async def geocode(self, address: str) -> list[GeocodingResult]:
+        params = {"q": address, "format": "jsonv2", "limit": 5,
+                  "countrycodes": "us", "addressdetails": 1}
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{self.BASE_URL}/search", params=params)
+            resp.raise_for_status()
+        return [self._parse(r) for r in resp.json()]
+```
+
+**Reverse geocoding endpoint:**
+
+Nominatim `/reverse?lat={lat}&lon={lon}&format=jsonv2` — call via `httpx`. No additional provider base class changes needed; implement as a separate `/geocode/reverse` FastAPI endpoint that calls Nominatim directly.
+
+**POI search:**
+
+Nominatim `/search?q={poi_name}&format=jsonv2&amenity={type}&bounded=1&viewbox={bbox}` — same pattern. Implement as `/search/poi` endpoint.
+
+---
+
+### Routing Engine
+
+**Chosen: `osrm/osrm-backend` v6.0.0 — two Docker Compose instances (car + foot)**
+
+| Component | Version | Deployment | Purpose |
+|-----------|---------|-----------|---------|
+| `osrm/osrm-backend` | v6.0.0 | Docker Compose service (×2) | Self-hosted OSRM routing for driving (car profile) and walking (foot profile) |
+
+**Why OSRM over Valhalla:**
+
+| Criterion | OSRM | Valhalla |
+|-----------|------|---------|
+| Routing speed | Sub-millisecond for regional routes (highest confidence) | Fast but slower for matrix queries |
+| Setup complexity | Pre-process PBF once; simple Docker run | More configuration, thinner Docker docs |
+| Walking + driving | foot.lua + car.lua profiles, both well-tested | Both supported but profile tuning more complex |
+| Memory use | Higher (pre-computed graph in RAM) | Lower (operates on raw OSM data) |
+| API surface | Focused: route, table, match, nearest, trip | Broader: isochrone, elevation, time-aware |
+
+For CivPulse's use case (canvass routing for run-api, polling place directions for vote-api) OSRM's speed advantage is decisive. Routing requests will be small (1–10 waypoints), not matrix operations, so Valhalla's memory advantage is irrelevant. OSRM's Docker documentation and profiles are more mature for a state-level deployment. Confidence: MEDIUM (comparative analysis; OSRM is more widely deployed for this scale).
+
+**Why two instances (not one multi-profile instance):**
+OSRM requires PBF pre-processing at startup for a single profile — you cannot serve car and foot from the same container. The standard pattern is two separate containers, each pre-processed with a different profile and bound to a different port.
+
+**Docker Compose pattern:**
+
+```yaml
+# One-time data prep (run as CLI command before compose up):
+# docker run -t -v $(pwd)/data:/data osrm/osrm-backend:v6.0.0 osrm-extract -p /opt/car.lua /data/georgia-latest.osm.pbf
+# docker run -t -v $(pwd)/data:/data osrm/osrm-backend:v6.0.0 osrm-partition /data/georgia-latest.osrm
+# docker run -t -v $(pwd)/data:/data osrm/osrm-backend:v6.0.0 osrm-customize /data/georgia-latest.osrm
+# Repeat for foot.lua → produces georgia-foot.osrm
+
+osrm-car:
+  image: osrm/osrm-backend:v6.0.0
+  volumes:
+    - ./data:/data
+  ports:
+    - "5000:5000"
+  command: osrm-routed --algorithm mld /data/georgia-latest.osrm
+  restart: unless-stopped
+
+osrm-foot:
+  image: osrm/osrm-backend:v6.0.0
+  volumes:
+    - ./data:/data
+  ports:
+    - "5001:5000"
+  command: osrm-routed --algorithm mld /data/georgia-foot.osrm
+  restart: unless-stopped
+```
+
+**Python integration — no new dependencies:**
+
+OSRM exposes a REST API at `/route/v1/{profile}/{coordinates}`. Call via existing `httpx`. Implement `/directions` FastAPI endpoint that proxies to the appropriate OSRM instance based on `mode` parameter (`driving` → port 5000, `walking` → port 5001).
+
+**OSRM API response contains:**
+- `routes[].geometry` (encoded polyline or GeoJSON)
+- `routes[].legs[].steps[]` (turn-by-turn instructions)
+- `routes[].distance` (meters)
+- `routes[].duration` (seconds)
+
+**v6.0.0 notable change:** Pedestrian routing now includes highways marked as `platform` in the foot profile — relevant for urban walking routes in Atlanta and Macon. (HIGH confidence — OSRM v6.0.0 release notes, April 21, 2025.)
+
+---
+
+### OSM Data Pipeline
+
+**No new Python packages.** Pipeline uses Typer (already installed), subprocess calls to Docker CLI, and `httpx` for PBF download.
+
+**OSM data source:** Geofabrik Georgia extract — `https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf`
+- Size: ~330 MB as of late 2025
+- Updated daily by Geofabrik
+- Covers all of Georgia (USA)
+- Suitable for osm2pgsql (tile server), Nominatim, and OSRM
+
+**Pipeline flow:**
+
+```
+1. download_pbf()       → curl/httpx download to ./data/georgia-latest.osm.pbf
+2. import_tiles()       → docker run overv/openstreetmap-tile-server:2.3.0 import
+3. import_nominatim()   → docker-compose up nominatim (first run triggers import automatically)
+4. preprocess_osrm()    → docker run osrm/osrm-backend:v6.0.0 osrm-extract/partition/customize (×2 profiles)
+```
+
+**CLI command (Typer):**
+
+```python
+# uv run python -m civpulse_geo.cli osm import-data [--skip-download] [--profile car|foot|both]
+```
+
+This follows the existing CLI pattern (Typer + Rich) used for GIS data import commands. No new packages needed.
+
+---
+
+### New Packages Summary (v1.4)
+
+**Zero new Python runtime packages. Zero new Python dev packages.**
+
+| Component | Type | Version | Install |
+|-----------|------|---------|---------|
+| `overv/openstreetmap-tile-server` | Docker image | 2.3.0 | `docker pull overv/openstreetmap-tile-server:2.3.0` |
+| `mediagis/nominatim` | Docker image | 5.2 | `docker pull mediagis/nominatim:5.2` |
+| `osrm/osrm-backend` | Docker image | v6.0.0 | `docker pull osrm/osrm-backend:v6.0.0` |
+| `NominatimGeocodingProvider` | New Python class | — | Implement in `src/civpulse_geo/providers/nominatim.py` |
+| OSM data pipeline CLI | New Typer command | — | Implement in `src/civpulse_geo/cli/osm.py` |
+
+---
+
+### What NOT to Add (v1.4)
+
+| Do Not Add | Why | Use Instead |
+|------------|-----|-------------|
+| `nominatim-api` (PyPI) | That package runs Nominatim as an in-process ASGI app on the same host as the database — it is NOT a client library. geo-api calls a remote Nominatim sidecar over HTTP. | `httpx` (already installed) to call `mediagis/nominatim` HTTP API |
+| `geopy` | Wrapper around public Nominatim API — not appropriate for a self-hosted instance. Adds an abstraction layer with no value. | Direct `httpx` calls to the sidecar |
+| Valhalla routing engine | Heavier setup, thinner Docker documentation, no significant feature advantage for the CivPulse routing use case (small waypoint counts, no isochrone needed) | `osrm/osrm-backend` |
+| MapTiler Server | Commercial; requires license for production. Adds cost and vendor dependency. | `overv/openstreetmap-tile-server` (Apache-2.0, free) |
+| OpenMapTiles (vector tiles) | Leaflet 1.9.4 uses raster tiles only. Vector tiles require a GL renderer (MapLibre GL) which is a separate frontend decision outside this milestone's scope. | `overv/openstreetmap-tile-server` raster tiles |
+| `osm2pgsql` Python bindings | No mature Python bindings exist. `osm2pgsql` is a CLI tool; invoke via subprocess or Docker CLI command from the Typer pipeline. | Docker CLI invocation via `subprocess` or direct Docker Compose |
+| Shared PostgreSQL for Nominatim | mediagis/nominatim has known issues with external DB via `NOMINATIM_DATABASE_DSN` during import (issue #615). Simplest and most reliable path is bundled PostgreSQL. | Let `mediagis/nominatim` manage its own PostgreSQL |
+| Shared PostgreSQL for tile server | `overv/openstreetmap-tile-server` uses a different schema (osm2pgsql rendering schema) and heavily tunes its own PostgreSQL for tile rendering. Merging with geo-api DB creates schema conflicts and tuning conflicts. | Keep tile server PostgreSQL fully separate |
+| `TileJSON` or `WMTS` endpoint from geo-api | Tile serving is handled entirely by the `overv` container. geo-api does not need to proxy or wrap tiles. | Let Leaflet connect directly to the tile server container |
+| OSRM matrix API for batch routing | Matrix operations are expensive and not needed for the canvass/polling use case. The `/route/v1/` endpoint with 2–10 waypoints covers all current use cases. | OSRM `/route/v1/` only |
+
+---
+
+### Integration Points with Existing FastAPI Stack
+
+| Existing Component | v1.4 Touch Point |
+|-------------------|-----------------|
+| `CascadeOrchestrator` | Add `NominatimGeocodingProvider` to provider registry with appropriate weight (recommend weight=3, below Census but above Tiger for Georgia addresses) |
+| `providers/base.py` | No changes — new provider inherits existing `GeocodingProvider` ABC |
+| `httpx.AsyncClient` | Reuse for Nominatim + OSRM HTTP calls — no new HTTP client |
+| `Docker Compose` dev environment | Add `tile-import`, `tile-server`, `nominatim`, `osrm-car`, `osrm-foot` services |
+| `Typer CLI` | Add `osm import-data` command to existing CLI module |
+| `/health/ready` endpoint | Add Nominatim and OSRM HTTP reachability checks to readiness probe |
+
+---
+
+### Version Compatibility (v1.4)
+
+| Component | Requires | Geo-API Has | Compatible |
+|-----------|----------|-------------|------------|
+| `overv/openstreetmap-tile-server:2.3.0` | Docker, volume mounts | Docker Compose dev env | Yes — new service only |
+| `mediagis/nominatim:5.2` | PostgreSQL 12+ (bundled), PostGIS 3+ (bundled) | N/A — separate container | Yes |
+| `osrm/osrm-backend:v6.0.0` | PBF pre-processed data, Alpine Linux | N/A — separate container | Yes |
+| `NominatimGeocodingProvider` | Python 3.12+, `httpx` >= 0.23.0 | Python 3.12, httpx 0.28.1 | Yes |
+| Geofabrik Georgia PBF | Disk: ~330 MB download, ~3 GB Nominatim DB, ~500 MB OSRM graph | Dev host disk | Verify host has ≥5 GB free |
+
+---
+
+### Sources (v1.4)
+
+- [osm2pgsql 2.2.0 release notes](https://osm2pgsql.org/releases/2-2-0.html) — latest stable 2.2.0, Sep 17, 2025 (HIGH confidence)
+- [Nominatim 5.3.0 on PyPI](https://pypi.org/project/nominatim-api/) — current PyPI version; confirmed `nominatim-api` is NOT a client library (HIGH confidence, official)
+- [Nominatim 5.3.0 installation docs](https://nominatim.org/release-docs/latest/admin/Installation/) — system requirements, osm2pgsql 1.8+ required (HIGH confidence, official)
+- [mediagis/nominatim-docker GitHub](https://github.com/mediagis/nominatim-docker) — current stable image tag 5.2 (HIGH confidence, official Docker image)
+- [mediagis/nominatim external PostgreSQL issue #615](https://github.com/mediagis/nominatim-docker/issues/615) — external DSN ignored during import; use bundled PostgreSQL (MEDIUM confidence, community report)
+- [Nominatim Python deployment docs](https://nominatim.org/release-docs/latest/admin/Deployment-Python/) — `nominatim-api` is an ASGI server package, not a client library (HIGH confidence, official)
+- [OSRM v6.0.0 release](https://github.com/Project-OSRM/osrm-backend/releases/tag/v6.0.0) — latest stable, April 21, 2025; foot profile enhancement (HIGH confidence, official)
+- [OSRM Docker Hub](https://hub.docker.com/r/osrm/osrm-backend/) — image available (HIGH confidence, official)
+- [OSRM car/foot profiles documented](https://github.com/Project-OSRM/osrm-backend) — car.lua, foot.lua, bicycle.lua profiles available (HIGH confidence, official)
+- [overv/openstreetmap-tile-server GitHub](https://github.com/Overv/openstreetmap-tile-server) — v2.3.0 latest release March 18, 2023; bundles renderd/mod_tile/Mapnik/Apache/osm2pgsql (HIGH confidence, official)
+- [Geofabrik Georgia download page](https://download.geofabrik.de/north-america/us/georgia.html) — `georgia-latest.osm.pbf`, ~330 MB, updated daily (HIGH confidence, official)
+- [switch2osm tile server guide](https://switch2osm.org/serving-tiles/) — Apache + mod_tile + Mapnik + osm2pgsql canonical stack (HIGH confidence, community standard)
+- [Nominatim Advanced Installations — external DB](https://nominatim.org/release-docs/latest/admin/Advanced-Installations/) — `NOMINATIM_DATABASE_DSN` supports external PostgreSQL (HIGH confidence, official; but Docker image support is MEDIUM due to known import bug)
+- [Valhalla vs OSRM comparison (StackShare)](https://stackshare.io/stackups/osrm-vs-valhalla) — OSRM faster for routing; Valhalla more flexible (MEDIUM confidence, community)
+- [OSRM Docker Recipes wiki](https://github.com/Project-OSRM/osrm-backend/wiki/Docker-Recipes) — single-profile pattern; multi-profile requires separate containers (HIGH confidence, official)
+
+---
+*Stack research for: CivPulse Geo API v1.4 Self-Hosted OSM Stack — new capabilities only*
+*Researched: 2026-04-04*
