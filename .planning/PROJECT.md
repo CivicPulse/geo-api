@@ -30,37 +30,24 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ### Active
 
-<!-- Current scope — v1.3 Production Readiness & Deployment -->
+<!-- Current scope — v1.4 Self-Hosted OSM Stack -->
 
-- [ ] Resolve all known tech debt and errors
-- [ ] Thorough code review (security, stability, performance, logic, exceptions)
-- [x] Structured logging and distributed tracing for AI-assisted debugging
-- [ ] K8s deployment to civpulse-dev and civpulse-prod (internal ClusterIP only)
-- [ ] Ollama LLM sidecar in both environments
-- [ ] Database provisioning (dev + prod)
-- [x] CI/CD pipeline (GitHub Actions → GHCR → ArgoCD)
-- [ ] E2E testing of all 5 providers in deployed prod
-- [ ] Performance/load baselines and scaling validation
-- [ ] Monitoring/logging validation under load
-- [ ] Iterative bug-fix phases until clean final pass
+- [ ] OSM data pipeline: download, process, and serve Georgia (USA) state extract
+- [ ] OSM geocoding provider integrated into existing cascade pipeline
+- [ ] Nominatim-style search: POI search, reverse geocoding, location detail lookups
+- [ ] Self-hosted raster tile server (z/x/y PNGs) for Leaflet frontends
+- [ ] Self-hosted routing engine (walking + driving directions)
 
-## Current Milestone: v1.3 Production Readiness & Deployment
+## Current Milestone: v1.4 Self-Hosted OSM Stack
 
-**Goal:** Harden, deploy, test, and validate the geo-api across dev and prod K8s environments with full observability, ensuring all providers work correctly at scale.
+**Goal:** Add a fully self-hosted OpenStreetMap-based geospatial stack to geo-api — tile serving, geocoding, POI search, reverse geocoding, and routing — eliminating all third-party map service dependencies for the CivPulse ecosystem.
 
 **Target features:**
-- Resolve all known tech debt and errors (Tiger timeout, cache_hit hardcode, empty spell dictionary, CLI test failures)
-- Thorough code review for security, stability, performance, logic errors, uncaught exceptions
-- Structured logging and distributed tracing (Grafana Alloy → Loki, OTLP → Tempo) for AI-assisted debugging
-- Multi-stage Dockerfile, K8s manifests (Deployment + ClusterIP Service), ArgoCD apps, CI/CD pipeline
-- Ollama LLM sidecar deployed alongside geo-api in both environments
-- Database provisioning on shared PostgreSQL instance (dev + prod)
-- Internal ClusterIP service only — no Ingress/IngressRoute
-- Debugging/testing access via kubectl port-forward and/or NodePort
-- Extensive E2E testing: all 5 providers, performance baselines (P50/P95/P99), load/scaling
-- Monitoring/logging validation under load
-- Iterative bug-fix phases: blockers resolved in-phase, non-blockers logged for subsequent phases
-- Final top-to-bottom validation pass repeating all checks until clean
+- OSM data pipeline: download, process, and serve Georgia (USA) state extract
+- OSM geocoding provider integrated into existing cascade pipeline (address geocoding)
+- Nominatim-style search: POI search, reverse geocoding, location detail lookups
+- Self-hosted raster tile server (z/x/y PNGs) replacing current free online tile service
+- Self-hosted routing engine (walking + driving directions) for canvass routing (run) and polling place directions (vote)
 
 ### Validated (v1.2)
 
@@ -175,4 +162,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-03-30 after Phase 22 complete*
+*Last updated: 2026-04-04 after v1.4 milestone started*
