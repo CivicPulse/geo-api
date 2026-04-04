@@ -1,47 +1,119 @@
-"""Wave 0 stub tests for osm-* CLI commands.
+"""Tests for Phase 24 OSM CLI commands (PIPE-01..05).
 
-Every test is marked xfail — they fail predictably until the corresponding
-Plan (03, 04, 05) implements each command.  These stubs establish the test
-harness that downstream plans drive implementation against (Nyquist compliance).
+Wave 0 scaffolded xfail stubs for every osm-* command; Plan 24-03 implements
+TestOsmDownload and TestOsmDownloadRetry with real tests. Plans 04/05 will
+remove remaining xfail markers as they implement their commands.
 """
 from __future__ import annotations
 
 import pytest
+import httpx
 from typer.testing import CliRunner
-from unittest.mock import patch, MagicMock  # noqa: F401 — used in Plan 03/04/05 implementations
+from unittest.mock import patch, MagicMock
 
-from civpulse_geo.cli import app  # noqa: F401 — used by runner.invoke stubs below
+from civpulse_geo.cli import app
 
 runner = CliRunner()
 
 
 # ---------------------------------------------------------------------------
-# osm-download (Plan 03)
+# osm-download (Plan 03 — IMPLEMENTED)
 # ---------------------------------------------------------------------------
 
 
 class TestOsmDownload:
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 03", strict=False)
-    def test_download_creates_pbf_file(self, tmp_path):
-        pass  # Plan 03 implements
+    def test_download_creates_pbf_file(self, tmp_path, monkeypatch):
+        import civpulse_geo.cli as cli_module
+        fake_pbf = tmp_path / "georgia-latest.osm.pbf"
+        monkeypatch.setattr(cli_module, "OSM_DATA_DIR", tmp_path)
+        monkeypatch.setattr(cli_module, "PBF_PATH", fake_pbf)
 
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 03", strict=False)
-    def test_download_skips_when_file_exists(self, tmp_path):
-        pass  # Plan 03 implements
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_bytes = MagicMock(return_value=[b"fake pbf content"])
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_response)
+        mock_cm.__exit__ = MagicMock(return_value=False)
 
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 03", strict=False)
-    def test_download_force_redownloads(self, tmp_path):
-        pass  # Plan 03 implements
+        with patch("civpulse_geo.cli.httpx.stream", return_value=mock_cm) as mock_stream:
+            result = runner.invoke(app, ["osm-download"])
+
+        assert result.exit_code == 0, result.output
+        mock_stream.assert_called_once()
+        assert fake_pbf.exists()
+        assert fake_pbf.read_bytes() == b"fake pbf content"
+
+    def test_download_skips_when_file_exists(self, tmp_path, monkeypatch):
+        import civpulse_geo.cli as cli_module
+        fake_pbf = tmp_path / "georgia-latest.osm.pbf"
+        fake_pbf.write_bytes(b"existing")
+        monkeypatch.setattr(cli_module, "OSM_DATA_DIR", tmp_path)
+        monkeypatch.setattr(cli_module, "PBF_PATH", fake_pbf)
+
+        with patch("civpulse_geo.cli.httpx.stream") as mock_stream:
+            result = runner.invoke(app, ["osm-download"])
+
+        assert result.exit_code == 0
+        assert "already exists" in result.output
+        mock_stream.assert_not_called()
+        assert fake_pbf.read_bytes() == b"existing"
+
+    def test_download_force_redownloads(self, tmp_path, monkeypatch):
+        import civpulse_geo.cli as cli_module
+        fake_pbf = tmp_path / "georgia-latest.osm.pbf"
+        fake_pbf.write_bytes(b"old")
+        monkeypatch.setattr(cli_module, "OSM_DATA_DIR", tmp_path)
+        monkeypatch.setattr(cli_module, "PBF_PATH", fake_pbf)
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_bytes = MagicMock(return_value=[b"new content"])
+        mock_cm = MagicMock()
+        mock_cm.__enter__ = MagicMock(return_value=mock_response)
+        mock_cm.__exit__ = MagicMock(return_value=False)
+
+        with patch("civpulse_geo.cli.httpx.stream", return_value=mock_cm) as mock_stream:
+            result = runner.invoke(app, ["osm-download", "--force"])
+
+        assert result.exit_code == 0
+        mock_stream.assert_called_once()
+        assert fake_pbf.read_bytes() == b"new content"
 
 
 class TestOsmDownloadRetry:
-    @pytest.mark.xfail(reason="Wave 0 stub — implemented in Plan 03", strict=False)
-    def test_download_retries_3x_on_network_failure(self):
-        pass  # Plan 03 implements
+    def test_download_retries_3x_on_network_failure(self, tmp_path, monkeypatch):
+        import civpulse_geo.cli as cli_module
+        fake_pbf = tmp_path / "georgia-latest.osm.pbf"
+        monkeypatch.setattr(cli_module, "OSM_DATA_DIR", tmp_path)
+        monkeypatch.setattr(cli_module, "PBF_PATH", fake_pbf)
+
+        # First two attempts raise, third succeeds
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.iter_bytes = MagicMock(return_value=[b"ok"])
+        success_cm = MagicMock()
+        success_cm.__enter__ = MagicMock(return_value=mock_response)
+        success_cm.__exit__ = MagicMock(return_value=False)
+
+        call_count = {"n": 0}
+
+        def side_effect(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] < 3:
+                raise httpx.ConnectError("network down")
+            return success_cm
+
+        with patch("civpulse_geo.cli.httpx.stream", side_effect=side_effect) as mock_stream:
+            with patch("civpulse_geo.cli.time.sleep") as mock_sleep:
+                result = runner.invoke(app, ["osm-download"])
+
+        assert result.exit_code == 0, result.output
+        assert mock_stream.call_count == 3
+        assert mock_sleep.call_args_list == [((1,),), ((2,),)]
 
 
 # ---------------------------------------------------------------------------
-# osm-import-nominatim (Plan 04)
+# osm-import-nominatim (Plan 04 — Wave 0 stub)
 # ---------------------------------------------------------------------------
 
 
@@ -52,7 +124,7 @@ class TestOsmImportNominatim:
 
 
 # ---------------------------------------------------------------------------
-# osm-import-tiles (Plan 04)
+# osm-import-tiles (Plan 04 — Wave 0 stub)
 # ---------------------------------------------------------------------------
 
 
@@ -63,7 +135,7 @@ class TestOsmImportTiles:
 
 
 # ---------------------------------------------------------------------------
-# osm-build-valhalla (Plan 04)
+# osm-build-valhalla (Plan 04 — Wave 0 stub)
 # ---------------------------------------------------------------------------
 
 
@@ -74,7 +146,7 @@ class TestOsmBuildValhalla:
 
 
 # ---------------------------------------------------------------------------
-# osm-pipeline (Plan 05)
+# osm-pipeline (Plan 05 — Wave 0 stub)
 # ---------------------------------------------------------------------------
 
 
