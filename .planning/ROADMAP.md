@@ -86,7 +86,13 @@ Full details archived in `milestones/v1.3-ROADMAP.md`.
   2. `docker compose up` starts all three OSM sidecar services alongside the existing geo-api stack without errors
   3. Nominatim, the tile server, and Valhalla each connect to the dedicated `osm-postgres` instance (not civpulse_geo)
   4. The unified pipeline CLI command succeeds end-to-end from scratch on a clean environment
-**Plans**: TBD
+**Plans**: 5 plans
+Plans:
+- [ ] 24-01-PLAN.md — Wave 0 test scaffolding + PBF gitignore + data/osm directory
+- [ ] 24-02-PLAN.md — Docker Compose OSM profile (osm-postgres, nominatim, tile-server, valhalla) + init script + config settings
+- [ ] 24-03-PLAN.md — osm-download CLI command with retry/backoff and idempotency (PIPE-01)
+- [ ] 24-04-PLAN.md — osm-import-nominatim, osm-import-tiles, osm-build-valhalla CLI commands (PIPE-02, PIPE-03, PIPE-04)
+- [ ] 24-05-PLAN.md — osm-pipeline unified command + manual Docker Compose stack verification (PIPE-05)
 **UI hint**: no
 
 ### Phase 25: Tile Server & FastAPI Tile Proxy
@@ -143,7 +149,7 @@ Full details archived in `milestones/v1.3-ROADMAP.md`.
 | 7-11 | v1.1 | — | Complete | 2026-03-29 |
 | 12-16 | v1.2 | — | Complete | 2026-03-29 |
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
-| 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 0/TBD | Not started | - |
+| 24. OSM Data Pipeline & Docker Compose Sidecars | v1.4 | 0/5 | Not started | - |
 | 25. Tile Server & FastAPI Tile Proxy | v1.4 | 0/TBD | Not started | - |
 | 26. Nominatim Provider, Reverse Geocoding & POI Search | v1.4 | 0/TBD | Not started | - |
 | 27. Valhalla Routing | v1.4 | 0/TBD | Not started | - |
