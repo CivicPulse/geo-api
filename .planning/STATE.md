@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Self-Hosted OSM Stack
-status: verifying
-stopped_at: Completed 26-05-PLAN.md
-last_updated: "2026-04-04T20:19:15.338Z"
+status: executing
+stopped_at: Completed 27-02-PLAN.md
+last_updated: "2026-04-04T22:20:25.649Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 5
   completed_phases: 3
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
   percent: 0
 ---
 
@@ -21,13 +21,13 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-04)
 
 **Core value:** Single, reliable source of geocoded and validated address data across CivPulse systems — now expanded to include self-hosted map tiles, POI search, reverse geocoding, and routing
-**Current focus:** Phase 26 — Nominatim Provider, Reverse Geocoding & POI Search
+**Current focus:** Phase 27 — Valhalla Routing
 
 ## Current Position
 
-Phase: 27
-Plan: Not started
-Status: Phase complete — ready for verification
+Phase: 27 (Valhalla Routing) — EXECUTING
+Plan: 2 of 3
+Status: Ready to execute
 Last activity: 2026-04-04
 
 Progress: [░░░░░░░░░░] 0%
@@ -53,6 +53,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P03 | 8 | 2 tasks | 6 files |
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P04 | 1 | 1 tasks | 2 files |
 | Phase 26-nominatim-provider-reverse-geocoding-poi-search P05 | 8 | 2 tasks | 3 files |
+| Phase 27-valhalla-routing P02 | 5 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,8 @@ Key research decisions for v1.4:
 - [Phase 26-nominatim-provider-reverse-geocoding-poi-search]: weight_nominatim=0.70 positions Nominatim below census/OA/NAD but above fallback default
 - [Phase 26-04]: GET /geocode/reverse uses direct HTTP pass-through to Nominatim /reverse; 503 guard checks app.state.providers key before any upstream call
 - [Phase 26-05]: Validate bbox before provider check in /poi/search so malformed bbox always returns 400
+- [Phase 27-valhalla-routing]: Valhalla upstream 400 maps to 404 (no-route semantics, not client error)
+- [Phase 27-valhalla-routing]: Router not mounted in main.py for Plan 02 — Plan 03 handles mount atomically with startup probe
 
 ### Pending Todos
 
@@ -97,6 +100,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 26-05-PLAN.md
+Stopped at: Completed 27-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`

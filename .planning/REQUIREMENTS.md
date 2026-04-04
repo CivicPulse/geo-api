@@ -31,9 +31,9 @@ Requirements for Self-Hosted OSM Stack milestone. Each maps to roadmap phases.
 
 ### Routing
 
-- [ ] **ROUTE-01**: User can get walking directions between two points via `GET /route` with `mode=pedestrian`
-- [ ] **ROUTE-02**: User can get driving directions between two points via `GET /route` with `mode=auto`
-- [ ] **ROUTE-03**: Route response includes turn-by-turn maneuvers, encoded polyline, duration, and distance
+- [x] **ROUTE-01**: User can get walking directions between two points via `GET /route` with `mode=pedestrian`
+- [x] **ROUTE-02**: User can get driving directions between two points via `GET /route` with `mode=auto`
+- [x] **ROUTE-03**: Route response includes turn-by-turn maneuvers, encoded polyline, duration, and distance
 
 ### Infrastructure
 
@@ -97,9 +97,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | GEO-03 | Phase 26 | Complete |
 | GEO-04 | Phase 26 | Complete |
 | GEO-05 | Phase 26 | Complete |
-| ROUTE-01 | Phase 27 | Pending |
-| ROUTE-02 | Phase 27 | Pending |
-| ROUTE-03 | Phase 27 | Pending |
+| ROUTE-01 | Phase 27 | Complete |
+| ROUTE-02 | Phase 27 | Complete |
+| ROUTE-03 | Phase 27 | Complete |
 | INFRA-01 | Phase 24 | Complete |
 | INFRA-02 | Phase 24 | Complete |
 | INFRA-03 | Phase 24 | Complete |
