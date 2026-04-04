@@ -1254,3 +1254,89 @@ def osm_download(
                 f"Retrying in {wait}s..."
             )
             time.sleep(wait)
+
+
+def _run_docker_cmd(args: list[str], *, stage: str) -> None:
+    """Run a docker/docker-compose command with Rich stage progress (D-08).
+
+    Raises typer.Exit(1) on non-zero exit. Prints elapsed time on completion.
+    """
+    start = time.monotonic()
+    typer.echo(f"[{stage}] Running: {' '.join(args)}")
+    try:
+        subprocess.run(args, check=True)
+    except subprocess.CalledProcessError as e:
+        elapsed = time.monotonic() - start
+        typer.echo(
+            f"[{stage}] FAILED after {elapsed:.1f}s (exit code {e.returncode})",
+            err=True,
+        )
+        raise typer.Exit(1)
+    elapsed = time.monotonic() - start
+    typer.echo(f"[{stage}] Completed in {elapsed:.1f}s")
+
+
+@app.command("osm-import-nominatim")
+def osm_import_nominatim(
+    threads: int = typer.Option(4, "--threads", help="Import threads."),
+) -> None:
+    """Import Georgia PBF into Nominatim database (PIPE-02).
+
+    Shells out to `docker compose exec nominatim nominatim import ...`.
+    Requires the nominatim and osm-postgres services to be running:
+      docker compose --profile osm up -d osm-postgres nominatim
+    Expected runtime: 60-120 minutes for Georgia extract.
+    """
+    _run_docker_cmd(
+        [
+            "docker", "compose", "exec", "nominatim",
+            "nominatim", "import",
+            "--osm-file", "/nominatim/pbf/georgia-latest.osm.pbf",
+            "--threads", str(threads),
+        ],
+        stage="nominatim-import",
+    )
+
+
+@app.command("osm-import-tiles")
+def osm_import_tiles() -> None:
+    """Import Georgia PBF into tile-server's PostGIS database (PIPE-03).
+
+    Uses `docker compose run --rm tile-server import` because the tile
+    server's import mode requires a new container invocation, not exec
+    into the running serve container (Pitfall 3). PBF is mounted at the
+    exact path /data/region.osm.pbf expected by the image (Pitfall 4).
+    """
+    abs_pbf = PBF_PATH.resolve()
+    if not abs_pbf.exists():
+        typer.echo(f"PBF not found at {abs_pbf}. Run osm-download first.", err=True)
+        raise typer.Exit(1)
+    _run_docker_cmd(
+        [
+            "docker", "compose", "run", "--rm",
+            "-v", f"{abs_pbf}:/data/region.osm.pbf:ro",
+            "tile-server", "import",
+        ],
+        stage="tile-import",
+    )
+
+
+@app.command("osm-build-valhalla")
+def osm_build_valhalla() -> None:
+    """Build Valhalla routing graph tiles from Georgia PBF (PIPE-04).
+
+    Uses `docker compose run --rm` with force_rebuild=True to trigger a
+    one-shot graph build into the valhalla_tiles volume. Disables
+    build_admins and build_elevation (Pitfall 5 — unnecessary build time).
+    """
+    _run_docker_cmd(
+        [
+            "docker", "compose", "run", "--rm",
+            "-e", "serve_tiles=False",
+            "-e", "force_rebuild=True",
+            "-e", "build_admins=False",
+            "-e", "build_elevation=False",
+            "valhalla",
+        ],
+        stage="valhalla-build",
+    )
