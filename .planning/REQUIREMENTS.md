@@ -26,7 +26,7 @@
 - [ ] **JOB-02**: Idempotent K8s Job imports PBF into Nominatim (or configures Deployment to auto-import on first startup with empty volume)
 - [ ] **JOB-03**: Idempotent K8s Job imports PBF into tile-server internal PG (skips if `renderer` role + data present)
 - [ ] **JOB-04**: Idempotent K8s Job builds Valhalla routing tiles (skips if tiles present; re-runs when PBF is newer)
-- [ ] **JOB-05**: Bootstrap Jobs are triggered by ArgoCD sync hooks OR manually via `kubectl apply` — not baked into Deployment startup
+- [x] **JOB-05**: Bootstrap Jobs are triggered by ArgoCD sync hooks OR manually via `kubectl apply` — not baked into Deployment startup
 
 ### Cross-Namespace Wiring
 

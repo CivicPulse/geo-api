@@ -147,7 +147,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
   5. Jobs triggered by ArgoCD sync hooks OR documented `kubectl apply` workflow — never baked into Deployment startup
 **Plans**: 2 plans
 - [ ] 32-01-PLAN.md — Create 3 Job manifests + wire kustomization + add PBF mount to nominatim Deployment
-- [ ] 32-02-PLAN.md — Write jobs/README.md (ordering, idempotency, manual apply workflow, runtimes, troubleshooting)
+- [x] 32-02-PLAN.md — Write jobs/README.md (ordering, idempotency, manual apply workflow, runtimes, troubleshooting)
 **UI hint**: no
 
 ### Phase 33: Cross-Namespace geo-api Wiring
@@ -184,6 +184,6 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 29 | v1.5 | 0/TBD | Not started | - |
 | 30 | v1.5 | 3/3 | Complete   | 2026-04-05 |
 | 31 | v1.5 | 2/3 | In Progress|  |
-| 32 | v1.5 | 0/TBD | Not started | - |
+| 32 | v1.5 | 1/2 | In Progress|  |
 | 33 | v1.5 | 0/TBD | Not started | - |
 | 34 | v1.5 | 0/TBD | Not started | - |
