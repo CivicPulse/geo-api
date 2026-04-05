@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: osm-stack
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/CivicPulse/geo-api.git
+    targetRevision: main
+    path: k8s/osm/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: civpulse-gis
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
