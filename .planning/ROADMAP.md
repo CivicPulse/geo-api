@@ -129,7 +129,10 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
   3. New ArgoCD Application `osm-stack` in `argocd` namespace, `spec.destination.namespace=civpulse-gis`, auto-sync + prune + selfHeal
   4. `kubectl get deploy -n civpulse-gis` shows nominatim, tile-server, valhalla Deployments synced by ArgoCD
   5. Resource limits match Phase 28 (nominatim 4Gi/8Gi, tile-server 2Gi/4Gi, valhalla 2Gi/4Gi)
-**Plans**: TBD
+**Plans**: 3 plans
+- [x] 31-01-PLAN.md — Create k8s/osm/ tree (base + prod overlay + osm-stack ArgoCD Application)
+- [x] 31-02-PLAN.md — Remove OSM sidecars from k8s/base/ (slim geo-api app)
+- [ ] 31-03-PLAN.md — Apply osm-stack to live cluster + verify Deployments synced
 **UI hint**: no
 
 ### Phase 32: Bootstrap Jobs for OSM Data
@@ -178,7 +181,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 24-28 | v1.4 | — | Complete | 2026-04-04 |
 | 29 | v1.5 | 0/TBD | Not started | - |
 | 30 | v1.5 | 3/3 | Complete   | 2026-04-05 |
-| 31 | v1.5 | 0/TBD | Not started | - |
+| 31 | v1.5 | 2/3 | In Progress|  |
 | 32 | v1.5 | 0/TBD | Not started | - |
 | 33 | v1.5 | 0/TBD | Not started | - |
 | 34 | v1.5 | 0/TBD | Not started | - |

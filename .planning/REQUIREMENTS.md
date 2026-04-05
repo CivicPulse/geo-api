@@ -15,9 +15,9 @@
 
 ### OSM Stack Deployment
 
-- [ ] **OSM-01**: OSM sidecars (Nominatim, tile-server, Valhalla) deployed into `civpulse-gis` namespace (shared across dev/prod)
-- [ ] **OSM-02**: New ArgoCD Application `osm-stack` in `argocd` namespace syncs OSM sidecars + Jobs from git (auto-sync + prune + selfHeal enabled)
-- [ ] **OSM-03**: OSM stack manifests live under `k8s/osm/base/` with overlays structure matching existing convention
+- [x] **OSM-01**: OSM sidecars (Nominatim, tile-server, Valhalla) deployed into `civpulse-gis` namespace (shared across dev/prod)
+- [x] **OSM-02**: New ArgoCD Application `osm-stack` in `argocd` namespace syncs OSM sidecars + Jobs from git (auto-sync + prune + selfHeal enabled)
+- [x] **OSM-03**: OSM stack manifests live under `k8s/osm/base/` with overlays structure matching existing convention
 - [ ] **OSM-04**: Sidecar Deployments use resource limits from Phase 28 (nominatim 4Gi/8Gi, tile-server 2Gi/4Gi, valhalla 2Gi/4Gi)
 
 ### Bootstrap Jobs
