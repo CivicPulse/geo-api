@@ -7,6 +7,7 @@
 - ✅ **v1.2 Cascading Address Resolution** — Phases 12-16 (shipped 2026-03-29)
 - ✅ **v1.3 Production Readiness & Deployment** — Phases 17-23 (shipped 2026-04-03)
 - ✅ **v1.4 Self-Hosted OSM Stack** — Phases 24-28 (shipped 2026-04-04)
+- 🚧 **v1.5 Prod/Dev Bootstrap & K8s Jobs** — Phases 29-34 (in progress)
 
 ## Phases
 
@@ -78,6 +79,91 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 
 </details>
 
+### 🚧 v1.5 Prod/Dev Bootstrap & K8s Jobs (In Progress)
+
+**Milestone Goal:** Hands-off, GitOps-driven K8s deployment of v1.4's OSM stack as a shared service on `thor`, with data persisted on ZFS at `/hatch1/data/geo/` so imports survive cluster rebuilds.
+
+- [ ] **Phase 29: ArgoCD Branch Cutover** — Switch `geo-api-dev` + `geo-api-prod` ArgoCD apps from `phase-23-deploy-fix` to `main`, document branching strategy (GIT-01, GIT-02, GIT-03)
+- [ ] **Phase 30: ZFS-Backed Storage Infrastructure** — `zfs-local` StorageClass + static Local PVs at `/hatch1/data/geo/*` with nodeAffinity=thor + Retain reclaim (STORE-01..04)
+- [ ] **Phase 31: OSM Stack in civpulse-gis Namespace** — Move sidecars out of `k8s/base/`, new `k8s/osm/base/` + overlays, new `osm-stack` ArgoCD Application (OSM-01..04)
+- [ ] **Phase 32: Bootstrap Jobs for OSM Data** — Idempotent K8s Jobs for PBF download, Nominatim import, tile import, Valhalla build (JOB-01..05)
+- [ ] **Phase 33: Cross-Namespace geo-api Wiring** — Update dev + prod overlays to point at `nominatim.civpulse-gis.svc.cluster.local` etc., verify `/health/ready` sidecars block (WIRE-01..03)
+- [ ] **Phase 34: Bootstrap Runbook + DR Docs + E2E** — Runbook for fresh cluster bring-up, ZFS snapshot DR procedure, end-to-end verification (DOC-01..03)
+
+## Phase Details
+
+### Phase 29: ArgoCD Branch Cutover
+**Goal**: `geo-api-dev` and `geo-api-prod` ArgoCD Applications track `main` branch instead of `phase-23-deploy-fix`, and the deprecated branch is documented or removed.
+**Depends on**: Phase 28 (v1.4 shipped on main)
+**Requirements**: GIT-01, GIT-02, GIT-03
+**Success Criteria** (what must be TRUE):
+  1. `kubectl get application geo-api-dev -n argocd -o jsonpath='{.spec.source.targetRevision}'` returns `main`
+  2. `kubectl get application geo-api-prod -n argocd -o jsonpath='{.spec.source.targetRevision}'` returns `main`
+  3. Both ArgoCD apps show Sync Status = Synced and Health Status = Healthy after cutover
+  4. Branching strategy documented in `docs/BRANCHING.md` or equivalent
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 30: ZFS-Backed Storage Infrastructure
+**Goal**: Static Local PersistentVolumes backed by the ZFS dataset at `/hatch1/data/geo/*` on node `thor`, with `reclaimPolicy: Retain` so data survives PVC deletion and cluster rebuilds.
+**Depends on**: Phase 29
+**Requirements**: STORE-01, STORE-02, STORE-03, STORE-04
+**Success Criteria** (what must be TRUE):
+  1. StorageClass `zfs-local` exists with `volumeBindingMode: WaitForFirstConsumer` and no dynamic provisioner
+  2. 4 static PersistentVolumes defined (osm-pbf-pv 5Gi, nominatim-data-pv 50Gi, osm-tile-data-pv 20Gi, valhalla-tiles-pv 10Gi) with nodeAffinity to `thor` and `reclaimPolicy: Retain`
+  3. PV paths map to `/hatch1/data/geo/{pbf,nominatim,tile-server,valhalla}` respectively
+  4. PVC manifests updated to bind to these PVs via `storageClassName: zfs-local`
+  5. ZFS snapshot procedure documented
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 31: OSM Stack in civpulse-gis Namespace
+**Goal**: OSM sidecars (Nominatim, tile-server, Valhalla) deploy into the `civpulse-gis` namespace as a shared service, managed by a new `osm-stack` ArgoCD Application.
+**Depends on**: Phase 30
+**Requirements**: OSM-01, OSM-02, OSM-03, OSM-04
+**Success Criteria** (what must be TRUE):
+  1. `k8s/osm/base/` directory exists with sidecar manifests (moved out of `k8s/base/`)
+  2. `k8s/osm/overlays/` structure mirrors existing convention
+  3. New ArgoCD Application `osm-stack` in `argocd` namespace, `spec.destination.namespace=civpulse-gis`, auto-sync + prune + selfHeal
+  4. `kubectl get deploy -n civpulse-gis` shows nominatim, tile-server, valhalla Deployments synced by ArgoCD
+  5. Resource limits match Phase 28 (nominatim 4Gi/8Gi, tile-server 2Gi/4Gi, valhalla 2Gi/4Gi)
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 32: Bootstrap Jobs for OSM Data
+**Goal**: Idempotent K8s Jobs bootstrap OSM data (PBF download + all 3 imports) without manual `docker compose` invocations. Jobs skip work when data is already present.
+**Depends on**: Phase 31
+**Requirements**: JOB-01, JOB-02, JOB-03, JOB-04, JOB-05
+**Success Criteria** (what must be TRUE):
+  1. `pbf-download-job` Job manifest exists; on fresh PVC, downloads Georgia PBF; skips if PBF present
+  2. Nominatim import happens via Job OR documented auto-import on Deployment first-startup (behavior is deterministic and idempotent)
+  3. `tile-import-job` Job manifest exists; runs `docker compose run --rm tile-server import` equivalent; skips if `renderer` role + data present
+  4. `valhalla-build-job` Job manifest exists; runs Valhalla tile build; skips if tiles present
+  5. Jobs triggered by ArgoCD sync hooks OR documented `kubectl apply` workflow — never baked into Deployment startup
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 33: Cross-Namespace geo-api Wiring
+**Goal**: geo-api-dev and geo-api-prod both reach the shared OSM stack in `civpulse-gis` via cluster DNS, and `/health/ready` reports all 3 sidecars as ready.
+**Depends on**: Phase 31
+**Requirements**: WIRE-01, WIRE-02, WIRE-03
+**Success Criteria** (what must be TRUE):
+  1. `k8s/overlays/dev/` + `k8s/overlays/prod/` set `OSM_NOMINATIM_URL=http://nominatim.civpulse-gis.svc.cluster.local:8080`, `OSM_TILE_URL=http://tile-server.civpulse-gis.svc.cluster.local:8080`, `OSM_VALHALLA_URL=http://valhalla.civpulse-gis.svc.cluster.local:8002`
+  2. geo-api startup logs show all 3 `_*_reachable` probes return True in both dev and prod after OSM stack is populated
+  3. `curl https://{dev,prod}/health/ready` returns `sidecars: {nominatim: ready, tile_server: ready, valhalla: ready}` after imports complete
+**Plans**: TBD
+**UI hint**: no
+
+### Phase 34: Bootstrap Runbook + DR Docs + E2E
+**Goal**: A fresh cluster can be bootstrapped end-to-end by following a documented runbook; ZFS snapshot DR procedure is validated; all v1.4 endpoints verified against the live K8s stack.
+**Depends on**: Phase 33
+**Requirements**: DOC-01, DOC-02, DOC-03
+**Success Criteria** (what must be TRUE):
+  1. `docs/BOOTSTRAP.md` walks through fresh-cluster setup: create ZFS dirs, apply PVs, trigger Jobs, verify health — each step verifiable
+  2. `docs/DR.md` documents ZFS snapshot/restore procedure and has been run through at least once (snapshot taken + rollback tested on a non-critical dataset)
+  3. E2E checklist confirms `/tiles`, `/geocode/reverse`, `/poi/search`, `/route` all return valid responses in both dev and prod environments
+**Plans**: TBD
+**UI hint**: no
 
 ## Progress
 
@@ -88,3 +174,9 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 12-16 | v1.2 | — | Complete | 2026-03-29 |
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24-28 | v1.4 | — | Complete | 2026-04-04 |
+| 29 | v1.5 | 0/TBD | Not started | - |
+| 30 | v1.5 | 0/TBD | Not started | - |
+| 31 | v1.5 | 0/TBD | Not started | - |
+| 32 | v1.5 | 0/TBD | Not started | - |
+| 33 | v1.5 | 0/TBD | Not started | - |
+| 34 | v1.5 | 0/TBD | Not started | - |

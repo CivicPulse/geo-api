@@ -52,9 +52,24 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 **Notable architectural decision:** Dropped planned shared `osm-postgres` service — both Nominatim and tile-server images bundle their own internal PostgreSQL and cannot be pointed at external PG without custom builds. Each sidecar now owns its PG, isolation from civpulse_geo preserved via separate volumes.
 
-## Current Milestone: (not yet started)
+## Current Milestone: v1.5 Prod/Dev Bootstrap & K8s Jobs
 
-Run `/gsd:new-milestone` to define v1.5 goals and requirements.
+**Goal:** Hands-off, GitOps-driven K8s deployment of v1.4's OSM stack as a shared service on `thor`, with data persisted on ZFS at `/hatch1/data/geo/` so imports survive cluster rebuilds, and ArgoCD tracking `main` (not a stale feature branch).
+
+**Target features:**
+- Static Local PVs backed by ZFS dataset `/hatch1/data/geo/*` with nodeAffinity=thor + `reclaimPolicy: Retain`
+- Shared OSM sidecars in `civpulse-gis` namespace (both dev and prod geo-api point at same nominatim/tile-server/valhalla)
+- Bootstrap K8s Jobs for OSM data imports (PBF download, Nominatim import, tile import, Valhalla build) — idempotent
+- New ArgoCD Application `osm-stack` managing the OSM sidecars + Jobs
+- Cross-namespace service URLs: geo-api → `nominatim.civpulse-gis.svc.cluster.local` etc.
+- ArgoCD branch tracking cutover: `phase-23-deploy-fix` → `main` for geo-api-dev + geo-api-prod
+- Bootstrap runbook + ZFS snapshot DR procedure
+
+**Key context:**
+- Single-node k3s cluster (`thor`, 40 cores, 197Gi RAM, 6.6TB free on ZFS)
+- RWO volumes pinned to node via nodeAffinity (expected on single-node k3s)
+- Shared OSM stack across dev/prod: Georgia PBF is identical, imports are expensive, simpler GitOps
+- ArgoCD already wired with auto-sync + prune + selfHeal for existing apps (geo-api, voter-api, etc.)
 
 ### Validated (v1.2)
 
@@ -169,4 +184,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-04 — v1.4 milestone shipped*
+*Last updated: 2026-04-04 — v1.5 milestone started*
