@@ -1,0 +1,55 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pbf-download-job
+  namespace: civpulse-gis
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: pbf-download-job
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        kubernetes.io/hostname: thor
+      containers:
+        - name: curl
+          image: curlimages/curl:8
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              mkdir -p /data/pbf
+              TARGET=/data/pbf/georgia-latest.osm.pbf
+              if [ -f "$TARGET" ]; then
+                SIZE=$(stat -c%s "$TARGET" 2>/dev/null || stat -f%z "$TARGET")
+                if [ "$SIZE" -gt 104857600 ]; then
+                  echo "PBF already present (size=$SIZE bytes), skipping download"
+                  exit 0
+                fi
+                echo "PBF exists but is too small ($SIZE bytes), re-downloading"
+                rm -f "$TARGET"
+              fi
+              echo "Downloading Georgia PBF..."
+              curl -fsSL --retry 3 --retry-delay 10 -o "$TARGET" https://download.geofabrik.de/north-america/us/georgia-latest.osm.pbf
+              echo "Download complete: $(stat -c%s $TARGET 2>/dev/null || stat -f%z $TARGET) bytes"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: osm-pbf
+              mountPath: /data/pbf
+      volumes:
+        - name: osm-pbf
+          persistentVolumeClaim:
+            claimName: osm-pbf-pvc
