@@ -18,3 +18,7 @@ data:
   LOG_FORMAT: "auto"
   MIN_READY_GEOCODING_PROVIDERS: "1"
   MIN_READY_VALIDATION_PROVIDERS: "1"
+  # OSM stack FQDNs (cross-namespace DNS to civpulse-gis, Phase 33 WIRE-01)
+  OSM_NOMINATIM_URL: "http://nominatim.civpulse-gis.svc.cluster.local:8080"
+  OSM_TILE_URL: "http://tile-server.civpulse-gis.svc.cluster.local:8080"
+  OSM_VALHALLA_URL: "http://valhalla.civpulse-gis.svc.cluster.local:8002"

@@ -9,7 +9,7 @@ Key facts about the Nominatim API:
 - Returns `importance` field (0.0–1.0) which is used as confidence
 - Coordinates returned as strings — must be converted to float
 - On no match: returns empty list []
-- Transport URL: settings.osm_nominatim_url (default: http://nominatim:8080)
+- Transport URL: settings.osm_nominatim_url (default: http://nominatim.civpulse-gis.svc.cluster.local:8080)
 """
 import httpx
 
