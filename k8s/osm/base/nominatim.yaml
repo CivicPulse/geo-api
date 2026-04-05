@@ -27,6 +27,9 @@ spec:
           volumeMounts:
             - name: nominatim-data
               mountPath: /var/lib/postgresql/14/main
+            - name: osm-pbf
+              mountPath: /nominatim/pbf
+              readOnly: true
           resources:
             requests:
               memory: "4Gi"
@@ -38,6 +41,9 @@ spec:
         - name: nominatim-data
           persistentVolumeClaim:
             claimName: nominatim-data-pvc
+        - name: osm-pbf
+          persistentVolumeClaim:
+            claimName: osm-pbf-pvc
 ---
 apiVersion: v1
 kind: Service
