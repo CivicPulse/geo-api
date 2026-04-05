@@ -5,6 +5,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: zfs-local
   resources:
     requests:
       storage: 50Gi
@@ -16,6 +17,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: zfs-local
   resources:
     requests:
       storage: 20Gi
@@ -27,6 +29,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: zfs-local
   resources:
     requests:
       storage: 10Gi
@@ -38,6 +41,7 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
+  storageClassName: zfs-local
   resources:
     requests:
       storage: 5Gi
