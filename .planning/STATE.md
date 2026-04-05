@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Prod/Dev Bootstrap & K8s Jobs
 status: verifying
-stopped_at: Completed 30-02-PLAN.md
-last_updated: "2026-04-05T13:11:33.303Z"
+stopped_at: Completed 30-03-PLAN.md
+last_updated: "2026-04-05T13:12:26.839Z"
 last_activity: 2026-04-04
 progress:
   total_phases: 6
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 28-k8s-manifests-health-probe-updates P01 | 1min | 3 tasks | 5 files |
 | Phase 28-k8s-manifests-health-probe-updates P02 | 15 | 3 tasks | 3 files |
 | Phase 30 P02 | 27s | 2 tasks | 1 files |
+| Phase 30 P03 | 3m | 1 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,7 @@ Key research decisions for v1.4:
 - [Phase 28-k8s-manifests-health-probe-updates]: Tile server always probed live — no tile_server_enabled flag, unlike nominatim/valhalla
 - [Phase 28-k8s-manifests-health-probe-updates]: Sidecar probe failures return unavailable; disabled is exclusively for settings flags
 - [Phase 30]: PVCs reference storageClassName: zfs-local to bind to static Local PVs from Plan 01
+- [Phase 30]: Static Local PVs over OpenEBS ZFS-LocalPV for single-node OSM stack
 
 ### Pending Todos
 
@@ -115,6 +117,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 30-02-PLAN.md
+Stopped at: Completed 30-03-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`

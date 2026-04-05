@@ -86,7 +86,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 **⚠ Execution order deviation (2026-04-05):** Phase 29's cutover revealed that `main`'s `k8s/base/` contains un-bootstrappable OSM sidecars (from Phase 28) — see `.planning/phases/29-argocd-branch-cutover/29-VERIFICATION.md`. Phases will execute in order **30 → 31 → 29 → 32 → 33 → 34** (numbers unchanged, execution reordered). Phase 29 resumes after Phase 31 removes the blocking sidecars from `k8s/base/`. Phase 29 Plan 01 (`docs/BRANCHING.md`) already complete.
 
 - [~] **Phase 29: ArgoCD Branch Cutover** — Switch `geo-api-dev` + `geo-api-prod` ArgoCD apps from `phase-23-deploy-fix` to `main`, document branching strategy (GIT-01, GIT-02, GIT-03) — *Plan 01 complete, Plan 02 deferred until after Phase 31*
-- [ ] **Phase 30: ZFS-Backed Storage Infrastructure** — `zfs-local` StorageClass + static Local PVs at `/hatch1/data/geo/*` with nodeAffinity=thor + Retain reclaim (STORE-01..04)
+- [x] **Phase 30: ZFS-Backed Storage Infrastructure** — `zfs-local` StorageClass + static Local PVs at `/hatch1/data/geo/*` with nodeAffinity=thor + Retain reclaim (STORE-01..04) (completed 2026-04-05)
 - [ ] **Phase 31: OSM Stack in civpulse-gis Namespace** — Move sidecars out of `k8s/base/`, new `k8s/osm/base/` + overlays, new `osm-stack` ArgoCD Application (OSM-01..04)
 - [ ] **Phase 32: Bootstrap Jobs for OSM Data** — Idempotent K8s Jobs for PBF download, Nominatim import, tile import, Valhalla build (JOB-01..05)
 - [ ] **Phase 33: Cross-Namespace geo-api Wiring** — Update dev + prod overlays to point at `nominatim.civpulse-gis.svc.cluster.local` etc., verify `/health/ready` sidecars block (WIRE-01..03)
@@ -177,7 +177,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24-28 | v1.4 | — | Complete | 2026-04-04 |
 | 29 | v1.5 | 0/TBD | Not started | - |
-| 30 | v1.5 | 2/3 | In Progress|  |
+| 30 | v1.5 | 3/3 | Complete   | 2026-04-05 |
 | 31 | v1.5 | 0/TBD | Not started | - |
 | 32 | v1.5 | 0/TBD | Not started | - |
 | 33 | v1.5 | 0/TBD | Not started | - |
