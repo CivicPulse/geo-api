@@ -83,7 +83,9 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 
 **Milestone Goal:** Hands-off, GitOps-driven K8s deployment of v1.4's OSM stack as a shared service on `thor`, with data persisted on ZFS at `/hatch1/data/geo/` so imports survive cluster rebuilds.
 
-- [ ] **Phase 29: ArgoCD Branch Cutover** — Switch `geo-api-dev` + `geo-api-prod` ArgoCD apps from `phase-23-deploy-fix` to `main`, document branching strategy (GIT-01, GIT-02, GIT-03)
+**⚠ Execution order deviation (2026-04-05):** Phase 29's cutover revealed that `main`'s `k8s/base/` contains un-bootstrappable OSM sidecars (from Phase 28) — see `.planning/phases/29-argocd-branch-cutover/29-VERIFICATION.md`. Phases will execute in order **30 → 31 → 29 → 32 → 33 → 34** (numbers unchanged, execution reordered). Phase 29 resumes after Phase 31 removes the blocking sidecars from `k8s/base/`. Phase 29 Plan 01 (`docs/BRANCHING.md`) already complete.
+
+- [~] **Phase 29: ArgoCD Branch Cutover** — Switch `geo-api-dev` + `geo-api-prod` ArgoCD apps from `phase-23-deploy-fix` to `main`, document branching strategy (GIT-01, GIT-02, GIT-03) — *Plan 01 complete, Plan 02 deferred until after Phase 31*
 - [ ] **Phase 30: ZFS-Backed Storage Infrastructure** — `zfs-local` StorageClass + static Local PVs at `/hatch1/data/geo/*` with nodeAffinity=thor + Retain reclaim (STORE-01..04)
 - [ ] **Phase 31: OSM Stack in civpulse-gis Namespace** — Move sidecars out of `k8s/base/`, new `k8s/osm/base/` + overlays, new `osm-stack` ArgoCD Application (OSM-01..04)
 - [ ] **Phase 32: Bootstrap Jobs for OSM Data** — Idempotent K8s Jobs for PBF download, Nominatim import, tile import, Valhalla build (JOB-01..05)
