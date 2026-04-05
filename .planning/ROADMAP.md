@@ -177,7 +177,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 17-23 | v1.3 | — | Complete | 2026-04-03 |
 | 24-28 | v1.4 | — | Complete | 2026-04-04 |
 | 29 | v1.5 | 0/TBD | Not started | - |
-| 30 | v1.5 | 1/3 | In Progress|  |
+| 30 | v1.5 | 2/3 | In Progress|  |
 | 31 | v1.5 | 0/TBD | Not started | - |
 | 32 | v1.5 | 0/TBD | Not started | - |
 | 33 | v1.5 | 0/TBD | Not started | - |

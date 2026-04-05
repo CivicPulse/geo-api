@@ -8,9 +8,9 @@
 
 ### Storage (ZFS-backed static Local PVs)
 
-- [ ] **STORE-01**: OSM data persists on ZFS dataset `/hatch1/data/geo/*` on node `thor` (survives cluster rebuilds)
-- [ ] **STORE-02**: Static Local PersistentVolumes with `nodeAffinity: thor` and `reclaimPolicy: Retain` for PBF, Nominatim, tile-server, and Valhalla data
-- [ ] **STORE-03**: `zfs-local` StorageClass defined with `volumeBindingMode: WaitForFirstConsumer` and no dynamic provisioner (static binding only)
+- [x] **STORE-01**: OSM data persists on ZFS dataset `/hatch1/data/geo/*` on node `thor` (survives cluster rebuilds)
+- [x] **STORE-02**: Static Local PersistentVolumes with `nodeAffinity: thor` and `reclaimPolicy: Retain` for PBF, Nominatim, tile-server, and Valhalla data
+- [x] **STORE-03**: `zfs-local` StorageClass defined with `volumeBindingMode: WaitForFirstConsumer` and no dynamic provisioner (static binding only)
 - [x] **STORE-04**: ZFS snapshot procedure documented for disaster recovery of imported OSM data
 
 ### OSM Stack Deployment
