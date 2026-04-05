@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.4
-milestone_name: Self-Hosted OSM Stack
+milestone: v1.5
+milestone_name: Prod/Dev Bootstrap & K8s Jobs
 status: verifying
-stopped_at: Completed 28-k8s-manifests-health-probe-updates-02-PLAN.md
-last_updated: "2026-04-04T23:06:56.709Z"
+stopped_at: Completed 30-02-PLAN.md
+last_updated: "2026-04-05T13:11:16.567Z"
 last_activity: 2026-04-04
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 17
-  completed_plans: 17
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 5
+  completed_plans: 2
   percent: 0
 ---
 
@@ -58,6 +58,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 27-valhalla-routing P03 | 2 | 2 tasks | 3 files |
 | Phase 28-k8s-manifests-health-probe-updates P01 | 1min | 3 tasks | 5 files |
 | Phase 28-k8s-manifests-health-probe-updates P02 | 15 | 3 tasks | 3 files |
+| Phase 30 P02 | 27s | 2 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -101,6 +102,7 @@ Key research decisions for v1.4:
 - [Phase 28-k8s-manifests-health-probe-updates]: No readiness/liveness probes on OSM sidecars in base — health surfaced via geo-api /health/ready (plan 02)
 - [Phase 28-k8s-manifests-health-probe-updates]: Tile server always probed live — no tile_server_enabled flag, unlike nominatim/valhalla
 - [Phase 28-k8s-manifests-health-probe-updates]: Sidecar probe failures return unavailable; disabled is exclusively for settings flags
+- [Phase 30]: PVCs reference storageClassName: zfs-local to bind to static Local PVs from Plan 01
 
 ### Pending Todos
 
@@ -113,6 +115,6 @@ Key research decisions for v1.4:
 ## Session Continuity
 
 Last activity: 2026-04-04 — v1.4 roadmap created
-Stopped at: Completed 28-k8s-manifests-health-probe-updates-02-PLAN.md
+Stopped at: Completed 30-02-PLAN.md
 Resume file: None
 Next action: `/gsd:plan-phase 24`
