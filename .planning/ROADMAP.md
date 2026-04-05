@@ -88,7 +88,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 - [~] **Phase 29: ArgoCD Branch Cutover** — Switch `geo-api-dev` + `geo-api-prod` ArgoCD apps from `phase-23-deploy-fix` to `main`, document branching strategy (GIT-01, GIT-02, GIT-03) — *Plan 01 complete, Plan 02 deferred until after Phase 31*
 - [x] **Phase 30: ZFS-Backed Storage Infrastructure** — `zfs-local` StorageClass + static Local PVs at `/hatch1/data/geo/*` with nodeAffinity=thor + Retain reclaim (STORE-01..04) (completed 2026-04-05)
 - [ ] **Phase 31: OSM Stack in civpulse-gis Namespace** — Move sidecars out of `k8s/base/`, new `k8s/osm/base/` + overlays, new `osm-stack` ArgoCD Application (OSM-01..04)
-- [ ] **Phase 32: Bootstrap Jobs for OSM Data** — Idempotent K8s Jobs for PBF download, Nominatim import, tile import, Valhalla build (JOB-01..05)
+- [x] **Phase 32: Bootstrap Jobs for OSM Data** — Idempotent K8s Jobs for PBF download, Nominatim import, tile import, Valhalla build (JOB-01..05) (completed 2026-04-05)
 - [ ] **Phase 33: Cross-Namespace geo-api Wiring** — Update dev + prod overlays to point at `nominatim.civpulse-gis.svc.cluster.local` etc., verify `/health/ready` sidecars block (WIRE-01..03)
 - [ ] **Phase 34: Bootstrap Runbook + DR Docs + E2E** — Runbook for fresh cluster bring-up, ZFS snapshot DR procedure, end-to-end verification (DOC-01..03)
 
@@ -146,7 +146,7 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
   4. `valhalla-build-job` Job manifest exists; runs Valhalla tile build; skips if tiles present
   5. Jobs triggered by ArgoCD sync hooks OR documented `kubectl apply` workflow — never baked into Deployment startup
 **Plans**: 2 plans
-- [ ] 32-01-PLAN.md — Create 3 Job manifests + wire kustomization + add PBF mount to nominatim Deployment
+- [x] 32-01-PLAN.md — Create 3 Job manifests + wire kustomization + add PBF mount to nominatim Deployment
 - [x] 32-02-PLAN.md — Write jobs/README.md (ordering, idempotency, manual apply workflow, runtimes, troubleshooting)
 **UI hint**: no
 
@@ -184,6 +184,6 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 29 | v1.5 | 0/TBD | Not started | - |
 | 30 | v1.5 | 3/3 | Complete   | 2026-04-05 |
 | 31 | v1.5 | 2/3 | In Progress|  |
-| 32 | v1.5 | 1/2 | In Progress|  |
+| 32 | v1.5 | 2/2 | Complete   | 2026-04-05 |
 | 33 | v1.5 | 0/TBD | Not started | - |
 | 34 | v1.5 | 0/TBD | Not started | - |
