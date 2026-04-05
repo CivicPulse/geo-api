@@ -1,0 +1,25 @@
+# Static Local PV. Backed by ZFS dataset tile-server on thor. reclaimPolicy: Retain (STORE-02).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: osm-tile-data-pv
+  labels:
+    storage.civpulse.io/dataset: osm-tile-data
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: zfs-local
+  volumeMode: Filesystem
+  local:
+    path: /hatch1/data/geo/tile-server
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - thor

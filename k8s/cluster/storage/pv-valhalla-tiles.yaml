@@ -1,0 +1,25 @@
+# Static Local PV. Backed by ZFS dataset valhalla on thor. reclaimPolicy: Retain (STORE-02).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: valhalla-tiles-pv
+  labels:
+    storage.civpulse.io/dataset: valhalla-tiles
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: zfs-local
+  volumeMode: Filesystem
+  local:
+    path: /hatch1/data/geo/valhalla
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - thor
