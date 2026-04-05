@@ -145,7 +145,9 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
   3. `tile-import-job` Job manifest exists; runs `docker compose run --rm tile-server import` equivalent; skips if `renderer` role + data present
   4. `valhalla-build-job` Job manifest exists; runs Valhalla tile build; skips if tiles present
   5. Jobs triggered by ArgoCD sync hooks OR documented `kubectl apply` workflow — never baked into Deployment startup
-**Plans**: TBD
+**Plans**: 2 plans
+- [ ] 32-01-PLAN.md — Create 3 Job manifests + wire kustomization + add PBF mount to nominatim Deployment
+- [ ] 32-02-PLAN.md — Write jobs/README.md (ordering, idempotency, manual apply workflow, runtimes, troubleshooting)
 **UI hint**: no
 
 ### Phase 33: Cross-Namespace geo-api Wiring
