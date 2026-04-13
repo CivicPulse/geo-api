@@ -65,13 +65,13 @@ re-running after a failure.
 | Job | Typical runtime | activeDeadlineSeconds |
 |-----|-----------------|-----------------------|
 | pbf-download-job | ~5 min | 900 (15 min) |
-| tile-import-job | ~90 min | 3600 (60 min)* |
+| tile-import-job | ~90 min | 10800 (3 hr) |
 | valhalla-build-job | ~30 min | 3600 (60 min) |
 | nominatim auto-import (Deployment) | ~90 min | — (Deployment, not Job) |
 
-*If tile-import consistently hits the 60-min deadline on your hardware, bump
-`activeDeadlineSeconds` in the manifest. Phase 24 observed 60-90 min on
-similar hardware.
+The tile-import deadline has ~2× headroom over the typical 90-min runtime to
+absorb cold-cache variance on first bootstrap. Tighten later if desired once
+per-host runtime is well characterized.
 
 ## Troubleshooting
 
@@ -80,8 +80,9 @@ similar hardware.
   still exists.
 - **tile-import hangs at "Setting up postgres"**: Stale postgres lock file.
   `kubectl -n civpulse-gis exec -it <tile-server-pod> -- rm /data/database/postgres/postmaster.pid`
-- **valhalla-build OOMKilled**: Bump memory limits; Georgia graph can spike
-  over 8Gi on some revisions.
+- **valhalla-build OOMKilled**: Limits are 10Gi request / 16Gi limit to
+  absorb ~8Gi peak on Georgia-sized graphs; bump further if still OOMKilled
+  on larger regions or newer Valhalla revisions.
 - **Nominatim Deployment CrashLoopBackOff with "PBF not found"**: Confirm
   `osm-pbf-pvc` is mounted at `/nominatim/pbf/` (Plan 01 Task 2) and PBF file
   exists via `kubectl exec`.
