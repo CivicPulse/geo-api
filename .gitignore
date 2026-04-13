@@ -213,6 +213,13 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Locust load test reports
+loadtests/reports/*.csv
+loadtests/reports/*.html
+
+# Claude Code local runtime state (scheduler lock, session scratch)
+.claude/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
