@@ -30,6 +30,8 @@ spec:
               value: "False"
             - name: force_rebuild
               value: "False"
+            - name: server_threads
+              value: "8"
           volumeMounts:
             - name: valhalla-tiles
               mountPath: /custom_files
