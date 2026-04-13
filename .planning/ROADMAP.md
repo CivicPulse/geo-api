@@ -187,3 +187,28 @@ Full details archived in `milestones/v1.4-ROADMAP.md`.
 | 32 | v1.5 | 2/2 | Complete   | 2026-04-05 |
 | 33 | v1.5 | 0/TBD | Not started | - |
 | 34 | v1.5 | 0/TBD | Not started | - |
+
+## Backlog
+
+Unsequenced ideas captured for future planning. Promote with `/gsd-review-backlog`.
+
+### Phase 999.1: Import-cache PV for non-OSM sources (BACKLOG)
+
+**Goal:** [Captured for future planning] — Persist raw source archives for TIGER/Line, NAD r21, OpenAddresses (points + parcels) on a dedicated ZFS-backed cache PV at `/hatch1/geo/imports/` so re-running `geo-import` CLI commands doesn't require re-downloading from Census (rate-limited), re-sourcing DOT NAD ZIPs, or re-fetching from batch.openaddresses.io. Also audit which Postgres instance each loader targets to determine whether additional DB PVs are needed beyond `/hatch1/geo/nominatim`.
+
+**Requirements:** TBD
+
+**Context:** Surfaced during v1.5 → v1.6 transition while fixing the `hatch1/data/geo` → `hatch1/geo` path rename (commit `c17fa14` on `fix/zfs-dataset-path-hatch1-geo`). Four non-OSM data sources identified via audit:
+- **TIGER/Line** (Census) — biggest operator-time win; `wget --mirror` hits 429s, ~20–40min babysitting per re-run
+- **NAD r21** (US DOT) — no stable public URL, operator-supplied ZIP, pure institutional-knowledge preservation
+- **OpenAddresses points** — manual fetch from `batch.openaddresses.io`
+- **OpenAddresses parcels** — same, larger files (up to ~2GB/region)
+
+All four land in Postgres tables, not filesystem. The cache PV is for the raw download artifacts (wget mirror `/gisdata/`, `NAD_r21_TXT.zip`, `.geojson.gz` files), separate from the Postgres DB persistence. Related: Phase 30 (ZFS-backed storage) established the pattern this extends.
+
+**Out of scope:** automating downloads on a schedule (manual operator workflow is fine); replicating the cache off-thor (single-node failure domain acceptable, same as OSM data).
+
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (promote with `/gsd-review-backlog` when ready)
