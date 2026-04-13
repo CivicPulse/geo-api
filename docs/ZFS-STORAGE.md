@@ -6,7 +6,7 @@ This document is the canonical reference for the static Local PV storage layer t
 
 The `civpulse-gis` namespace consumes four persistent volumes that are statically provisioned against ZFS datasets on node `thor`. Each PV uses `persistentVolumeReclaimPolicy: Retain`, so deleting a PVC — or even tearing down and recreating the cluster — leaves the underlying OSM data intact on disk. This is a deliberate tradeoff: OSM data is expensive to rebuild (hours to days for Nominatim imports), and must survive cluster rebuilds.
 
-**Scope:** four datasets under `/hatch1/data/geo/`:
+**Scope:** four datasets under `/hatch1/geo/`:
 
 - `pbf` — raw OSM `.osm.pbf` downloads (re-downloadable source data)
 - `nominatim` — PostgreSQL data directory for the Nominatim geocoder
@@ -19,29 +19,32 @@ The `civpulse-gis` namespace consumes four persistent volumes that are staticall
 
 | PV | PVC | Path | Size | Snapshot cadence |
 |----|-----|------|------|------------------|
-| osm-pbf-pv | osm-pbf-pvc | /hatch1/data/geo/pbf | 5Gi | none (re-downloadable) |
-| nominatim-data-pv | nominatim-data-pvc | /hatch1/data/geo/nominatim | 50Gi | daily |
-| osm-tile-data-pv | osm-tile-data-pvc | /hatch1/data/geo/tile-server | 20Gi | weekly |
-| valhalla-tiles-pv | valhalla-tiles-pvc | /hatch1/data/geo/valhalla | 10Gi | weekly |
+| osm-pbf-pv | osm-pbf-pvc | /hatch1/geo/pbf | 5Gi | none (re-downloadable) |
+| nominatim-data-pv | nominatim-data-pvc | /hatch1/geo/nominatim | 50Gi | daily |
+| osm-tile-data-pv | osm-tile-data-pvc | /hatch1/geo/tile-server | 20Gi | weekly |
+| valhalla-tiles-pv | valhalla-tiles-pvc | /hatch1/geo/valhalla | 10Gi | weekly |
 
 All PVCs live in the `civpulse-gis` namespace. PVs are cluster-scoped. Node affinity on each PV restricts binding to node `thor`.
 
 ## 3. Initial Dataset Creation
 
-Run as `root` on `thor`. The parent `hatch1/data/geo` dataset is assumed to exist and be mounted at `/hatch1/data/geo`.
+Run as `root` on `thor`. `hatch1/geo` is a **new top-level dataset** (sibling to `hatch1/data`), introduced so OSM storage is an independent failure domain from Docker's ZFS graphdriver which lives under `hatch1/data`. Create the parent first, then the four children:
 
 ```bash
 # Run as root on thor
-zfs create hatch1/data/geo/pbf
-zfs create hatch1/data/geo/nominatim
-zfs create hatch1/data/geo/tile-server
-zfs create hatch1/data/geo/valhalla
+zfs create hatch1/geo
+zfs create hatch1/geo/pbf
+zfs create hatch1/geo/nominatim
+zfs create hatch1/geo/tile-server
+zfs create hatch1/geo/valhalla
 
 # Verify mountpoints
-zfs list -r hatch1/data/geo
+zfs list -r hatch1/geo
 ```
 
-Expected output is four child datasets, each mounted at `/hatch1/data/geo/<name>`.
+Expected output is the parent plus four child datasets, each mounted at `/hatch1/geo/<name>` (parent mountpoint is inherited from the pool root `/hatch1`).
+
+**Why not `hatch1/data/geo`:** `hatch1/data` on `thor` is Docker's ZFS graphdriver root (hash-named image-layer datasets, `mountpoint=legacy`). Co-locating OSM data there would put the two under a shared `zfs destroy -r` blast radius and confuse operators running Docker cleanup. A sibling top-level dataset keeps OSM storage semantically isolated.
 
 **Note:** The PV manifests use `local.path` with the filesystem path. If a dataset is missing when a pod tries to mount, kubelet fails the mount loudly (pod stuck in `ContainerCreating` with an `mount failed` event). PVs with `volumeBindingMode: WaitForFirstConsumer` stay `Available` with no pod-side error until a consumer is scheduled — absence of a dataset does not surface until the first pod lands.
 
@@ -51,16 +54,16 @@ ZFS snapshots are cheap (copy-on-write) and fast. Name snapshots with ISO dates 
 
 ```bash
 # Snapshot a single dataset (name snapshots with ISO date)
-zfs snapshot hatch1/data/geo/nominatim@$(date +%Y-%m-%d)
+zfs snapshot hatch1/geo/nominatim@$(date +%Y-%m-%d)
 
 # Snapshot all four at once, same timestamp
 TS=$(date +%Y-%m-%d)
 for ds in pbf nominatim tile-server valhalla; do
-  zfs snapshot hatch1/data/geo/$ds@$TS
+  zfs snapshot hatch1/geo/$ds@$TS
 done
 
 # List snapshots
-zfs list -t snapshot -r hatch1/data/geo
+zfs list -t snapshot -r hatch1/geo
 ```
 
 **Recommended cadence:**
@@ -69,7 +72,7 @@ zfs list -t snapshot -r hatch1/data/geo
 - `tile-server`, `valhalla` — **weekly** (moderate change rate, regenerable from source)
 - `pbf` — **none** (source data, re-downloadable from Geofabrik)
 
-Prune old snapshots with `zfs destroy hatch1/data/geo/<ds>@<snapname>` as space requires.
+Prune old snapshots with `zfs destroy hatch1/geo/<ds>@<snapname>` as space requires.
 
 ## 5. Rollback Procedure
 
@@ -80,7 +83,7 @@ Prune old snapshots with `zfs destroy hatch1/data/geo/<ds>@<snapname>` as space 
 kubectl -n civpulse-gis scale deployment nominatim --replicas=0
 
 # Roll a dataset back to a snapshot (DESTRUCTIVE — discards changes since snapshot)
-zfs rollback hatch1/data/geo/nominatim@2026-04-01
+zfs rollback hatch1/geo/nominatim@2026-04-01
 
 # Bring the consumer back
 kubectl -n civpulse-gis scale deployment nominatim --replicas=1
@@ -113,9 +116,9 @@ kubectl patch pv <name> --type=json \
 ## 7. Troubleshooting
 
 - **PVC stays `Pending` forever** — check that (a) a pod that mounts the PVC is actually scheduled (`WaitForFirstConsumer` is normal until then), (b) the ZFS dataset exists on `thor`, (c) the pod's node affinity or nodeSelector lands it on `thor`.
-- **Pod stuck `ContainerCreating` with mount errors** — the dataset path is missing on `thor`. Run `ls /hatch1/data/geo/` on the node and create any missing dataset with `zfs create`.
-- **PV stuck `Released` after PVC delete** — expected behavior with `Retain`. Clear `claimRef` as shown above to reuse, or `kubectl delete pv <name>` to remove the PV object (the data remains on disk under `/hatch1/data/geo/<name>`).
-- **Need to wipe and start over for one dataset** — scale consumers to 0, delete the PVC, delete the PV, then on `thor`: `zfs destroy -r hatch1/data/geo/<name>`, recreate with `zfs create`, and reapply the PV manifest.
+- **Pod stuck `ContainerCreating` with mount errors** — the dataset path is missing on `thor`. Run `ls /hatch1/geo/` on the node and create any missing dataset with `zfs create`.
+- **PV stuck `Released` after PVC delete** — expected behavior with `Retain`. Clear `claimRef` as shown above to reuse, or `kubectl delete pv <name>` to remove the PV object (the data remains on disk under `/hatch1/geo/<name>`).
+- **Need to wipe and start over for one dataset** — scale consumers to 0, delete the PVC, delete the PV, then on `thor`: `zfs destroy -r hatch1/geo/<name>`, recreate with `zfs create`, and reapply the PV manifest.
 - **Snapshot rollback refuses** — later snapshots exist. Add `-r` to `zfs rollback` to discard them, or destroy them explicitly first.
 
 ## 8. Related

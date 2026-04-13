@@ -1,4 +1,4 @@
-# Cluster-scoped. Static Local PVs on node thor backed by ZFS datasets at /hatch1/data/geo/*.
+# Cluster-scoped. Static Local PVs on node thor backed by ZFS datasets at /hatch1/geo/*.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

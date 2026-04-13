@@ -23,10 +23,10 @@ ZFS snapshots are copy-on-write and effectively free to take. Cadence is calibra
 
 | Dataset | Cadence | Rationale |
 |---------|---------|-----------|
-| `hatch1/data/geo/nominatim` | **daily** | Heavy writes during imports; ~90 min rebuild cost |
-| `hatch1/data/geo/tile-server` | **weekly** | Moderate change; ~90 min rebuild cost |
-| `hatch1/data/geo/valhalla` | **weekly** | Moderate change; ~30 min rebuild cost |
-| `hatch1/data/geo/pbf` | **none** | Re-downloadable from Geofabrik (~5 min) |
+| `hatch1/geo/nominatim` | **daily** | Heavy writes during imports; ~90 min rebuild cost |
+| `hatch1/geo/tile-server` | **weekly** | Moderate change; ~90 min rebuild cost |
+| `hatch1/geo/valhalla` | **weekly** | Moderate change; ~30 min rebuild cost |
+| `hatch1/geo/pbf` | **none** | Re-downloadable from Geofabrik (~5 min) |
 
 Cadence is the same as `docs/ZFS-STORAGE.md` §4. Automate via cron on `thor` when ops capacity allows.
 
@@ -36,19 +36,19 @@ Name snapshots with ISO dates so `zfs list -t snapshot` output is sortable.
 
 ```bash
 # Single dataset
-zfs snapshot hatch1/data/geo/<dataset>@$(date +%Y-%m-%d)
+zfs snapshot hatch1/geo/<dataset>@$(date +%Y-%m-%d)
 
 # All four, same timestamp
 TS=$(date +%Y-%m-%d)
 for ds in pbf nominatim tile-server valhalla; do
-  zfs snapshot hatch1/data/geo/$ds@$TS
+  zfs snapshot hatch1/geo/$ds@$TS
 done
 ```
 
 ## 3. List Snapshots
 
 ```bash
-zfs list -t snapshot -r hatch1/data/geo
+zfs list -t snapshot -r hatch1/geo
 ```
 
 Expected output: sorted list of `<dataset>@<date>` entries with USED / REFER columns. Identify the target snapshot to roll back to.
@@ -63,10 +63,10 @@ The PV mount must not be in use during rollback. Identify which Deployment(s) co
 
 | Dataset | Consumer Deployment |
 |---------|---------------------|
-| `hatch1/data/geo/pbf` | `nominatim` (mounts PBF at `/nominatim/pbf/`); also mounted by `pbf-download-job`, `tile-import-job`, `valhalla-build-job` when running |
-| `hatch1/data/geo/nominatim` | `nominatim` |
-| `hatch1/data/geo/tile-server` | `tile-server` |
-| `hatch1/data/geo/valhalla` | `valhalla` |
+| `hatch1/geo/pbf` | `nominatim` (mounts PBF at `/nominatim/pbf/`); also mounted by `pbf-download-job`, `tile-import-job`, `valhalla-build-job` when running |
+| `hatch1/geo/nominatim` | `nominatim` |
+| `hatch1/geo/tile-server` | `tile-server` |
+| `hatch1/geo/valhalla` | `valhalla` |
 
 ```bash
 # Example: rolling back the nominatim dataset
@@ -82,13 +82,13 @@ kubectl -n civpulse-gis get pods -l app=nominatim
 Run as `root` on `thor`:
 
 ```bash
-zfs rollback hatch1/data/geo/<dataset>@<snapshot-name>
+zfs rollback hatch1/geo/<dataset>@<snapshot-name>
 ```
 
 **If ZFS refuses with "more recent snapshots exist":** later snapshots block the rollback. Either `zfs destroy` them explicitly, or add `-r` to acknowledge their destruction:
 
 ```bash
-zfs rollback -r hatch1/data/geo/<dataset>@<snapshot-name>
+zfs rollback -r hatch1/geo/<dataset>@<snapshot-name>
 ```
 
 ### Step 4c — Scale consumer(s) back to 1
@@ -137,7 +137,7 @@ Post-rollback, confirm the restored data is intact and functional:
 If no usable snapshot exists for a corrupted dataset, recovery = **re-bootstrap that dataset from scratch**:
 
 1. Scale consumer(s) to 0 (Step 4a).
-2. On `thor` as root: `zfs destroy -r hatch1/data/geo/<dataset>` then `zfs create hatch1/data/geo/<dataset>`.
+2. On `thor` as root: `zfs destroy -r hatch1/geo/<dataset>` then `zfs create hatch1/geo/<dataset>`.
 3. Re-apply the corresponding bootstrap Job per `docs/BOOTSTRAP.md` Step 4 and `k8s/osm/base/jobs/README.md` §Re-running After Data Corruption.
 4. Scale consumer(s) back to 1 after the Job completes.
 

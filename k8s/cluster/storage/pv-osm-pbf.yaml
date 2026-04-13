@@ -14,7 +14,7 @@ spec:
   storageClassName: zfs-local
   volumeMode: Filesystem
   local:
-    path: /hatch1/data/geo/pbf
+    path: /hatch1/geo/pbf
   nodeAffinity:
     required:
       nodeSelectorTerms:

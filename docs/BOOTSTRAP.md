@@ -40,28 +40,30 @@ Before starting, confirm:
 
 ## Step 1: Create ZFS datasets on `thor`
 
-Run on node `thor` as `root`. Assumes the parent dataset `hatch1/data/geo` already exists. See `docs/ZFS-STORAGE.md` §3 for background.
+Run on node `thor` as `root`. `hatch1/geo` is a **new top-level dataset** (sibling to `hatch1/data`, which is Docker's ZFS graphdriver root — we keep OSM storage on its own failure domain). Create the parent first, then the four children. See `docs/ZFS-STORAGE.md` §3 for background.
 
 ```bash
 # As root on thor
-zfs create hatch1/data/geo/pbf
-zfs create hatch1/data/geo/nominatim
-zfs create hatch1/data/geo/tile-server
-zfs create hatch1/data/geo/valhalla
+zfs create hatch1/geo
+zfs create hatch1/geo/pbf
+zfs create hatch1/geo/nominatim
+zfs create hatch1/geo/tile-server
+zfs create hatch1/geo/valhalla
 ```
 
 **Verify:**
 ```bash
-zfs list -r hatch1/data/geo
+zfs list -r hatch1/geo
 ```
 
-Expected: four child datasets, each mounted at `/hatch1/data/geo/<name>`:
+Expected: parent plus four child datasets, each mounted under `/hatch1/geo/`:
 ```
-NAME                           USED  AVAIL  REFER  MOUNTPOINT
-hatch1/data/geo/pbf             96K   ...    96K   /hatch1/data/geo/pbf
-hatch1/data/geo/nominatim       96K   ...    96K   /hatch1/data/geo/nominatim
-hatch1/data/geo/tile-server     96K   ...    96K   /hatch1/data/geo/tile-server
-hatch1/data/geo/valhalla        96K   ...    96K   /hatch1/data/geo/valhalla
+NAME                      USED  AVAIL  REFER  MOUNTPOINT
+hatch1/geo                 96K   ...    96K   /hatch1/geo
+hatch1/geo/pbf             96K   ...    96K   /hatch1/geo/pbf
+hatch1/geo/nominatim       96K   ...    96K   /hatch1/geo/nominatim
+hatch1/geo/tile-server     96K   ...    96K   /hatch1/geo/tile-server
+hatch1/geo/valhalla        96K   ...    96K   /hatch1/geo/valhalla
 ```
 
 ---
@@ -229,13 +231,13 @@ Bootstrap is complete when every check in `docs/E2E.md` passes.
 ### PVC stays `Pending`
 
 - **Cause:** ZFS dataset missing on `thor`, or pod not scheduling onto `thor`.
-- **Fix:** Verify Step 1 (`ls /hatch1/data/geo/` on the node). Verify pod node affinity landed it on `thor` (`kubectl describe pod <name>`).
+- **Fix:** Verify Step 1 (`ls /hatch1/geo/` on the node). Verify pod node affinity landed it on `thor` (`kubectl describe pod <name>`).
 - **Reference:** `docs/ZFS-STORAGE.md` §7.
 
 ### Pod stuck `ContainerCreating` with mount errors
 
 - **Cause:** ZFS dataset path missing on `thor`.
-- **Fix:** `ls /hatch1/data/geo/` on the node; create any missing dataset with `zfs create hatch1/data/geo/<name>`.
+- **Fix:** `ls /hatch1/geo/` on the node; create any missing dataset with `zfs create hatch1/geo/<name>`.
 
 ### Job `CrashLoopBackOff` or failing
 

@@ -54,10 +54,10 @@ Provide a single, reliable source of geocoded and validated address data across 
 
 ## Current Milestone: v1.5 Prod/Dev Bootstrap & K8s Jobs
 
-**Goal:** Hands-off, GitOps-driven K8s deployment of v1.4's OSM stack as a shared service on `thor`, with data persisted on ZFS at `/hatch1/data/geo/` so imports survive cluster rebuilds, and ArgoCD tracking `main` (not a stale feature branch).
+**Goal:** Hands-off, GitOps-driven K8s deployment of v1.4's OSM stack as a shared service on `thor`, with data persisted on ZFS at `/hatch1/geo/` so imports survive cluster rebuilds, and ArgoCD tracking `main` (not a stale feature branch).
 
 **Target features:**
-- Static Local PVs backed by ZFS dataset `/hatch1/data/geo/*` with nodeAffinity=thor + `reclaimPolicy: Retain`
+- Static Local PVs backed by ZFS dataset `/hatch1/geo/*` with nodeAffinity=thor + `reclaimPolicy: Retain`
 - Shared OSM sidecars in `civpulse-gis` namespace (both dev and prod geo-api point at same nominatim/tile-server/valhalla)
 - Bootstrap K8s Jobs for OSM data imports (PBF download, Nominatim import, tile import, Valhalla build) — idempotent
 - New ArgoCD Application `osm-stack` managing the OSM sidecars + Jobs
