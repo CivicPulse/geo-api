@@ -25,21 +25,26 @@ spec:
           args:
             - |
               set -eu
-              if [ -d /custom_files/valhalla_tiles ] && [ "$(ls -A /custom_files/valhalla_tiles 2>/dev/null)" ]; then
-                echo "Valhalla tiles already built, skipping"
+              # Strong idempotency: the .tar is the final build artifact.
+              # Checking for the valhalla_tiles/ directory alone is unreliable
+              # because failed pods leave empty directories behind.
+              if [ -f /custom_files/valhalla_tiles.tar ] && [ -s /custom_files/valhalla_tiles.tar ]; then
+                echo "Valhalla tiles.tar already built ($(stat -c%s /custom_files/valhalla_tiles.tar) bytes), skipping"
                 exit 0
               fi
               if [ ! -f /custom_files/georgia-latest.osm.pbf ]; then
                 echo "Copying PBF into valhalla custom_files/ (entrypoint expects it there)..."
                 cp /data/pbf/georgia-latest.osm.pbf /custom_files/georgia-latest.osm.pbf
               fi
+              # Clean any partial state from failed prior runs
+              rm -rf /custom_files/valhalla_tiles /custom_files/valhalla.json /custom_files/admins.sqlite /custom_files/timezones.sqlite 2>/dev/null || true
               echo "Starting Valhalla build..."
-              exec /valhalla/scripts/run.sh
+              exec /valhalla/scripts/run.sh build_tiles
           env:
             - name: serve_tiles
               value: "False"
             - name: force_rebuild
-              value: "True"
+              value: "False"
             - name: build_admins
               value: "False"
             - name: build_elevation
