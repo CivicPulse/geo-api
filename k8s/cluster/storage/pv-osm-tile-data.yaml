@@ -12,6 +12,9 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: zfs-local
+  claimRef:
+    namespace: civpulse-gis
+    name: osm-tile-data-pvc
   volumeMode: Filesystem
   local:
     path: /hatch1/geo/tile-server

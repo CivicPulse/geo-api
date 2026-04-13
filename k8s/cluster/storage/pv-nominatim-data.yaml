@@ -12,6 +12,9 @@ spec:
     - ReadWriteOnce
   persistentVolumeReclaimPolicy: Retain
   storageClassName: zfs-local
+  claimRef:
+    namespace: civpulse-gis
+    name: nominatim-data-pvc
   volumeMode: Filesystem
   local:
     path: /hatch1/geo/nominatim
