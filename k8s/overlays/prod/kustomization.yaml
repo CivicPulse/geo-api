@@ -15,7 +15,7 @@ resources:
 
 images:
   - name: ghcr.io/civicpulse/geo-api
-    newTag: latest
+    newTag: e13146190bd6
 
 patches:
   - path: configmap-patch.yaml
