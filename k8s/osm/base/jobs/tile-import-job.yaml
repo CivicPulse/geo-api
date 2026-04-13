@@ -46,7 +46,7 @@ spec:
               mountPath: /data/database
             - name: osm-pbf
               mountPath: /data/region.osm.pbf
-              subPath: pbf/georgia-latest.osm.pbf
+              subPath: georgia-latest.osm.pbf
               readOnly: true
       volumes:
         - name: osm-tile-data

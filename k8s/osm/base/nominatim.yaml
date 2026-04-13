@@ -29,7 +29,6 @@ spec:
               mountPath: /var/lib/postgresql/14/main
             - name: osm-pbf
               mountPath: /nominatim/pbf
-              readOnly: true
           resources:
             requests:
               memory: "4Gi"

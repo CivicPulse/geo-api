@@ -15,11 +15,11 @@ auto-import entrypoint.
 The bootstrap DAG has one root and three dependent workloads:
 
 1. `pbf-download-job` runs first (no deps). It fetches
-   `georgia-latest.osm.pbf` from Geofabrik into `osm-pbf-pvc` at
-   `/pbf/georgia-latest.osm.pbf`.
+   `georgia-latest.osm.pbf` from Geofabrik into `osm-pbf-pvc` at the
+   PVC root (`georgia-latest.osm.pbf`).
 2. `tile-import-job`, `valhalla-build-job`, and the `nominatim` Deployment's
    auto-import entrypoint all depend on the PBF being staged at
-   `osm-pbf-pvc:/pbf/georgia-latest.osm.pbf`.
+   `osm-pbf-pvc:/georgia-latest.osm.pbf` (PVC root, not a subdirectory).
 3. With ArgoCD sync hooks, all Jobs submit concurrently. The
    tile/valhalla/nominatim workloads will block (`CrashLoopBackOff` or
    `ContainerCreating`) until the PBF exists. Re-running the sync after
