@@ -59,13 +59,20 @@ spec:
               # via SQLAlchemy so no rewrite is needed for the actual load step.
               PSQL_URL="${DATABASE_URL_SYNC/+psycopg2/}"
 
-              echo "Checking existing tiger.addr row count for skip-if-loaded..."
-              ADDR_COUNT=$(psql "${PSQL_URL}" -tAc \
-                "SELECT COALESCE((SELECT count(*) FROM tiger.addr), 0)" 2>/dev/null || echo 0)
-              echo "tiger.addr row count: ${ADDR_COUNT}"
+              # Skip-if-loaded check. We key on tiger.edges because the
+              # extension-install path (scripts/20_tiger_setup.sh) pre-populates
+              # tiger.addr with metadata from postgresql-15-postgis-3 (~19k rows
+              # with no corresponding street data), but it does NOT touch
+              # tiger.edges. So any nonzero edge count = real Loader_Generate_Script
+              # load has run. The TIGER_LOADED_THRESHOLD env var lets an operator
+              # force a reload by raising the bar above the current edge count.
+              echo "Checking existing tiger.edges row count for skip-if-loaded..."
+              EDGES_COUNT=$(psql "${PSQL_URL}" -tAc \
+                "SELECT COALESCE((SELECT count(*) FROM tiger.edges), 0)" 2>/dev/null || echo 0)
+              echo "tiger.edges row count: ${EDGES_COUNT}"
 
-              if [ "${ADDR_COUNT}" -gt "${TIGER_LOADED_THRESHOLD}" ]; then
-                echo "Tiger data already loaded (${ADDR_COUNT} > ${TIGER_LOADED_THRESHOLD}). Exiting 0."
+              if [ "${EDGES_COUNT}" -gt "${TIGER_LOADED_THRESHOLD}" ]; then
+                echo "Tiger data already loaded (${EDGES_COUNT} > ${TIGER_LOADED_THRESHOLD}). Exiting 0."
                 exit 0
               fi
 
@@ -76,7 +83,7 @@ spec:
             - name: TIGER_STATES
               value: "GA"
             - name: TIGER_LOADED_THRESHOLD
-              value: "10000"
+              value: "0"
           envFrom:
             - configMapRef:
                 name: geo-api-config
