@@ -50,7 +50,7 @@ spec:
             - |
               set -euo pipefail
 
-              echo "tiger-setup-job starting for states=${TIGER_STATES}"
+              echo "tiger-setup-job starting for states=${TIGER_STATES} fips=${TIGER_STATE_FIPS}"
 
               # DATABASE_URL_SYNC comes from geo-api-secret in the form
               # postgresql+psycopg2://user:pass@host:port/db (SQLAlchemy format).
@@ -59,31 +59,37 @@ spec:
               # via SQLAlchemy so no rewrite is needed for the actual load step.
               PSQL_URL="${DATABASE_URL_SYNC/+psycopg2/}"
 
-              # Skip-if-loaded check. We key on tiger.edges because the
-              # extension-install path (scripts/20_tiger_setup.sh) pre-populates
-              # tiger.addr with metadata from postgresql-15-postgis-3 (~19k rows
-              # with no corresponding street data), but it does NOT touch
-              # tiger.edges. So any nonzero edge count = real Loader_Generate_Script
-              # load has run. The TIGER_LOADED_THRESHOLD env var lets an operator
-              # force a reload by raising the bar above the current edge count.
-              echo "Checking existing tiger.edges row count for skip-if-loaded..."
+              # Skip-if-loaded check. Keyed on tiger.edges filtered by statefp
+              # because both tiger.edges and tiger.addr have a small pre-populated
+              # stub (~17k edges, ~19k addrs for GA) from a prior partial load
+              # attempt or the extension install path. A REAL Loader_Generate_Script
+              # load against county-level EDGES shapefiles produces 1-2 million
+              # edge rows for GA alone, so a threshold of 500000 cleanly
+              # distinguishes stub from real data without being brittle.
+              #
+              # To add a new state, update TIGER_STATES (e.g. "GA FL") AND
+              # TIGER_STATE_FIPS to an IN-clause expression (e.g. "13','12").
+              # The IN-clause is embedded into the SQL without further quoting.
+              echo "Checking tiger.edges WHERE statefp IN ('${TIGER_STATE_FIPS}') for skip-if-loaded..."
               EDGES_COUNT=$(psql "${PSQL_URL}" -tAc \
-                "SELECT COALESCE((SELECT count(*) FROM tiger.edges), 0)" 2>/dev/null || echo 0)
-              echo "tiger.edges row count: ${EDGES_COUNT}"
+                "SELECT COALESCE(count(*), 0) FROM tiger.edges WHERE statefp IN ('${TIGER_STATE_FIPS}')" 2>/dev/null || echo 0)
+              echo "tiger.edges row count for target states: ${EDGES_COUNT}"
 
               if [ "${EDGES_COUNT}" -gt "${TIGER_LOADED_THRESHOLD}" ]; then
                 echo "Tiger data already loaded (${EDGES_COUNT} > ${TIGER_LOADED_THRESHOLD}). Exiting 0."
                 exit 0
               fi
 
-              echo "Tiger data not loaded. Running geo-import setup-tiger --no-download ${TIGER_STATES}..."
+              echo "Tiger data not loaded (only ${EDGES_COUNT} stub edges). Running geo-import setup-tiger --no-download ${TIGER_STATES}..."
               cd /app
               exec uv run geo-import setup-tiger --no-download ${TIGER_STATES}
           env:
             - name: TIGER_STATES
               value: "GA"
+            - name: TIGER_STATE_FIPS
+              value: "13"
             - name: TIGER_LOADED_THRESHOLD
-              value: "0"
+              value: "500000"
           envFrom:
             - configMapRef:
                 name: geo-api-config
