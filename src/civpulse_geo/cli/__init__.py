@@ -251,11 +251,28 @@ def setup_tiger(
             continue
 
         # Patch the generated script to work from the api container:
-        # - Fix PGBIN path (psql is at /usr/bin in Debian)
-        # - Fix connection variables to match our docker-compose setup
-        script_text = script_text.replace(
-            'export PGBIN=/usr/lib/postgresql/17/bin', 'export PGBIN=/usr/bin'
+        # - Fix PGBIN path (psql is at /usr/bin in Debian slim images,
+        #   not /usr/lib/postgresql/<N>/bin as loader_platform defaults to).
+        #   The loader_platform.declare_sect in postgis 3.3.2 hardcodes PG16;
+        #   the original replace() above expected PG17 and never matched.
+        #   Using a regex so future postgis versions keep working.
+        import re as _re
+        script_text = _re.sub(
+            r'export PGBIN=/usr/lib/postgresql/\d+/bin',
+            'export PGBIN=/usr/bin',
+            script_text,
         )
+        # When --no-download is set, strip the loader's own wget lines so it
+        # uses the pre-populated shapefiles on the mounted PVC instead of
+        # re-hitting Census (which rate-limits aggressively and would fail
+        # anyway on a read-only mount).
+        if no_download:
+            script_text = _re.sub(
+                r'^(\s*)wget\s+.*$',
+                r'\1# (wget skipped — --no-download)',
+                script_text,
+                flags=_re.MULTILINE,
+            )
         script_text = script_text.replace(
             'export PGHOST=localhost', f'export PGHOST={parsed.host or "db"}'
         )

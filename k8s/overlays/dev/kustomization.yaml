@@ -15,7 +15,7 @@ resources:
 
 images:
   - name: ghcr.io/civicpulse/geo-api
-    newTag: phase-999.1-tiger
+    newTag: phase-999.1-tiger-v2
 
 patches:
   - path: configmap-patch.yaml
