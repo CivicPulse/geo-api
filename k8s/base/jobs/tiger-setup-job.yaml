@@ -1,0 +1,100 @@
+# Phase 999.1 — Tiger/Line shapefile loader Job.
+#
+# Runs as a PostSync hook so the geo-api Deployment is already rolled out when
+# the Job executes, which matters because the Job reuses the geo-api image
+# (now shipping shp2pgsql via postgresql-15-postgis-3-scripts) and its
+# DATABASE_URL_SYNC secret to reach the same civpulse_geo_{dev,prod} DB.
+#
+# Idempotency strategy (H2):
+#   1. The wrapper runs a psql `SELECT count(*) FROM tiger.addr` preflight.
+#      If the count exceeds TIGER_LOADED_THRESHOLD (10000 — a single Georgia
+#      county's addr range is ~5-15k rows, so any multi-county load clears
+#      this easily), the Job exits 0 without touching the DB.
+#   2. Otherwise it invokes `geo-import setup-tiger --no-download $TIGER_STATES`
+#      which reads pre-populated shapefiles from the tiger-data PVC mounted at
+#      /gisdata/www2.census.gov/geo/tiger/TIGER2024/.
+#
+# To force a reload (e.g. after adding a new state to TIGER_STATES), truncate
+# the relevant tiger.* tables manually and resync:
+#   psql -c "TRUNCATE tiger.addr, tiger.edges, tiger.featnames, tiger.faces CASCADE"
+#   argocd app sync geo-api-prod
+#
+# base manifest; both overlays/{dev,prod} materialize this into their
+# respective namespace with the env-specific geo-api-secret.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: tiger-setup-job
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 3600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tiger-setup-job
+        app.kubernetes.io/part-of: civpulse-geo
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        kubernetes.io/hostname: thor
+      containers:
+        - name: tiger-setup
+          image: ghcr.io/civicpulse/geo-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -euo pipefail
+
+              echo "tiger-setup-job starting for states=${TIGER_STATES}"
+
+              # DATABASE_URL_SYNC comes from geo-api-secret in the form
+              # postgresql+psycopg2://user:pass@host:port/db (SQLAlchemy format).
+              # psql can't parse the +psycopg2 driver suffix, so strip it for
+              # the preflight check. The CLI consumes DATABASE_URL_SYNC directly
+              # via SQLAlchemy so no rewrite is needed for the actual load step.
+              PSQL_URL="${DATABASE_URL_SYNC/+psycopg2/}"
+
+              echo "Checking existing tiger.addr row count for skip-if-loaded..."
+              ADDR_COUNT=$(psql "${PSQL_URL}" -tAc \
+                "SELECT COALESCE((SELECT count(*) FROM tiger.addr), 0)" 2>/dev/null || echo 0)
+              echo "tiger.addr row count: ${ADDR_COUNT}"
+
+              if [ "${ADDR_COUNT}" -gt "${TIGER_LOADED_THRESHOLD}" ]; then
+                echo "Tiger data already loaded (${ADDR_COUNT} > ${TIGER_LOADED_THRESHOLD}). Exiting 0."
+                exit 0
+              fi
+
+              echo "Tiger data not loaded. Running geo-import setup-tiger --no-download ${TIGER_STATES}..."
+              cd /app
+              exec uv run geo-import setup-tiger --no-download ${TIGER_STATES}
+          env:
+            - name: TIGER_STATES
+              value: "GA"
+            - name: TIGER_LOADED_THRESHOLD
+              value: "10000"
+          envFrom:
+            - configMapRef:
+                name: geo-api-config
+            - secretRef:
+                name: geo-api-secret
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: tiger-data
+              mountPath: /gisdata/www2.census.gov/geo/tiger/TIGER2024
+              readOnly: true
+      volumes:
+        - name: tiger-data
+          persistentVolumeClaim:
+            claimName: tiger-data-pvc
+            readOnly: true

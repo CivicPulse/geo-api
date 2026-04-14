@@ -1,0 +1,15 @@
+# Phase 999.1 — Tiger/Line reference data PVC.
+# Binds to tiger-data-dev-pv or tiger-data-prod-pv (see k8s/cluster/storage/)
+# depending on which overlay namespace materializes this manifest. The matching
+# PV has a static claimRef to civpulse-dev/tiger-data-pvc or civpulse-prod/tiger-data-pvc.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: tiger-data-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: zfs-local
+  resources:
+    requests:
+      storage: 2Gi

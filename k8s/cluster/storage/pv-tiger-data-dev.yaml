@@ -1,0 +1,34 @@
+# Phase 999.1 — Tiger/Line reference data PV for civpulse-dev geo-api.
+# Backed by ZFS dataset tiger on thor. reclaimPolicy: Retain.
+#
+# Tiger zip files are read-only reference data shared between dev and prod.
+# Two PVs point at the same hostPath (/hatch1/geo/tiger); each statically binds
+# to its own namespace via claimRef. Concurrent read access is safe on ZFS.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: tiger-data-dev-pv
+  labels:
+    storage.civpulse.io/dataset: tiger-data
+    storage.civpulse.io/env: dev
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: zfs-local
+  claimRef:
+    namespace: civpulse-dev
+    name: tiger-data-pvc
+  volumeMode: Filesystem
+  local:
+    path: /hatch1/geo/tiger
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - thor
