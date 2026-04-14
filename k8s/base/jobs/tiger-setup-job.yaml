@@ -81,8 +81,11 @@ spec:
               fi
 
               echo "Tiger data not loaded (only ${EDGES_COUNT} stub edges). Running geo-import setup-tiger --no-download ${TIGER_STATES}..."
+              # geo-import is installed as a console script in /app/.venv/bin
+              # (already on PATH via Dockerfile ENV). Do NOT use `uv run` here —
+              # uv is only present in the builder stage, not the runtime image.
               cd /app
-              exec uv run geo-import setup-tiger --no-download ${TIGER_STATES}
+              exec geo-import setup-tiger --no-download ${TIGER_STATES}
           env:
             - name: TIGER_STATES
               value: "GA"
