@@ -6,6 +6,8 @@ resources:
   - service.yaml
   - configmap.yaml
   - pvc.yaml
+  - tiger-data-pvc.yaml
+  - jobs/tiger-setup-job.yaml
 
 # part-of scopes the app; the geo-api Deployment sets its own
 # app.kubernetes.io/name=geo-api explicitly. Do NOT include

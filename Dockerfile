@@ -29,10 +29,18 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ==============================================================================
 FROM python:3.12-slim-bookworm
 
-# GDAL runtime libs + PostgreSQL client + data loading tools (D-01)
+# GDAL runtime libs + PostgreSQL client + data loading tools (D-01).
+# The `postgis` metapackage on Debian bookworm owns /usr/bin/shp2pgsql
+# (verified via `apt-file search`). shp2pgsql is required by
+# `geo-import setup-tiger` to load TIGER/Line shapefiles via
+# Loader_Generate_Script (Phase 999.1). The postgis metapackage pulls in
+# postgresql-15-postgis-3 (server extension) as a dependency; it's unused in
+# this client image but adds ~30MB — acceptable cost for the client binary.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        libgdal-dev libexpat1 postgresql-client unzip wget && \
+        libgdal-dev libexpat1 postgresql-client \
+        postgis \
+        unzip wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Non-root appuser (UID 1000, D-03)

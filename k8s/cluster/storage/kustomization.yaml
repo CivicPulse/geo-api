@@ -6,3 +6,5 @@ resources:
   - pv-nominatim-data.yaml
   - pv-osm-tile-data.yaml
   - pv-valhalla-tiles.yaml
+  - pv-tiger-data-dev.yaml
+  - pv-tiger-data-prod.yaml

@@ -143,6 +143,10 @@ def setup_tiger(
         None, "--database-url", envvar="DATABASE_URL_SYNC",
         help="Synchronous PostgreSQL URL (psycopg2).",
     ),
+    no_download: bool = typer.Option(
+        False, "--no-download",
+        help="Skip the county-shapefile download step; assume zips are already present under $STAGING_FOLD/www2.census.gov/geo/tiger/TIGER<year>/<TABLE>/. Used by the K8s tiger-setup-job which mounts a pre-populated PVC.",
+    ),
 ) -> None:
     """Install Tiger extensions and load TIGER/Line data for specified state(s).
 
@@ -188,7 +192,14 @@ def setup_tiger(
     # Uses wget --mirror with --accept to download only files matching the state's
     # FIPS code. --wait/--random-wait prevent Census 429 rate limiting.
     # Retries with exponential backoff on 429 responses.
+    if no_download:
+        typer.echo(
+            "Skipping county shapefile download (--no-download). "
+            f"Loader will read pre-populated zips from {staging_fold}/www2.census.gov/geo/tiger/TIGER{tiger_year}/"
+        )
     for abbrev in abbrevs:
+        if no_download:
+            break
         fips = ABBREV_TO_FIPS.get(abbrev)
         if not fips:
             continue

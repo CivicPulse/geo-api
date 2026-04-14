@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Prod/Dev Bootstrap & K8s Jobs
-status: verifying
-stopped_at: Completed 32-01-PLAN.md
-last_updated: "2026-04-05T14:23:26.909Z"
-last_activity: 2026-04-04
+status: live
+stopped_at: v1.5 deferred items executed — OSM stack live
+last_updated: "2026-04-13T00:00:00.000Z"
+last_activity: 2026-04-13
 progress:
   total_phases: 6
-  completed_phases: 4
+  completed_phases: 6
   total_plans: 10
   completed_plans: 10
-  percent: 0
+  percent: 100
 ---
 
 # Project State
@@ -25,12 +25,25 @@ See: .planning/PROJECT.md (updated 2026-04-04)
 
 ## Current Position
 
-Phase: 28
-Plan: Not started
-Status: Phase complete — ready for verification
-Last activity: 2026-04-04
+Phase: v1.5 complete — all 6 phases live
+Plan: n/a
+Status: OSM stack + geo-api live in prod/dev on thor (verified 2026-04-13 via runtime probe)
+Last activity: 2026-04-13
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
+
+### Runtime verification (2026-04-13)
+
+- ArgoCD: `geo-api-dev`, `geo-api-prod`, `osm-stack` all Synced/Healthy on commit `1245df7`
+- `civpulse-gis`: nominatim, tile-server, valhalla all 1/1 Running; pbf-download, tile-import, valhalla-build Jobs all Complete
+- PVCs bound to `zfs-local`: `osm-pbf`, `osm-tile-data`, `nominatim-data`, `valhalla-tiles`
+- `civpulse-dev/geo-api` and `civpulse-prod/geo-api` both 2/2 Running
+- `/health/ready` returns `ready` in both envs with all 3 sidecars `ready` (6 geocoding + 5 validation providers)
+- Functional smoke: `/geocode/reverse` (Atlanta → GA State Capitol) ✅, `/poi/search?q=coffee` ✅
+
+Outstanding from v1.5 audit (not blocking — user-accepted):
+- DOC-02: DR rollback exercise not yet performed (documented in docs/DR.md, deferred to v1.6/first incident)
+- DOC-03: formal E2E checklist walk-through against docs/E2E.md still pending (individual endpoints confirmed working via smoke test)
 
 ## Performance Metrics
 
