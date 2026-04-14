@@ -30,7 +30,12 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
   backoffLimit: 1
-  activeDeadlineSeconds: 3600
+  # 3-hour deadline: the first real run (GA only) hit 3600s after loading
+  # state-level + EDGES (~1.8M rows) + FEATNAMES (~1.8M rows) but before
+  # ADDR and FACES could finish. The shp2pgsql pipe is pg I/O bound on
+  # civpulse_geo, not CPU bound. 10800s gives comfortable headroom for
+  # all four county-level tables plus future multi-state expansion.
+  activeDeadlineSeconds: 10800
   ttlSecondsAfterFinished: 86400
   template:
     metadata:
