@@ -10,6 +10,7 @@ resources:
   - jobs/pbf-download-job.yaml
   - jobs/tile-import-job.yaml
   - jobs/valhalla-build-job.yaml
+  - tile-server-ingressroute.yaml
 
 # Follow Phase 28 pattern: commonLabels scopes the whole stack;
 # each Deployment keeps its explicit app.kubernetes.io/name to avoid

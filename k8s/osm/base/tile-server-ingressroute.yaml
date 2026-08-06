@@ -1,0 +1,21 @@
+# Public exposure for the OSM tile-server at tiles.kerryhatcher.com.
+#
+# Traffic path: Cloudflare edge -> cfd tunnel `thor_k3s` -> traefik.civpulse-infra:80
+# -> this IngressRoute -> tile-server:8080. TLS terminates at the Cloudflare edge, so
+# the `web` (:80) entrypoint is correct here; that matches every other service on this
+# tunnel. The matching tunnel ingress rule and the DNS CNAME live in Cloudflare, not
+# in this repo.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tile-server
+  namespace: civpulse-gis
+spec:
+  entryPoints:
+    - web
+  routes:
+    - kind: Rule
+      match: Host(`tiles.kerryhatcher.com`)
+      services:
+        - name: tile-server
+          port: 8080
