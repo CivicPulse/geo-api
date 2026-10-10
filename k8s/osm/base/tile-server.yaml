@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: tile-server
-          image: overv/openstreetmap-tile-server:2.3.0
+          image: ghcr.io/civicpulse/geo-tile-server@sha256:a2a4d499a6e4f242aa98a84b56803819ac9d6609e95078cb5654ba31c0c1b9e4
           args: ["run"]
           ports:
             - containerPort: 80
