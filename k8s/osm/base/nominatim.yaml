@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: nominatim
-          image: mediagis/nominatim:5.2
+          image: ghcr.io/civicpulse/geo-nominatim@sha256:be481a3db3ee20d4ff7aa28c4fe1c9b9396e69c6d4f5577daad561f5a6a7e434
           ports:
             - containerPort: 8080
           env:
@@ -26,7 +26,8 @@ spec:
               value: ""
           volumeMounts:
             - name: nominatim-data
-              mountPath: /var/lib/postgresql/14/main
+              mountPath: /var/lib/postgresql/16/main
+              subPath: pg16
             - name: osm-pbf
               mountPath: /nominatim/pbf
           resources:
