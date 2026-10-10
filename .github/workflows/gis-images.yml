@@ -1,0 +1,32 @@
+name: GIS database patch images
+
+on:
+  push:
+    branches: [codex/thor-gis-postgresql-patches]
+    paths:
+      - images/tile-server/**
+      - .github/workflows/gis-images.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  tile-server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294
+        with:
+          context: images/tile-server
+          push: true
+          tags: ghcr.io/civicpulse/geo-tile-server:pg14.24-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/CivicPulse/geo-api
+            org.opencontainers.image.revision=${{ github.sha }}
